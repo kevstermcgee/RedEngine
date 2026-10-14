@@ -393,7 +393,7 @@ starts in third person. See ADR 0011.
 ## Weapons (bat + reusable firearm arsenal) — `weapons.rs`, `firearms.rs`
 
 Mouse wheel switches (human only); left-click swings the bat or fires the active firearm (hitscan, `probe(eye, reach)`
-in `bin/re2/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.ammo`
+in `client/weapons.rs` merges exact static shapes with `PropWorld::ray_props`). Ammo is the scene's `weapons.ammo`
 (`"infinite"` by default, or `{loaded, capacity, reserve}`; `R` reloads; an empty weapon clicks; one setting for every firearm). Ten firearms ship with distinct authoritative damage/range/cadence/impulse tuning; right mouse smoothly aims down sights. Online, the same weapons run on the server (`sim::interact`). Held models are `HeldPart`s tagged with
 their `weapon` (and `muzzle_flash`/`emissive`); `FrameOptions.weapon/muzzle_flash` pick what draws. Debug env:
 `RE2_WEAPON=smg`, `RE2_FREEZE_SHOT=<s since shot>` (0.02 = flash + kick) for screenshots. A scene can
@@ -406,7 +406,7 @@ bypasses the generic picker. Offline, server and prediction use the same values.
 A carried prop follows where you look (`PropWorld::hold_pose`): lowered when looking down, chest height ahead, held
 overhead when looking straight up, never through a ceiling or floor. Struck or shot objects make a sound but do not
 change colour. `Esc` frees the mouse and opens a small pause menu (Resume / Quit game: `menu::paint_pause`,
-`bin/re2/window.rs::enter_pause`); Esc or Enter resumes.
+`client/window.rs::enter_pause`); Esc or Enter resumes.
 
 In `re2`, `E` picks up the (green-crosshair) prop in front of you and drops it again; dropped props fall,
 tumble and knock things over. `physics::classify` decides what is loose (lift-able prop or floor-mounted

@@ -5,7 +5,7 @@
 //! ([`WeaponConfig`]: the starting weapon, the ladder, the bat's damage, and the ammunition every firearm draws on: `"infinite"` or
 //! `{loaded, capacity, reserve}`), so the limited-ammo game is a scene edit, not a code change. The authoritative rules that *use* them live in
 //! `sim::interact` (server and scenarios); the models live in `viewer::build_held_parts` (bat) and `firearms::build_firearm_parts`; the
-//! synthesized sounds in `sfx`; the single-player wiring in `bin/re2/weapons.rs`.
+//! synthesized sounds in `sfx`; the single-player wiring in `client/weapons.rs`.
 //!
 //! The loadout arsenal of [`crate::arsenal`] adds twenty more variants after the legacy eleven; [`Weapon::ALL`] (the prototype's scroll order) is
 //! unchanged, [`Weapon::ROSTER`] is every weapon in wire order.

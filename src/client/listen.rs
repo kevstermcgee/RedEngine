@@ -1,11 +1,11 @@
 //! The player's own music (`audio.playlist`) in the live client: a file picker, files dropped on the window, decoding on a worker, the song on the
 //! sound card, and what it sounds like handed to the renderer every frame so a game sky can see it. The queue, the analysis and the title timing are
-//! `red_engine2::listen` (pure, tested); this file is only the devices and the keys.
+//! `crate::listen` (pure, tested); this file is only the devices and the keys.
 //!
 //! Keys while playing: O chooses music (replacing the queue), Space pauses and resumes the music and the picture together, Right/Left skip, N mutes.
 
 use super::*;
-use red_engine2::listen::{decode, title_alpha, Analyzer, Corner, Heard, Playlist, PlaylistSpec, Song, EXTENSIONS};
+use crate::listen::{decode, title_alpha, Analyzer, Corner, Heard, Playlist, PlaylistSpec, Song, EXTENSIONS};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -272,7 +272,7 @@ impl Listener {
         if let Some(song) = &self.song {
             let a = title_alpha(self.title_age, self.spec.title_secs);
             if a > 0.0 {
-                out.push((red_engine2::listen::ascii_fold(&song.title).to_uppercase(), a, self.spec.corner));
+                out.push((crate::listen::ascii_fold(&song.title).to_uppercase(), a, self.spec.corner));
             }
         } else if self.loading {
             out.push(("LOADING...".to_string(), 0.8, self.spec.corner));
@@ -311,7 +311,7 @@ impl App {
         if self.listen.is_some() {
             return;
         }
-        let mut l = Listener::new(spec, red_engine2::play2d::launch_seed(None));
+        let mut l = Listener::new(spec, crate::play2d::launch_seed(None));
         if let Some(songs) = std::env::var_os("RE2_SONGS") {
             l.replace(std::env::split_paths(&songs).collect(), self.audio.as_mut());
             l.offered = true;
@@ -384,7 +384,7 @@ impl App {
     }
 
     /// The listener's words as overlay widgets (small, in a corner).
-    pub(crate) fn listen_captions(&self, layout: &mut red_engine2::ui::Layout, w: u32, h: u32) {
+    pub(crate) fn listen_captions(&self, layout: &mut crate::ui::Layout, w: u32, h: u32) {
         let Some(l) = self.listen.as_ref() else { return };
         // Small but legible: 2x the bitmap font at 720p and 1080p, 3x at 1440p.
         let s = ((h as i32 + 200) / 450).max(1);
@@ -395,9 +395,9 @@ impl App {
             if a <= 0.0 {
                 continue;
             }
-            let text = red_engine2::ui::ellipsize(&text, w as i32 * 3 / 5, s);
-            let tw = red_engine2::ui::text_width(&text, s);
-            let th = red_engine2::ui::text_height(s);
+            let text = crate::ui::ellipsize(&text, w as i32 * 3 / 5, s);
+            let tw = crate::ui::text_width(&text, s);
+            let th = crate::ui::text_height(s);
             let slot = corner as usize;
             let line = stacked[slot];
             stacked[slot] += 1;

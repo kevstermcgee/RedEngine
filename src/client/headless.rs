@@ -6,8 +6,8 @@
 //! An expectation in the script that does not hold, a warning from the session (a player nobody can see) or a picture that cannot be taken makes the exit code 1.
 
 use super::*;
-use red_engine2::playscript::{CameraSpec, Driver, Key, Policy, Pose, Runner, Script};
-use red_engine2::sim::approach::Target;
+use crate::playscript::{CameraSpec, Driver, Key, Policy, Pose, Runner, Script};
+use crate::sim::approach::Target;
 use serde_json::{json, Value};
 
 /// What the command line asked of a headless run.
@@ -225,7 +225,7 @@ impl Driver for App {
             return Some(Target::from_bounds(lo, hi));
         }
         let object = self.scene.objects.iter().find(|o| o.id == id)?;
-        let item = red_engine2::collide::interactables_of(std::slice::from_ref(object)).into_iter().next()?;
+        let item = crate::collide::interactables_of(std::slice::from_ref(object)).into_iter().next()?;
         Some(Target::from_bounds(item.min, item.max))
     }
 
@@ -264,7 +264,7 @@ impl App {
 
     /// Gives a headless run a GPU that draws to no window (a software adapter if that is all there is); `Err` says why there is none.
     fn init_offscreen_gpu(&mut self, size: (u32, u32)) -> Result<(), String> {
-        let gpu = red_engine2::gpu::Gpu::new().map_err(|e| e.to_string())?;
+        let gpu = crate::gpu::Gpu::new().map_err(|e| e.to_string())?;
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -359,24 +359,22 @@ pub(crate) fn run(app: &mut App, opts: Options) -> i32 {
 
 /// Whether any step of `script` takes a picture.
 fn script_takes_shots(script: &Script) -> bool {
-    script.steps.iter().any(|s| matches!(s, red_engine2::playscript::Step::Shot { .. }))
+    script.steps.iter().any(|s| matches!(s, crate::playscript::Step::Shot { .. }))
 }
 
 /// Writes the dump, the playtest's contact sheet and report, prints the verdict and returns the exit code.
 fn finish(app: &mut App, opts: &Options) -> i32 {
     if opts.playtest {
         let out = opts.out.clone().unwrap_or_else(|| PathBuf::from("out/playtest"));
-        let tiles: Vec<red_engine2::tools::sheet::Tile> = app
+        let tiles: Vec<crate::tools::sheet::Tile> = app
             .shots
             .taken
             .iter()
-            .filter_map(|s| {
-                image::open(&s.file).ok().map(|i| red_engine2::tools::sheet::Tile { image: i.to_rgba8(), title: format!("{} {:.0}s", s.name, s.secs) })
-            })
+            .filter_map(|s| image::open(&s.file).ok().map(|i| crate::tools::sheet::Tile { image: i.to_rgba8(), title: format!("{} {:.0}s", s.name, s.secs) }))
             .collect();
         let mut sheet_path = None;
         if !tiles.is_empty() {
-            let sheet = red_engine2::tools::sheet::contact_sheet(&tiles, 4, 480);
+            let sheet = crate::tools::sheet::contact_sheet(&tiles, 4, 480);
             let path = out.join("contact-sheet.png");
             match std::fs::create_dir_all(&out).map_err(|e| e.to_string()).and_then(|_| sheet.save(&path).map_err(|e| e.to_string())) {
                 Ok(()) => {
@@ -425,20 +423,20 @@ mod tests {
     #[test]
     fn a_playtest_script_waits_for_the_round_shoots_from_every_camera_and_ends_by_checking_nobody_is_undrawn() {
         let s = playtest_script(60.0, 12, true);
-        assert!(matches!(s.steps.first(), Some(red_engine2::playscript::Step::Expect(e)) if e.at == "/online/in_round" && e.within == 30.0));
-        let shots: Vec<&red_engine2::playscript::Step> = s.steps.iter().filter(|s| matches!(s, red_engine2::playscript::Step::Shot { .. })).collect();
+        assert!(matches!(s.steps.first(), Some(crate::playscript::Step::Expect(e)) if e.at == "/online/in_round" && e.within == 30.0));
+        let shots: Vec<&crate::playscript::Step> = s.steps.iter().filter(|s| matches!(s, crate::playscript::Step::Shot { .. })).collect();
         assert_eq!(shots.len(), 12);
         for camera in [CameraSpec::First, CameraSpec::Third, CameraSpec::Overview, CameraSpec::Follow(None)] {
-            assert!(shots.iter().any(|s| matches!(s, red_engine2::playscript::Step::Shot { camera: c, .. } if *c == camera)), "{camera:?}");
+            assert!(shots.iter().any(|s| matches!(s, crate::playscript::Step::Shot { camera: c, .. } if *c == camera)), "{camera:?}");
         }
-        assert!(matches!(s.steps.last(), Some(red_engine2::playscript::Step::Expect(e)) if e.at == "/remote/undrawn"));
+        assert!(matches!(s.steps.last(), Some(crate::playscript::Step::Expect(e)) if e.at == "/remote/undrawn"));
         assert!((s.nominal_secs() - (60.0 + 30.0 + 0.0)).abs() < 1.0, "sixty seconds of play plus the round-start allowance: {}", s.nominal_secs());
     }
 
     #[test]
     fn a_solo_playtest_has_no_round_to_wait_for_nobody_to_follow_and_nothing_to_check_online() {
         let s = playtest_script(30.0, 6, false);
-        assert!(!s.steps.iter().any(|s| matches!(s, red_engine2::playscript::Step::Expect(_))));
-        assert!(!s.steps.iter().any(|s| matches!(s, red_engine2::playscript::Step::Shot { camera: CameraSpec::Follow(_), .. })));
+        assert!(!s.steps.iter().any(|s| matches!(s, crate::playscript::Step::Expect(_))));
+        assert!(!s.steps.iter().any(|s| matches!(s, crate::playscript::Step::Shot { camera: CameraSpec::Follow(_), .. })));
     }
 }

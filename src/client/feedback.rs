@@ -1,17 +1,17 @@
 //! Shooter feedback in the windowed client (ADR 0052): the sounds and screen effects for what the server reports, and, online, the local
 //! cosmetics of our own attacks (recoil, muzzle flash, the bat's swing) that must not wait for a round trip.
 //!
-//! The decisions live in `red_engine2::feel` (a pure state machine, tested there) and the clips in `red_engine2::sfx`; this file only feeds
+//! The decisions live in `crate::feel` (a pure state machine, tested there) and the clips in `crate::sfx`; this file only feeds
 //! them what the client knows and plays what comes out.
 
 use super::*;
-use red_engine2::feel::{Cue, Own};
-use red_engine2::net::protocol::{RosterEntry, FLAG_PROTECTED};
-use red_engine2::net::session::{nearest_body_on_ray, RemoteBody};
-use red_engine2::sfx::Listener;
-use red_engine2::ui::online::CombatView;
+use crate::feel::{Cue, Own};
+use crate::net::protocol::{RosterEntry, FLAG_PROTECTED};
+use crate::net::session::{nearest_body_on_ray, RemoteBody};
+use crate::sfx::Listener;
+use crate::ui::online::CombatView;
 
-/// [`PlayerSnap::flags`](red_engine2::net::protocol::PlayerSnap) bit: the player is dead.
+/// [`PlayerSnap::flags`](crate::net::protocol::PlayerSnap) bit: the player is dead.
 const FLAG_DEAD: u8 = 4;
 /// How long the level-up line stays on screen, seconds.
 const NOTICE_SECS: f32 = 1.8;
@@ -61,7 +61,7 @@ impl App {
         let rung = self.rung_of(weapon, kills);
         Some(CombatView {
             hp: own.hp as u32,
-            max_hp: red_engine2::weapons::PLAYER_MAX_HP,
+            max_hp: crate::weapons::PLAYER_MAX_HP,
             weapon: weapon.name().to_string(),
             rung: rung.map(|i| (i as u32 + 1, ladder.len() as u32)),
             next_weapon: rung.and_then(|i| ladder.get(i + 1)).map(|w| w.name().to_string()),
@@ -100,7 +100,7 @@ impl App {
         if let Some(audio) = self.audio.as_mut() {
             if !audio.has_music() {
                 let started = Instant::now();
-                let samples = red_engine2::music::loop_samples();
+                let samples = crate::music::loop_samples();
                 if self.stats.is_some() {
                     println!("[stats] the music loop was composed in {:.0} ms", started.elapsed().as_secs_f32() * 1000.0);
                 }
@@ -111,12 +111,12 @@ impl App {
     }
 
     /// `N` or the pause menu's MUSIC button: music on or off (the loop keeps its place while it is silent),
-    /// saved so the choice survives a relaunch (`red_engine2::settings`).
+    /// saved so the choice survives a relaunch (`crate::settings`).
     pub(crate) fn toggle_music(&mut self) {
         if self.ambient.as_ref().is_some_and(|a| a.has_music()) {
             self.music_on = !self.music_on;
             self.settings.music = self.music_on;
-            let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+            let _ = crate::settings::save(&self.settings_key, &self.settings);
             return;
         }
         if !self.audio.as_ref().is_some_and(|a| a.has_music()) {
@@ -128,7 +128,7 @@ impl App {
             }
         }
         self.settings.music = self.music_on;
-        let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+        let _ = crate::settings::save(&self.settings_key, &self.settings);
     }
 
     /// The pause menu's SOUND button: sound effects on or off, saved the same way as [`toggle_music`](Self::toggle_music).
@@ -138,13 +138,13 @@ impl App {
             audio.set_sfx_enabled(self.sfx_on);
         }
         self.settings.sfx = self.sfx_on;
-        let _ = red_engine2::settings::save(&self.settings_key, &self.settings);
+        let _ = crate::settings::save(&self.settings_key, &self.settings);
     }
 
     /// The pause menu's ↓ button: saves the current music loop as a WAV file wherever the player chooses in the
     /// native save dialog (never guesses a Downloads folder), and shows the result on the pause menu.
     pub(crate) fn download_music(&mut self) {
-        let bytes = red_engine2::audio::wav_bytes_i16(&red_engine2::music::loop_samples(), red_engine2::audio::SAMPLE_RATE, 2);
+        let bytes = crate::audio::wav_bytes_i16(&crate::music::loop_samples(), crate::audio::SAMPLE_RATE, 2);
         let name = self.scene_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "game".to_string());
         let chosen = rfd::FileDialog::new().set_file_name(format!("{name}-music.wav")).add_filter("WAV audio", &["wav"]).save_file();
         if let Some(path) = chosen {
@@ -183,8 +183,7 @@ impl App {
         if let Some(view) = self.online_view() {
             self.feel.observe_match(view.phase, view.secs_left, view.winner == view.me);
             let rungs = self.scene.weapons.ladder().len() as u32;
-            let rival =
-                (rungs > 0 && view.phase == red_engine2::sim::flow::Phase::Playing).then(|| red_engine2::ui::online::final_rung_rival(&view, rungs)).flatten();
+            let rival = (rungs > 0 && view.phase == crate::sim::flow::Phase::Playing).then(|| crate::ui::online::final_rung_rival(&view, rungs)).flatten();
             self.feel.observe_threat(rival.map(|e| e.id));
         }
         if let Some(what) = &self.debug_feel {

@@ -69,15 +69,15 @@ impl App {
                     s.roster
                         .iter()
                         .map(|e| {
-                            json!({"id": e.id, "name": e.name, "score": e.score, "bot": e.flags & red_engine2::net::protocol::ROSTER_BOT != 0,
-                                   "in_round": e.flags & red_engine2::net::protocol::ROSTER_IN_ROUND != 0, "ready": e.flags & red_engine2::net::protocol::ROSTER_READY != 0,
-                                   "character": red_engine2::net::protocol::character_from_wire(e.character).name()})
+                            json!({"id": e.id, "name": e.name, "score": e.score, "bot": e.flags & crate::net::protocol::ROSTER_BOT != 0,
+                                   "in_round": e.flags & crate::net::protocol::ROSTER_IN_ROUND != 0, "ready": e.flags & crate::net::protocol::ROSTER_READY != 0,
+                                   "character": crate::net::protocol::character_from_wire(e.character).name()})
                         })
                         .collect()
                 })
                 .unwrap_or_default();
             json!({
-                "connected": c.state() == red_engine2::net::client::ConnState::Connected,
+                "connected": c.state() == crate::net::client::ConnState::Connected,
                 "id": c.my_id(),
                 "status": n.status,
                 "ping_ms": (c.stats().rtt_ms * 10.0).round() / 10.0,
@@ -144,7 +144,7 @@ impl App {
             "props": self.props.as_ref().map(|p| {
                 (0..p.props().len())
                     .map(|k| {
-                        let v = red_engine2::sim::rules_run::RuleProp::of(p, k);
+                        let v = crate::sim::rules_run::RuleProp::of(p, k);
                         json!({
                             "id": self.scene.objects[p.props()[k].object_index].id, "pos": vec3(v.origin), "tilt_deg": round2(v.tilt_deg),
                             "moved": round2(v.moved), "asleep": p.is_asleep(k), "held_by": v.held_by,

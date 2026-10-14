@@ -93,14 +93,14 @@ mod tests {
             .iter()
             .filter(|p| {
                 let rel = p.strip_prefix(&src).unwrap_or(p).to_string_lossy().replace('\\', "/");
-                !(rel == "bin/re2/help.rs" || rel == "main.rs" || rel.starts_with("cli/") || rel.starts_with("tools/"))
+                !(rel == "client/help.rs" || rel == "main.rs" || rel.starts_with("cli/") || rel.starts_with("tools/"))
             })
             .map(|p| (p.strip_prefix(&src).unwrap_or(p).display().to_string(), std::fs::read_to_string(p).unwrap_or_default()))
             .collect();
         assert!(client.len() > 50, "the walk found only {} files under {}", client.len(), src.display());
         for (file, text) in &client {
             for word in text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).filter(|w| w.starts_with("RE2_") && w.len() > 4) {
-                assert!(SWITCHES.iter().any(|(n, _)| *n == word), "{word} is read in src/{file} but missing from `re2 --debug-help` (src/bin/re2/help.rs)");
+                assert!(SWITCHES.iter().any(|(n, _)| *n == word), "{word} is read in src/{file} but missing from `re2 --debug-help` (src/client/help.rs)");
             }
         }
         for (name, _) in SWITCHES {

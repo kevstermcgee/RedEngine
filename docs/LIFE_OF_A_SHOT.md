@@ -50,9 +50,9 @@ pointers of the state dump (`re2-dump/1`): `red_engine2 describe playtest`. `out
 The handler only queues it. The left button with the mouse captured sets `attack_queued` (one shot) and `attack_held` (the level automatic weapons read); a pad's FIRE sets `attack_queued`
 and arms the online pulse at once.
 
-- **Open**: `src/bin/re2/events.rs::window_event` (the left `MouseInput` arms), `src/bin/re2/controller.rs::poll_controller`, `src/bin/re2/window.rs::set_grab`.
+- **Open**: `src/client/events.rs::window_event` (the left `MouseInput` arms), `src/client/controller.rs::poll_controller`, `src/client/window.rs::set_grab`.
 - **Tuned by**: `Weapon::automatic` in `crates/red_core/src/weapons.rs` (whether holding repeats). Nothing else: input is raw.
-- **How to see it**: a script step `{"fire": 1}` sets the same flags (`Driver::fire`, `src/bin/re2/headless.rs`); then `/cues/counts/Shot` in the state dump rises.
+- **How to see it**: a script step `{"fire": 1}` sets the same flags (`Driver::fire`, `src/client/headless.rs`); then `/cues/counts/Shot` in the state dump rises.
 - **Fails silently when**: the mouse is not captured (the first click only captures it), the window lost focus (`set_grab(false)` clears the click and the pulse), the pause menu or an online
   lobby/results screen has the window, or you are dead, carrying a prop or mid weapon switch. Nothing counts a dropped click: read `/phase`, `/online/phase`, `/online/in_round`,
   `/player/dead`, `/player/carrying`, `/player/weapon` in the dump.
@@ -64,7 +64,7 @@ Both modes run `fixed_step_combat` on the next tick. **Offline** it is the weapo
 client arms the pulse and `predict_attack` applies the same button rules (press edge, held for automatics, cooldown, switch) only to drive recoil (`since_shot`), muzzle flash
 (`flash_left`), the gun sound (`Feel::own_shot`) and tracer and spark (`draw_own_shot`). It never looks at ammunition or at who was hit.
 
-- **Open**: `src/bin/re2/weapons.rs::fixed_step_combat` and `::fire_firearm`, `src/bin/re2/feedback.rs::predict_attack` and `::draw_own_shot`, `crates/red_core/src/feel.rs::own_shot`, `crates/red_core/src/sfx.rs::play`.
+- **Open**: `src/client/weapons.rs::fixed_step_combat` and `::fire_firearm`, `src/client/feedback.rs::predict_attack` and `::draw_own_shot`, `crates/red_core/src/feel.rs::own_shot`, `crates/red_core/src/sfx.rs::play`.
 - **Tuned by**: `MUZZLE_FLASH_TIME` (0.06 s), `RECOIL_TIME` (0.30 s) in `crates/red_core/src/weapons.rs`; per gun `cooldown_ticks` and `recoil` in `Weapon::firearm`; `streaks::POOL` (64), `TRACER_SECS`, `SPARK_SECS`.
 - **How to see it**: `RE2_LOG_CUES=1` prints `[cue ...] Shot { ... own: true }`; in the dump `/cues/counts/Shot`, `/cues/recent`, `/streaks/showing`; a picture of the flash and kick:
   `RE2_FREEZE_SHOT=0.02` with `--shot-at` or F12, or a script step `{"shot": "gun"}`.
@@ -79,8 +79,8 @@ A click is a button on an input, never a position or a result. `fixed_step_physi
 (the pulse is armed after that tick's input was built); an automatic gun reads `attack_held` at once. The pulse keeps the bit up for 3 inputs and every `InputPacket` carries the newest 4
 (seq, flags, forward, strafe, yaw, pitch) and is signed with the session HMAC. That redundancy means a lost datagram loses nothing; the server acts on the rising edge, so 3 ticks up is one shot.
 
-- **Open**: `src/bin/re2/frame.rs::build_input`, `src/bin/re2/weapons.rs::take_pulse`, `src/net/session.rs::step_local`, `crates/red_core/src/net/client.rs::send_input`, `crates/red_core/src/sim/player.rs::flags` (bit layout).
-- **Tuned by**: `NET_PULSE_TICKS` (3, `src/bin/re2/main.rs`); `MAX_INPUTS_PER_PACKET` (4) in `crates/red_core/src/net/protocol.rs`; `TICK_RATE_HZ` (60) in `crates/red_core/src/sim/clock.rs`.
+- **Open**: `src/client/frame.rs::build_input`, `src/client/weapons.rs::take_pulse`, `src/net/session.rs::step_local`, `crates/red_core/src/net/client.rs::send_input`, `crates/red_core/src/sim/player.rs::flags` (bit layout).
+- **Tuned by**: `NET_PULSE_TICKS` (3, `src/client/mod.rs`); `MAX_INPUTS_PER_PACKET` (4) in `crates/red_core/src/net/protocol.rs`; `TICK_RATE_HZ` (60) in `crates/red_core/src/sim/clock.rs`.
 - **How to see it**: `tests/net_interactions.rs::a_shot_fired_by_one_client_hurts_another_and_four_kill_them` drives a headless `Bot` with `buttons = 16` (attack) over real UDP and counts the
   server's `shot` events; `red_server --record out/m.json` writes every input with its tick (`["i", tick, slot, seq, ..., flags, ...]`), `red_engine2 replay out/m.json` re-runs them.
 - **Fails silently when**: the server is not in `Phase::Playing` (lobby, countdown, results): `Server::on_input` drops the input with no counter, and the client is frozen too
@@ -174,7 +174,7 @@ marker (0.28 s); a kill is `Cue::Kill`, a kill marker (0.6 s) and, on a ladder, 
 and raised when `own.weapon` changes. **Victim**: `Cue::Hurt`, a red vignette, a damage arc pointing at the attacker relative to the view, a heartbeat at 35 hp or less; death is
 `Cue::Death`, the camera dropped to `DEAD_EYE_HEIGHT`, ELIMINATED and RESPAWNING IN n; on respawn the camera faces the server's yaw.
 
-- **Open**: `crates/red_core/src/net/client.rs::on_message`, `crates/red_core/src/net/happenings.rs::observe`, `src/bin/re2/feedback.rs::feedback_frame`, `crates/red_core/src/feel.rs::on_happened` and `::fx`, `src/ui/online.rs::hud_layout`.
+- **Open**: `crates/red_core/src/net/client.rs::on_message`, `crates/red_core/src/net/happenings.rs::observe`, `src/client/feedback.rs::feedback_frame`, `crates/red_core/src/feel.rs::on_happened` and `::fx`, `src/ui/online.rs::hud_layout`.
 - **Tuned by**: `HIT_MARKER_SECS`, `KILL_MARKER_SECS`, `HURT_SECS`, `LEVEL_UP_DELAY_SECS`, `LOW_HEALTH` in `crates/red_core/src/feel.rs`; the gains in `crates/red_core/src/sfx.rs::play`; `NOTICE_SECS` in `feedback.rs`.
 - **How to see it**: `/cues/counts/Hit`, `Kill`, `Hurt`, `Death`, `Respawn`, `LevelUp`; `/hud/lines` (ids `notice`, `leader`, `final`, `dead_title`, `sb0_score`); `/online/roster`; `/player/hp`;
   `/crosshair/state` (`enemy` over a drawn enemy); `RE2_FEEL=hit|kill|hurt|dead|low|protected|flash` holds one effect for a picture; `crates/red_core/src/feel.rs`'s
@@ -190,9 +190,9 @@ later, because their avatar is drawn that far in the past. `play_cue` then draws
 stopped by walls and drawn bodies, ours included; red spark on a body, warm on a wall) and plays the gun placed by `sfx::spatial` (falloff, pan, quieter behind). The shooter's avatar, a
 `ScenePool` object claimed by `NetSession::claim_avatar`, sees the same counter in its interpolated pose: `avatar::animate` gives it recoil and a `RemoteHand` flash, drawn by
 `LiveRenderer::set_remote_hands`. The victim's avatar only falls when `dead` arrives. Tracers and sparks are a separate pool of 64 boxes (`streaks::add_pool`, hidden through
-`Streaks::hidden_ids`); `src/bin/re2/frame.rs::hidden_ids` hands both pools to `LiveRenderer::set_hidden_objects`.
+`Streaks::hidden_ids`); `src/client/frame.rs::hidden_ids` hands both pools to `LiveRenderer::set_hidden_objects`.
 
-- **Open**: `crates/red_core/src/feel.rs::on_happened`, `src/bin/re2/feedback.rs::play_cue` and `::draw_remote_shot`, `crates/red_core/src/sfx.rs::spatial`, `src/avatar.rs::animate`, `src/net/session.rs::apply_view`.
+- **Open**: `crates/red_core/src/feel.rs::on_happened`, `src/client/feedback.rs::play_cue` and `::draw_remote_shot`, `crates/red_core/src/sfx.rs::spatial`, `src/avatar.rs::animate`, `src/net/session.rs::apply_view`.
 - **Tuned by**: `REMOTE_SOUND_DELAY_SECS` (`crates/red_core/src/feel.rs`), `streaks::POOL`, `TRACER_SECS`, `SPARK_SECS`, `REMOTE_HANDS` (`src/viewer.rs`), `FALL_SECS` (`src/avatar.rs`).
 - **How to see it**: `/cues/counts/Shot` and `/cues/recent` (entries with `own: false` are other players'), `/streaks/showing`, `/remote/players`; a script picture from behind another player:
   `{"shot": "watch", "camera": "follow"}`; `crates/red_core/src/feel.rs`'s `shots_heard_become_positioned_cues_and_our_own_are_flagged`, `src/avatar.rs`'s `a_shot_kicks_the_gun_and_flashes_once_then_settles`.

@@ -12,6 +12,9 @@ pub mod avatar;
 #[cfg(feature = "render")]
 pub mod capture;
 pub use red_core::characters;
+/// The first-person client `re2` runs (`client::main`), library code so a game binary can run it as well.
+#[cfg(feature = "gfx")]
+pub mod client;
 pub mod clipboard;
 pub use red_core::collide;
 pub use red_core::color;

@@ -54,7 +54,7 @@ fn nothing_in_the_repository_is_orphaned_from_the_index() {
         "src/tools/package.rs",
         "src/tools/nettest.rs",
         "src/ui/online.rs",
-        "src/bin/re2/online.rs",
+        "src/client/online.rs",
         "crates/red_core/src/crypto.rs",
     ] {
         assert!(!features::owners(&all, f).is_empty(), "{f} has no owner");

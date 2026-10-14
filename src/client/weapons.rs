@@ -6,7 +6,7 @@ use super::*;
 impl App {
     /// The seeker's primary (and only) action on objects. Runs once per bat swing, at the start
     /// of the strike phase, and only when the swing's ray struck real geometry within
-    /// `MELEE_REACH` (see `red_engine2::hit`): logs it and plays the impact thunk (the object itself
+    /// `MELEE_REACH` (see `crate::hit`): logs it and plays the impact thunk (the object itself
     /// does not change colour). A swing that touches nothing never gets here, so it is silent.
     pub(crate) fn hit_with(&mut self, object_index: usize) {
         let id = self.scene.objects[object_index].id.clone();
@@ -56,7 +56,7 @@ impl App {
         let dip = self.switch_dip();
         if let Some(spec) = self.shown_weapon().firearm() {
             let k = self.recoil_kick() * spec.recoil;
-            let (local_offset, local_rotation) = red_engine2::firearms::held_pose(self.shown_weapon(), self.ads_blend, k, dip);
+            let (local_offset, local_rotation) = crate::firearms::held_pose(self.shown_weapon(), self.ads_blend, k, dip);
             return viewmodel_transform(&self.camera, local_offset, local_rotation);
         }
         let pitch_deg = self.swing_blend(IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG);
@@ -201,7 +201,7 @@ impl App {
             self.begin_switch(dir);
         }
         let attack =
-            std::mem::take(&mut self.attack_queued) || ((self.attack_held || self.pad.down(red_engine2::controller::button::FIRE)) && self.weapon.automatic());
+            std::mem::take(&mut self.attack_queued) || ((self.attack_held || self.pad.down(crate::controller::button::FIRE)) && self.weapon.automatic());
         if attack && self.body.has_bat && !self.scene.player.mode.is_peaceful() && !self.carrying() && !self.switch.is_active() {
             match self.weapon {
                 Weapon::Bat => {
@@ -254,7 +254,7 @@ impl App {
                     pitch: self.camera.pitch,
                     character: self.character,
                 };
-                let dropped = props.drop_held(red_engine2::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
+                let dropped = props.drop_held(crate::sim::player::release_velocity(&state, self.camera.forward(), self.scene.player.throw_speed));
                 self.rules.inject_with(self.clock.ticks_run(), "drop", Some(self.slot), dropped);
                 acted = true;
             } else if let Some(p) = self.pickup_target {

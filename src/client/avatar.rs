@@ -180,7 +180,7 @@ impl App {
                 Mat4::from_translation(wrist)
                     * basis
                     * Mat4::from_rotation_x((-self.camera.pitch) + (-0.30 * kick))
-                    * Mat4::from_translation(-red_engine2::firearms::grip_anchor(self.shown_weapon()))
+                    * Mat4::from_translation(-crate::firearms::grip_anchor(self.shown_weapon()))
             } else {
                 let pitch_deg = self.swing_blend(IDLE_PITCH_DEG, WINDUP_PITCH_DEG, STRIKE_PITCH_DEG);
                 Mat4::from_translation(wrist) * basis * Mat4::from_rotation_z(IDLE_ROLL_DEG.to_radians()) * Mat4::from_rotation_x(pitch_deg.to_radians())
