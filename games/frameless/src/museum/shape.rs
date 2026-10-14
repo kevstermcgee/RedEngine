@@ -1,7 +1,7 @@
-//! Geometry helpers for the museum on top of [`crate::procgen::geo::Geo`]: boxes, lathes, tubes along paths, rippled cloth and canvases.
+//! Geometry helpers for the museum on top of [`red_engine2::procgen::geo::Geo`]: boxes, lathes, tubes along paths, rippled cloth and canvases.
 
-use crate::procgen::geo::{basis, Geo, Rgb};
 use glam::{Mat3, Vec3};
+use red_engine2::procgen::geo::{basis, Geo, Rgb};
 use std::f32::consts::TAU;
 
 /// A box given by its centre, three orthonormal axes and half sizes along them; flat faces, one colour per face (top, sides, bottom shading).
@@ -193,7 +193,7 @@ pub fn place(g: &mut Geo, from: usize, m: Mat3, at: Vec3) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::procgen::geo::assert_wound_outward;
+    use red_engine2::procgen::geo::assert_wound_outward;
 
     #[test]
     fn boxes_lathes_and_tubes_face_outward() {

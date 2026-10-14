@@ -1,7 +1,7 @@
 //! A museum's collection (`museum.collection` of a scene: themes, words, art styles, masterpieces). Checker: `museum::spec::parse_collection`.
 
-use super::common::Any;
-use crate::strict_struct;
+use red_engine2::content::common::Any;
+use red_engine2::strict_struct;
 use std::collections::BTreeMap;
 
 strict_struct! {

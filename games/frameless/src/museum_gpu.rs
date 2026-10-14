@@ -6,15 +6,15 @@
 //! origin, culls, and draws ([`MuseumLayer::prepare`], [`MuseumLayer::draw_main`]). The renderers hold it as a [`WorldLayer`] ([`LAYER`]); a still
 //! picture's carries a visit of its own ([`StillMuseum`]).
 
-use crate::gpu::{GpuMesh, ObjectUniform};
-use crate::mesh::{Mesh, Vertex};
 use crate::museum::build::{key_geo, Anim, Look, Model};
 use crate::museum::sculpt::{part_transform, Stir};
 use crate::museum::state::{ModelKey, Museum};
-use crate::object_staging::{aabb_outside_frustum, frustum_planes};
-use crate::procgen::geo::Geo;
-use crate::world_layer::{LayerDef, LayerFrame, StillLight, WorldLayer};
 use glam::{Mat4, Vec3};
+use red_engine2::gpu::{GpuMesh, ObjectUniform};
+use red_engine2::mesh::{Mesh, Vertex};
+use red_engine2::object_staging::{aabb_outside_frustum, frustum_planes};
+use red_engine2::procgen::geo::Geo;
+use red_engine2::world_layer::{LayerDef, LayerFrame, StillLight, WorldLayer};
 use std::collections::HashMap;
 use std::sync::Arc;
 

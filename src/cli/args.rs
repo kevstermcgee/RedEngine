@@ -426,37 +426,6 @@ pub(crate) enum Command {
         #[arg(long)]
         look: Option<String>,
     },
-    /// A museum's rooms, art
-    Museum {
-        scene: PathBuf,
-        /// The museum's seed (default: the scene's, or 0 for "launch").
-        #[arg(long)]
-        seed: Option<u32>,
-        /// Which room "x,z" (the first room is 0,0).
-        #[arg(long, default_value = "0,0", allow_hyphen_values = true)]
-        room: String,
-        /// Draw a picture: the room from its doorway, a piece (`--look`), or the world inside a painting (`--inside`).
-        #[arg(long)]
-        shot: Option<PathBuf>,
-        /// The piece to stand in front of for `--shot`.
-        #[arg(long)]
-        look: Option<u8>,
-        /// The painting world to stand in: "N" (piece N's) or "N/I/J" (painting I inside it, then J inside that).
-        #[arg(long)]
-        inside: Option<String>,
-        /// Draw the pause menu's plan of the museum.
-        #[arg(long)]
-        map: Option<PathBuf>,
-        /// For `--map`: count every room within this many rooms as discovered.
-        #[arg(long, default_value_t = 2)]
-        explore: u32,
-        /// Scene time for `--shot` (paintings move).
-        #[arg(long, default_value_t = 4.0)]
-        t: f32,
-        /// Draw every art style of the collection on one wall.
-        #[arg(long)]
-        styles: Option<PathBuf>,
-    },
     /// A generated world, mapped
     Procgen {
         out: PathBuf,

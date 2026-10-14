@@ -1,14 +1,13 @@
-//! Frameless played by the real client with no window (`re2 --headless --script`): the first room's loop, then the saved visit continued by the next
-//! launch. The museum's client had no test of its own; it is about to move behind the client's game-mode seam and out to its own crate (ADR
-//! 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library), so this is the visit those moves must keep: the same museum for the same seed,
-//! and a save that loads.
-#![cfg(feature = "gfx")]
+//! Frameless played by its own binary with no window (`frameless --headless --script`): the first room's loop, then the saved visit continued by the
+//! next launch. Written before the museum moved behind the client's game-mode seam and out of the engine to this crate (ADR
+//! 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library), when `re2` played it: the visit those moves had to keep, the same museum for
+//! the same seed and a save that loads, unchanged since.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn frameless() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/frameless/frameless.json")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("content/frameless.json")
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -18,9 +17,9 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
-/// `re2` on Frameless with the launch seed 7, saving into `save` (a fresh visit when `fresh`).
+/// `frameless` on its museum with the launch seed 7, saving into `save` (a fresh visit when `fresh`).
 fn visit(save: &Path, fresh: bool, script: &Path, dump: &Path) -> Output {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_re2"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_frameless"));
     c.args([frameless().to_str().unwrap(), "--headless", "--script", script.to_str().unwrap(), "--dump", dump.to_str().unwrap()])
         .env("RE2_SEED", "7")
         .env("RE2_SAVE_DIR", save)
@@ -28,7 +27,7 @@ fn visit(save: &Path, fresh: bool, script: &Path, dump: &Path) -> Output {
     if fresh {
         c.env("RE2_MUSEUM_FRESH", "1");
     }
-    c.output().expect("start re2")
+    c.output().expect("start frameless")
 }
 
 fn text(o: &Output) -> String {
@@ -44,7 +43,7 @@ fn museum(dump: &Path) -> serde_json::Value {
 fn the_first_rooms_key_is_found_inside_its_painting_and_the_next_launch_continues_the_visit() {
     let dir = scratch("loop");
     let save = dir.join("save");
-    // Seed 7: Gallery 1's key is in piece 5, a painting, one world deep (`red_engine2 museum examples/frameless/frameless.json --seed 7`).
+    // Seed 7: Gallery 1's key is in piece 5, a painting, one world deep (`frameless museum content/frameless.json --seed 7`).
     let script = dir.join("play.json");
     std::fs::write(
         &script,

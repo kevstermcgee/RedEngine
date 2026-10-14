@@ -24,7 +24,6 @@ pub(crate) const SWITCHES: &[(&str, &str)] = &[
     ("RE2_RELAY", "HOST:PORT (a hostname works): the red_relay to register with when hosting, so a friend joins with a short code instead of port forwarding; the project relay is used when this is unset, `off` disables relays"),
     ("RE2_SEED", "N: the launch seed (a `\"seed\": \"launch\"` sky, music journey or museum): the same number repeats a run"),
     ("RE2_FONT", "path: the serif typeface a museum's labels and map are set in (a .ttf or .otf); otherwise the first of Georgia, Palatino, P052, Noto, Liberation or DejaVu Serif found"),
-    ("RE2_MUSEUM_FRESH", "1: a museum scene starts a new visit instead of continuing the saved one"),
     ("RE2_SONGS", "music files to queue in a game that plays the player's own music (`audio.playlist`), separated like PATH (: on Linux, ; on Windows); the picker then does not open"),
     ("RE2_AMBIENCE", "0: start without the scene's ambience and mood music (an `audio` block); RE2_MUSIC=0 is the music toggle for the built-in loop"),
     ("RE2_LOG_CUES", "1: print every sound cue as it plays (check the feedback without listening)"),

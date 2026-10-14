@@ -21,12 +21,6 @@ pub fn all() -> Vec<(&'static str, &'static str, &'static str, Value)> {
         ("pack-registry", "Red Engine 2 pack registry", "`assets/packs.json`.", s::<packs::PackRegistry>()),
         ("blueprint", "Red Engine 2 blueprint", "A `*.blueprint.json`: `red_engine2 build --example`.", s::<blueprint::Blueprint>()),
         ("playscript", "Red Engine 2 playscript", "A `*.play.json` for `playtest --script`: `red_engine2 describe playtest`.", s::<playscript::Script>()),
-        (
-            "collection",
-            "Red Engine 2 museum collection",
-            "A museum scene's `museum.collection` (`red_engine2 describe scene`, `red_engine2 museum`).",
-            s::<museum::Collection>(),
-        ),
         ("score", "Red Engine 2 music score", "A score: `red_engine2 describe audio`.", s::<score::Score>()),
         ("voice", "Red Engine 2 voice", "One sound (a 2D game's `sounds` entry, `audio export`).", s::<voice::Voice>()),
         ("project", "Red Engine 2 game project", "A game project's `game.json`.", s::<project::Project>()),

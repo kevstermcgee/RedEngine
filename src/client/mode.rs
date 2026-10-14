@@ -362,11 +362,9 @@ mod tests {
     }
 
     #[test]
-    fn plain_re2_gives_a_museum_scene_the_museum_mode_and_any_other_scene_none() {
+    fn plain_re2_has_no_mode_of_its_own() {
         let plain = scene(r#"{"camera": {"position": [0, 2, 5], "target": [0, 0, 0]}, "objects": []}"#);
-        assert!(engine_mode(&plain).is_none());
-        let museum = scene(r#"{"camera": {"position": [0, 2, 5], "target": [0, 0, 0]}, "objects": [], "museum": {"collection": "c.json"}}"#);
-        assert_eq!(engine_mode(&museum).map(|m| m.name()), Some("museum"));
+        assert!(engine_mode(&plain).is_none(), "a game with a mode brings it in its own binary (games/frameless)");
     }
 
     struct Quiet;

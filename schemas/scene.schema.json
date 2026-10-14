@@ -367,16 +367,6 @@
         }
       ]
     },
-    "museum": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Museum"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "audio": {
       "anyOf": [
         {
@@ -5416,35 +5406,6 @@
         "trees": true,
         "flowers": true,
         "grass": true
-      },
-      "additionalProperties": false,
-      "patternProperties": {
-        "^(x-|x_|_)|^notes$|^\\$comment$": {}
-      }
-    },
-    "Museum": {
-      "description": "An endless museum: its collection file, its painted-surface shader, its seed, the first room's theme.",
-      "type": "object",
-      "properties": {
-        "collection": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "art": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "seed": true,
-        "start_theme": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
       },
       "additionalProperties": false,
       "patternProperties": {

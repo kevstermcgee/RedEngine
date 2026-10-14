@@ -4,7 +4,7 @@
 //!
 //! A scene's layers come from [`layers_for`]: the endless meadow (`procgen`, the engine's own [`crate::stream_gpu::StreamLayer`]) first, then a
 //! layer from each [`LayerDef`] a crate defined ([`define_layers`]), in the order they were defined, as a scene block is
-//! (`schema::define_blocks`). A layer the client feeds every frame (the museum's) is reached by its type ([`find_layer_mut`]).
+//! (`schema::define_blocks`). A layer the client feeds every frame (Frameless's museum) is reached by its type ([`find_layer_mut`]).
 
 use crate::schema::Scene;
 use crate::stream_gpu::ShadowDetail;
@@ -168,14 +168,13 @@ mod tests {
     }
 
     #[test]
-    fn the_engine_defines_the_museum_layer_once_and_its_art_is_the_museum_blocks() {
-        crate::scene_blocks::register();
-        crate::scene_blocks::register();
-        assert_eq!(defined().iter().filter(|d| d.name == "museum").count(), 1);
+    fn a_layer_defined_twice_is_defined_once_and_a_plain_scene_has_no_art() {
+        static TWICE: &[LayerDef] = &[LayerDef { name: "test-twice", build: |_, _| None, art: |_| None }];
+        define_layers(TWICE);
+        define_layers(TWICE);
+        assert_eq!(defined().iter().filter(|d| d.name == "test-twice").count(), 1);
         let plain = scene(r#"{"camera": {"position": [0, 2, 5], "target": [0, 0, 0]}, "objects": []}"#);
         assert_eq!(art_of(&plain), None);
-        let museum = scene(r#"{"camera": {"position": [0, 2, 5], "target": [0, 0, 0]}, "objects": [], "museum": {"collection": "c.json"}}"#);
-        assert_eq!(art_of(&museum), None, "a museum without `art` paints with the engine's surfaces");
     }
 
     struct Flat;

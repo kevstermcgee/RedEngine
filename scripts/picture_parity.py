@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Picture parity for a change that must not change what is drawn: the same pictures from two builds, compared.
 
-    python3 scripts/picture_parity.py OLD_BIN_DIR NEW_BIN_DIR [--out DIR] [--runs N]
+    python3 scripts/picture_parity.py OLD_BIN_DIR NEW_BIN_DIR [--out DIR] [--runs N] [--old-museum re2|frameless] [--new-museum re2|frameless]
 
-Each BIN_DIR holds `red_engine2` and `re2` built from one commit (copy them out of target/debug before switching branches). Run from the repository
-root. The set: the offline renderer (`museum` stills of Frameless at seed 7, `frame` of the endless meadow at four times, `splitshot`), and the live
-renderer (`re2 --headless --shot-at`: the meadow while walking, Frameless while visiting). Offline pictures must be byte-identical. Live ones can
+Each BIN_DIR holds `red_engine2` and `re2` built from one commit, and `frameless` when that build plays the museum with it (copy them out of
+target/debug before switching branches). Run from the repository root. The set: the offline renderer (`museum` stills of Frameless at seed 7, `frame`
+of the endless meadow at four times, `splitshot`), and the live renderer (`--headless --shot-at`: the meadow while walking in `re2`, Frameless while
+visiting). Frameless is played by `frameless` (`frameless museum` for its stills) since it became a crate of its own; `--old-museum re2` plays it
+the way a build from before that did (`red_engine2 museum`, `re2`). Both read `--museum-scene` (default games/frameless/content/frameless.json). Offline pictures must be byte-identical. Live ones can
 depend on timing (the meadow's streaming workers, the museum's flights), so each build runs `--runs` times (default 3): a live picture passes when
 every new one equals one an old run drew, or when the nearest new one differs from an old one in no more pixels than the old runs differ from each
 other (the report gives both, with the largest channel difference). Used for ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library's moves.
@@ -21,7 +23,7 @@ import tempfile
 import zlib
 from pathlib import Path
 
-MUSEUM = "examples/frameless/frameless.json"
+MUSEUM = "games/frameless/content/frameless.json"
 MEADOW = "examples/endless_meadow.json"
 VISIT = {"policy": "idle", "steps": [
     {"press": "start"}, {"wait": 1},
@@ -36,27 +38,28 @@ VISIT = {"policy": "idle", "steps": [
 WALK = {"policy": "idle", "steps": [{"wait": 1}, {"hold": ["forward"], "secs": 2}, {"wait": 2}]}
 
 
-def offline(b: Path, out: Path) -> None:
+def offline(b: Path, out: Path, museum_by: str, museum: str) -> None:
     out.mkdir(parents=True, exist_ok=True)
     cli = str(b / "red_engine2")
+    tool = [str(b / "red_engine2"), "museum"] if museum_by == "re2" else [str(b / "frameless"), "museum"]
     runs = [
-        [cli, "museum", MUSEUM, "--seed", "7", "--shot", out / "museum-room.png"],
-        [cli, "museum", MUSEUM, "--seed", "7", "--inside", "1", "--shot", out / "museum-inside.png"],
-        [cli, "museum", MUSEUM, "--seed", "7", "--look", "2", "--shot", out / "museum-look.png"],
-        [cli, "museum", MUSEUM, "--seed", "7", "--styles", out / "museum-styles.png"],
+        tool + [museum, "--seed", "7", "--shot", out / "museum-room.png"],
+        tool + [museum, "--seed", "7", "--inside", "1", "--shot", out / "museum-inside.png"],
+        tool + [museum, "--seed", "7", "--look", "2", "--shot", out / "museum-look.png"],
+        tool + [museum, "--seed", "7", "--styles", out / "museum-styles.png"],
         [cli, "splitshot", MEADOW, out / "meadow-split.png"],
     ] + [[cli, "frame", MEADOW, out / f"meadow-t{t}.png", "--t", str(t)] for t in (0, 40, 120, 300)]
     for r in runs:
         subprocess.run([str(a) for a in r], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def live(b: Path, out: Path, scratch: Path) -> None:
+def live(b: Path, out: Path, scratch: Path, museum_by: str, museum: str) -> None:
     (scratch / "visit.json").write_text(json.dumps(VISIT))
     (scratch / "walk.json").write_text(json.dumps(WALK))
     env = dict(os.environ, RE2_SEED="7", RE2_SAVE_DIR=str(scratch / "save"), RE2_MUSEUM_FRESH="1")
     shutil.rmtree(scratch / "save", ignore_errors=True)
-    for scene, script, shots, name in ((MUSEUM, "visit.json", "2,5,8", "live-museum"), (MEADOW, "walk.json", "0.5,3,4.5", "live-meadow")):
-        cmd = [str(b / "re2"), scene, "--headless", "--script", str(scratch / script), "--shot-at", shots, "--shot-dir", str(out / name)]
+    for client, scene, script, shots, name in ((museum_by, museum, "visit.json", "2,5,8", "live-museum"), ("re2", MEADOW, "walk.json", "0.5,3,4.5", "live-meadow")):
+        cmd = [str(b / client), scene, "--headless", "--script", str(scratch / script), "--shot-at", shots, "--shot-dir", str(out / name)]
         subprocess.run(cmd, check=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -120,13 +123,16 @@ def main() -> int:
     ap.add_argument("new", type=Path)
     ap.add_argument("--out", type=Path, default=Path("out/picture-parity"))
     ap.add_argument("--runs", type=int, default=3)
+    ap.add_argument("--old-museum", choices=["re2", "frameless"], default="frameless", help="what plays the museum in the old build")
+    ap.add_argument("--new-museum", choices=["re2", "frameless"], default="frameless", help="what plays the museum in the new build")
+    ap.add_argument("--museum-scene", default=MUSEUM)
     a = ap.parse_args()
     shutil.rmtree(a.out, ignore_errors=True)
     with tempfile.TemporaryDirectory() as scratch:
-        for side, b in (("old", a.old), ("new", a.new)):
-            offline(b, a.out / side / "offline")
+        for side, b, by in (("old", a.old, a.old_museum), ("new", a.new, a.new_museum)):
+            offline(b, a.out / side / "offline", by, a.museum_scene)
             for r in range(a.runs):
-                live(b, a.out / side / f"live{r}", Path(scratch))
+                live(b, a.out / side / f"live{r}", Path(scratch), by, a.museum_scene)
     ok = True
     old_off, new_off = a.out / "old/offline", a.out / "new/offline"
     for p in sorted(old_off.glob("*.png")):

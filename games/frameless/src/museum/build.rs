@@ -9,9 +9,9 @@ use super::sculpt::{build as build_sculpture, Family, Part};
 use super::shape::{aabox, ball, canvas, lathe, obox, quad, tube_path};
 use super::spec::{Collection, Rgb};
 use super::text::Draw;
-use crate::collide::Collider2D;
-use crate::procgen::geo::{mix, shade, Geo};
 use glam::{Mat3, Mat4, Vec2, Vec3};
+use red_engine2::collide::Collider2D;
+use red_engine2::procgen::geo::{mix, shade, Geo};
 use std::sync::Arc;
 
 /// How a piece of a model is shaded.
@@ -979,7 +979,7 @@ pub fn key_geo() -> Geo {
     g
 }
 
-/// Every style of the collection on one dark wall, in rows of `cols`, each in its theme's palette (for `red_engine2 museum --styles`): the canvases face +z
+/// Every style of the collection on one dark wall, in rows of `cols`, each in its theme's palette (for `frameless museum --styles`): the canvases face +z
 /// and the wall's middle is at the origin, 1.6 m up.
 pub fn style_sheet(c: &Collection, cols: usize, seed: f32) -> Model {
     let mut m = Model::default();
@@ -1020,7 +1020,7 @@ mod tests {
     use super::*;
 
     fn collection() -> Collection {
-        let v: serde_json::Value = serde_json::from_str(include_str!("../../examples/frameless/collection.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../content/collection.json")).unwrap();
         super::super::spec::parse_collection(&v, None).expect("the fixture collection parses")
     }
 

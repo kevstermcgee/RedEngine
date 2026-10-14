@@ -305,8 +305,9 @@ pub fn icosphere(subdiv: u32) -> (Vec<Vec3>, Vec<[u32; 3]>) {
     (v, f)
 }
 
-#[cfg(test)]
-/// Every triangle's winding agrees with its vertex normals (so back-face culling shows the outside).
+/// Every triangle's winding agrees with its vertex normals (so back-face culling shows the outside). A check for tests: the engine's and a game
+/// crate's that builds its own shapes (Frameless).
+#[doc(hidden)]
 pub fn assert_wound_outward(g: &Geo, what: &str) {
     for t in g.idx.as_chunks::<3>().0 {
         let (a, b, c) = (Vec3::from(g.pos[t[0] as usize]), Vec3::from(g.pos[t[1] as usize]), Vec3::from(g.pos[t[2] as usize]));

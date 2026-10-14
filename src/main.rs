@@ -65,7 +65,7 @@ use servers::*;
 use util::*;
 
 fn main() {
-    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    // The scene blocks the engine defines above the scene parser, before anything parses a scene.
     red_engine2::scene_blocks::register();
     use clap::{CommandFactory, FromArgMatches};
     let matches = Cli::command().get_matches();
@@ -135,11 +135,6 @@ fn run(command: Command) -> Result<(), String> {
         Command::StyleReport { game, sheet, cols } => run_style_report(&game, sheet.as_deref(), cols, envelope::capturing()),
         Command::Sky { scene, out, hours, cols, tile, eye, at, fov, size, look } => {
             run_sky(&scene, &out, &hours, cols, tile, eye.as_deref(), at.as_deref(), fov, size.as_deref(), look.as_deref())
-        }
-        Command::Museum { scene, seed, room, shot, look, inside, map, explore, t, styles } => {
-            let (x, z) = room.split_once(',').and_then(|(x, z)| Some((x.trim().parse::<i32>().ok()?, z.trim().parse::<i32>().ok()?))).ok_or("--room must look like 0,0")?;
-            let args = red_engine2::tools::museum_tool::Args { scene, seed, room: (x, z), shot, look, inside, map, explore, t, styles };
-            red_engine2::tools::museum_tool::run(&args).map(|text| print!("{text}"))
         }
         Command::Procgen { out, seed, centre, size, scale, grid, biomes, relief, trees, flowers, grass } => {
             run_procgen(&out, seed, &centre, size, scale, grid, biomes, [relief, trees, flowers, grass])

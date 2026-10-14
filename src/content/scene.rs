@@ -54,7 +54,6 @@ strict_struct! {
         sky: Sky,
         clock: Clock,
         procgen: Procgen,
-        museum: Museum,
         audio: Audio,
         ocean: Ocean,
         style: Style,
@@ -477,11 +476,6 @@ strict_struct! {
         night_light: Any,
         light: String,
     }
-}
-
-strict_struct! {
-    /// An endless museum: its collection file, its painted-surface shader, its seed, the first room's theme.
-    pub struct Museum { collection: String, art: String, seed: Any, start_theme: String }
 }
 
 strict_struct! {

@@ -10,8 +10,8 @@
 //! architecture, the sculpture families and the rules (doors, keys, paintings within paintings); see [`super`].
 
 use super::sculpt::Family;
-use crate::atmosphere::LaunchSeed;
-use crate::fields::check_keys;
+use red_engine2::atmosphere::LaunchSeed;
+use red_engine2::fields::check_keys;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -144,7 +144,7 @@ fn word_lists(errs: &mut Vec<String>, path: &str, v: Option<&Value>) -> BTreeMap
         None => {}
         Some(Value::Object(o)) => {
             for (k, list) in o {
-                if crate::fields::is_extension_key(k) {
+                if red_engine2::fields::is_extension_key(k) {
                     continue;
                 }
                 let l = strings(errs, &format!("{path}.{k}"), Some(list), true);
@@ -157,7 +157,7 @@ fn word_lists(errs: &mut Vec<String>, path: &str, v: Option<&Value>) -> BTreeMap
 }
 
 fn colour(errs: &mut Vec<String>, path: &str, v: Option<&Value>) -> Rgb {
-    match v.and_then(Value::as_str).map(crate::color::parse_hex_to_linear) {
+    match v.and_then(Value::as_str).map(red_engine2::color::parse_hex_to_linear) {
         Some(Ok(c)) => c.to_array(),
         Some(Err(e)) => {
             errs.push(format!("{path}: {e}"));
@@ -174,7 +174,7 @@ fn index_of(errs: &mut Vec<String>, path: &str, name: &str, names: &[String], wh
     match names.iter().position(|n| n == name) {
         Some(i) => i,
         None => {
-            let near = crate::suggest::suggest(name, names.iter().map(String::as_str));
+            let near = red_engine2::suggest::suggest(name, names.iter().map(String::as_str));
             let hint = if near.is_empty() { String::new() } else { format!(" (did you mean `{}`?)", near[0]) };
             errs.push(format!("{path}: `{name}` is not one of the collection's {what}{hint}"));
             0
@@ -456,7 +456,7 @@ pub fn parse_museum(root: &Map<String, Value>, base: Option<&std::path::Path>) -
         if let Some(f) = &art_file {
             let path = base.join(f);
             match std::fs::read_to_string(&path) {
-                Ok(code) => match crate::atmosphere::check_art_shader("museum.art", f, &code) {
+                Ok(code) => match red_engine2::atmosphere::check_art_shader("museum.art", f, &code) {
                     Ok(()) => art = Some(code),
                     Err(e) => errs.push(e),
                 },

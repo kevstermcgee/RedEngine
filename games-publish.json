@@ -9,7 +9,7 @@
       {"source": "examples/marcel", "destination": "marcel"},
       {"source": "examples/wormhole", "destination": "wormhole"},
       {"source": "examples/chroma", "destination": "chroma"},
-      {"source": "examples/frameless", "destination": "frameless"},
+      {"source": "games/frameless/content", "destination": "frameless"},
       {"source": "examples/2d/honeybound.game2d.json", "destination": "honeybound"}
     ],
     "prototypes": [
@@ -64,6 +64,7 @@
     {
       "slug": "frameless",
       "name": "Frameless",
+      "binary": "frameless",
       "entry": "games/frameless/frameless.json",
       "files": ["games/frameless"],
       "arguments": ["content/games/frameless/frameless.json"]

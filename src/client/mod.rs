@@ -67,7 +67,6 @@ mod headless;
 mod help;
 mod listen;
 mod mode;
-mod museum;
 mod online;
 mod project_browser;
 mod shots;
@@ -404,7 +403,7 @@ struct App {
     music_on: bool,
     /// The countryside and the mood music of a scene with an `audio` block.
     ambient: Option<ambient::Ambient>,
-    /// The game's part of the client for this scene (the museum's visit, `museum.rs`), from [`App::mode_factory`] when the scene starts.
+    /// The game's part of the client for this scene (Frameless's museum visit), from [`App::mode_factory`] when the scene starts.
     mode: Option<Box<dyn GameMode>>,
     /// Chooses the mode when a scene starts: the engine's ([`engine_mode`]) or a game binary's (`client::run`).
     mode_factory: ModeFactory,
@@ -923,15 +922,16 @@ pub fn main() {
     run(engine_mode)
 }
 
-/// The engine's modes: a museum scene's visit (`museum` block).
-pub fn engine_mode(scene: &Scene) -> Option<Box<dyn GameMode>> {
-    crate::museum::spec_of(scene).map(|_| Box::new(museum::MuseumMode::new()) as Box<dyn GameMode>)
+/// The engine's own modes: none, so `re2` plays every scene as it is. A game with a mode runs the client from its own binary with its own factory
+/// (`frameless`: the museum's visit).
+pub fn engine_mode(_scene: &Scene) -> Option<Box<dyn GameMode>> {
+    None
 }
 
 /// Runs the client with a game's modes (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): `factory` chooses the mode each
 /// time a scene starts.
 pub fn run(factory: ModeFactory) {
-    // The scene blocks the engine defines above the scene parser (the museum), before anything parses a scene.
+    // The scene blocks the engine defines above the scene parser, before anything parses a scene (a game binary has defined its own already).
     crate::scene_blocks::register();
     #[cfg(windows)]
     win::install_crash_box(&win::init(win::wants_terminal(&std::env::args().collect::<Vec<_>>())));

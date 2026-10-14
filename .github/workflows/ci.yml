@@ -259,8 +259,8 @@ jobs:
       - run: bash scripts/ci.sh external-client
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
-      # The game on the public API (games/killchain): same target directory and cache as the engine, so only the game's own crate is compiled here.
-      - run: bash scripts/ci.sh killchain
+      # The games on the public API (games/killchain, games/frameless): same target directory and cache as the engine, so only the games' own crates are compiled here.
+      - run: bash scripts/ci.sh game-crates
 
   # Only generated games changed (see `changes`): the tests that read them, not the whole suite.
   games:
@@ -318,7 +318,7 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           RED_OFFSCREEN_OPTIONAL: "1"
-      - run: bash scripts/ci.sh killchain
+      - run: bash scripts/ci.sh game-crates
         if: github.event_name != 'pull_request'
 
   # The Python tools, on both platforms, without building any Rust: `scripts/ci.sh pytools` runs every scripts/test_*.py and the publish check on this runner's interpreter.
