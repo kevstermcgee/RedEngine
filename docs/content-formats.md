@@ -89,4 +89,6 @@ their lenient reader; settings and saves stay lenient on purpose. **No content f
   problem as `file:line: message`. Cross-references are the loaders' own (prefab names, rule/objective/UI names, weapons, characters, blueprint prefab
   files, project maps), plus one new check: a scenario's player `spawn` and `spawn_group` must exist. **75 files, 0 problems, 0.2 s.** One file keeps the
   old one-file report (the JSON envelope and the MCP tool read it).
+  A crate of the workspace under `games/` (a folder there with its own `Cargo.toml`) is a game whose content is its own to check, with the scene
+  blocks it defines: a walk leaves it, a named file in it is still checked (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
 - **CI**: `scripts/ci.sh content`, and a hosted `content` job beside the test shards (ADR 2026-10-11-one-validate-for-every-content-file).

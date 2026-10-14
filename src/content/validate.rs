@@ -94,14 +94,19 @@ pub fn detect(path: &Path, v: &Value) -> Option<Kind> {
     }
 }
 
-/// Every `.json` file under `dirs` (files are taken as given), sorted, skipping build output and goldens.
+/// Every `.json` file under `dirs` (files are taken as given), sorted, skipping build output and goldens. A crate of the engine's workspace under `games/`
+/// (`games/frameless`, a folder there with its own `Cargo.toml`) is a game whose content is its own to check, with the scene blocks it defines (ADR
+/// 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library), so a walk leaves it; a file in it that is named is still checked. A game crate
+/// elsewhere (`examples/external/...`, on the engine's keys only) is walked as before.
 pub fn discover(dirs: &[PathBuf]) -> Vec<PathBuf> {
     fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
         for e in rd.flatten() {
             let p = e.path();
             if p.is_dir() {
-                if !p.file_name().and_then(|n| n.to_str()).is_some_and(|n| SKIP_DIRS.contains(&n) || n.starts_with('.')) {
+                let skipped = p.file_name().and_then(|n| n.to_str()).is_some_and(|n| SKIP_DIRS.contains(&n) || n.starts_with('.'));
+                let game_crate = dir.file_name().is_some_and(|n| n == "games") && p.join("Cargo.toml").is_file();
+                if !skipped && !game_crate {
                     walk(&p, out);
                 }
             } else if p.extension().is_some_and(|x| x == "json") {
@@ -455,6 +460,26 @@ mod tests {
         assert_eq!(line_of(&lines, &v, "rules: empty"), Some(9));
         assert_eq!(line_of(&lines, &v, "objects[1] (sofa_1).material.color: must be a colour"), Some(6), "a name in parentheses after an index");
         assert_eq!(line_of(&lines, &v, "the scene has no spawn"), None, "prose names no path");
+    }
+
+    #[test]
+    fn a_walk_leaves_a_game_crates_content_to_the_crate_but_a_named_file_is_checked() {
+        let dir = std::env::temp_dir().join(format!("re2_validate_crate_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("games/painted/content")).unwrap();
+        std::fs::create_dir_all(dir.join("games/plain")).unwrap();
+        std::fs::write(dir.join("games/painted/Cargo.toml"), "[package]\nname = \"painted\"\n").unwrap();
+        std::fs::write(dir.join("games/painted/content/world.json"), r#"{"objects":[],"painted":{}}"#).unwrap();
+        std::fs::write(dir.join("games/plain/map.json"), r#"{"objects":[]}"#).unwrap();
+        std::fs::create_dir_all(dir.join("examples/external/own")).unwrap();
+        std::fs::write(dir.join("examples/external/own/Cargo.toml"), "[package]\nname = \"own\"\n").unwrap();
+        std::fs::write(dir.join("examples/external/own/own.json"), r#"{"objects":[]}"#).unwrap();
+        let found = discover(&[dir.join("games")]);
+        assert_eq!(found, vec![dir.join("games/plain/map.json")], "the crate's own scene is left to the crate");
+        assert_eq!(discover(&[dir.join("examples")]), vec![dir.join("examples/external/own/own.json")], "a crate outside games/ is walked as before");
+        let named = dir.join("games/painted/content/world.json");
+        assert_eq!(discover(std::slice::from_ref(&named)), vec![named.clone()], "a named file is checked");
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
