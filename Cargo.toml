@@ -82,7 +82,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 # The JSON path to the bad field in a typed content error (`content::typed`): `packs[3].tag: unknown field ...`.
 serde_path_to_error = "0.1"
-thiserror = "2.0.20"
 # The primitives the application-level proofs use (the QUIC transport itself, ADR 0044, comes with red_core's `quic`). All graphics-free: they are
 # part of the headless server build.
 sha2 = { workspace = true }
