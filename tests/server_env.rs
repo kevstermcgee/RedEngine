@@ -122,3 +122,16 @@ fn relaying_a_dev_udp_host_with_no_identity_is_refused_not_merely_warned() {
     assert!(!text.contains("LISTENING"), "must not have started listening: {text}");
     assert!(err.contains("--relay") && err.contains("--tls-cert"), "{err}");
 }
+
+/// A server program is also the engine's command line with its scene blocks: `red_server cli <command>` runs a `red_engine2` command (ADR
+/// 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks), and it is not mistaken for a server flag.
+#[test]
+fn a_server_program_runs_the_engine_s_commands() {
+    let map = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json");
+    let out = server().args(["cli", "validate", map]).output().expect("run red_server cli");
+    let (text, err) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert!(out.status.success(), "{text}\n{err}");
+    assert!(!text.contains("LISTENING"), "a command, not a server: {text}");
+    let bad = server().args(["cli", "no-such-command"]).output().expect("run red_server cli");
+    assert!(!bad.status.success() && String::from_utf8_lossy(&bad.stderr).contains("no-such-command"), "{}", String::from_utf8_lossy(&bad.stderr));
+}

@@ -45,7 +45,7 @@ pub struct ServerCfg {
     pub port: u16,
     /// Spawn group the server uses (empty = all spawns).
     pub spawn_group: String,
-    /// Extra `red_server` arguments.
+    /// Extra arguments for the server program (`red_server`, or the project's `server_binary`).
     pub args: Vec<String>,
 }
 
@@ -72,12 +72,19 @@ pub struct GameConfig {
     /// The executable that plays it (`"binary"`): `re2`, the engine's client (the default), or a game's own binary built from the engine's workspace
     /// (`killchain`; ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
     pub binary: String,
+    /// The program that hosts it (`"server_binary"`): `red_server` (the default), or a game's own server program built from the engine's workspace,
+    /// which is also the engine's command line with the game's scene blocks (`killchain_server`; ADR
+    /// 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks).
+    pub server_binary: String,
 }
 
-const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities", "binary"];
+const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities", "binary", "server_binary"];
 
 /// The engine's own client, which plays a project that names no binary.
 pub const DEFAULT_BINARY: &str = "re2";
+
+/// The engine's own server program, which hosts a project that names no server program.
+pub const DEFAULT_SERVER: &str = "red_server";
 
 /// Whether `name` can name an executable: 1 to 40 lowercase letters, digits, `_` and `-`, starting with a letter.
 pub fn valid_binary(name: &str) -> bool {
@@ -145,6 +152,19 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
             }
         },
     };
+    let server_binary = match root.get("server_binary") {
+        None => DEFAULT_SERVER.to_string(),
+        Some(v) => match v.as_str().filter(|s| valid_binary(s)) {
+            Some(s) => s.to_string(),
+            None => {
+                errs.push(
+                    "server_binary: the program that hosts the game, like \"killchain_server\" (lowercase letters, digits, `_` and `-`; the default is \"red_server\")"
+                        .into(),
+                );
+                DEFAULT_SERVER.to_string()
+            }
+        },
+    };
     let maps = strs(root.get("maps"));
     let mut server = ServerCfg { map: maps.first().cloned().unwrap_or_default(), port: crate::net::DEFAULT_PORT, spawn_group: String::new(), args: Vec::new() };
     if let Some(s) = root.get("server").and_then(Value::as_object) {
@@ -180,6 +200,7 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
         maps,
         server,
         binary,
+        server_binary,
     })
 }
 
@@ -558,6 +579,15 @@ pub fn info(cfg: &GameConfig) -> String {
         if cfg.server.spawn_group.is_empty() { String::new() } else { format!(" (spawn group {})", cfg.server.spawn_group) }
     ));
     s.push_str(&format!("binary   {}{}\n", cfg.binary, if cfg.binary == DEFAULT_BINARY { " (the engine's client)" } else { " (the game's own client)" }));
+    s.push_str(&format!(
+        "host     {}{}\n",
+        cfg.server_binary,
+        if cfg.server_binary == DEFAULT_SERVER {
+            " (the engine's server)"
+        } else {
+            " (the game's own server program; `scripts/red` runs the engine's commands through it)"
+        }
+    ));
     s.push_str("commands scripts/red check | build-all | play-local | serve | play [HOST:PORT] | <any red_engine2 command>\n");
     s
 }
@@ -693,6 +723,19 @@ mod tests {
             let e = parse(Path::new("."), &format!(r#"{{"game":1,"engine":{{"path":"x"}},"binary":{bad}}}"#)).unwrap_err();
             assert!(e.iter().any(|m| m.starts_with("binary:")), "{bad}: {e:?}");
         }
+    }
+
+    #[test]
+    fn a_project_is_hosted_by_red_server_unless_it_names_its_own_server_program() {
+        let plain = parse(Path::new("."), GOOD).unwrap();
+        assert_eq!(plain.server_binary, DEFAULT_SERVER);
+        assert!(info(&plain).contains("host     red_server (the engine's server)"), "{}", info(&plain));
+        let own = r#"{"game":1,"engine":{"path":"x"},"maps":["m.json"],"binary":"killchain","server_binary":"killchain_server"}"#;
+        let c = parse(Path::new("."), own).unwrap();
+        assert_eq!((c.binary.as_str(), c.server_binary.as_str()), ("killchain", "killchain_server"));
+        assert!(info(&c).contains("host     killchain_server (the game's own server program"), "{}", info(&c));
+        let e = parse(Path::new("."), r#"{"game":1,"engine":{"path":"x"},"server_binary":"Kill Server"}"#).unwrap_err();
+        assert!(e.iter().any(|m| m.starts_with("server_binary:")), "{e:?}");
     }
 
     #[test]

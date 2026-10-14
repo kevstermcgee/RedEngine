@@ -16,6 +16,7 @@ strict_struct! {
         server: Server,
         capabilities: Capabilities,
         binary: String,
+        server_binary: String,
     }
 }
 

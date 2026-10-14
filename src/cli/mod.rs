@@ -56,10 +56,21 @@ use util::*;
 
 /// The `red_engine2` program: parses the command line, runs the command and exits with its status.
 pub fn main() {
+    main_from(std::env::args_os())
+}
+
+/// [`main`] on the given arguments (the first is the program's name, as the usage line shows it). A game's own program calls this after
+/// defining its scene blocks, so the engine's commands read its maps (`server_app`'s `PROGRAM cli ...`; ADR
+/// 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks).
+pub fn main_from<I, T>(args: I)
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
     // The scene blocks the engine defines above the scene parser, before anything parses a scene.
     crate::scene_blocks::register();
     use clap::{CommandFactory, FromArgMatches};
-    let matches = Cli::command().get_matches();
+    let matches = Cli::command().get_matches_from(args);
     let command_name = matches.subcommand_name().unwrap_or("").to_string();
     let cli = match Cli::from_arg_matches(&matches) {
         Ok(c) => c,

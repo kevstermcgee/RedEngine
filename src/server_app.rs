@@ -1,6 +1,10 @@
 //! The authoritative, headless Red multiplayer server program: `red_server`'s (`main`), and a game's own server's (`run`, with the game's scene
 //! blocks, match games and mode overrides: ADR 2026-10-14-a-game-plugs-into-the-server-s-match-simulation-the).
 //!
+//! `PROGRAM cli <command>` is the engine's command line (`red_engine2`'s commands) with the program's scene blocks defined: a game whose blocks
+//! the engine does not define checks, lints and plans its maps through its own server program (ADR
+//! 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks).
+//!
 //! ```text
 //! red_server [--map examples/test_lab.json] [--port 27015] [--bind 127.0.0.1 | --public]
 //!            [--spawn-group NAME] [--demo-kick OBJECT_ID] [--snapshot-every 2]
@@ -88,7 +92,8 @@ fn usage(program: &str) -> ! {
                   [--record TRACE.json] [--record-every N] [--no-interest] [--key K|auto] [--lobby] [--upnp] [--relay HOST:PORT]
                   [--min-players N] [--countdown-secs S] [--round-secs S] [--results-secs S] [--score-to-win N]
                   [--fill N] [--bot-skill LEVEL] [--mode NAME] [--team-size 1..6]
-                  [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]"
+                  [--tls-cert CERT.pem --tls-key KEY.pem] [--max-connections N] [--dev-udp] [--insecure-public-udp]
+       {program} cli <red_engine2 command> (the engine's command line, with this program's scene blocks)"
     );
     std::process::exit(2);
 }
@@ -116,6 +121,12 @@ pub fn run(game: &GameServer) {
     // The scene blocks and match games the program defines, before anything parses a scene.
     (game.register)();
     let program = game.program;
+    // `PROGRAM cli <command>`: the engine's command line, reading maps with this program's scene blocks (ADR
+    // 2026-10-14-a-game-runs-the-engine-s-commands-with-its-own-blocks).
+    if std::env::args_os().nth(1).is_some_and(|a| a == "cli") {
+        crate::cli::main_from(std::iter::once(std::ffi::OsString::from(format!("{program} cli"))).chain(std::env::args_os().skip(2)));
+        return;
+    }
     let mode_ok = |m: String| if game.modes.contains(&m.as_str()) { m } else { usage(program) };
     let mut map = env::<PathBuf>("RED_MAP").unwrap_or_else(|| PathBuf::from("examples/test_lab.json"));
     let mut port: u16 = env("RED_PORT").unwrap_or(DEFAULT_PORT);

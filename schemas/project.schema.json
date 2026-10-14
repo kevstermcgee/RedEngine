@@ -70,6 +70,12 @@
         "string",
         "null"
       ]
+    },
+    "server_binary": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": false,
