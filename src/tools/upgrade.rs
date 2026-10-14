@@ -238,8 +238,13 @@ pub fn load_migrations(path: &Path) -> Result<Vec<Migration>, String> {
         .collect())
 }
 
+/// The wire protocol's source at `sha`: in the core since it moved there, in the engine crate before (`status::PROTOCOL_FILES`).
+fn protocol_text(checkout: &Path, sha: &str) -> Option<String> {
+    crate::tools::status::PROTOCOL_FILES.iter().find_map(|p| git_show(checkout, sha, p).ok())
+}
+
 fn protocol_version(checkout: &Path, sha: &str) -> Option<u16> {
-    let text = git_show(checkout, sha, "src/net/protocol.rs").ok()?;
+    let text = protocol_text(checkout, sha)?;
     text.lines().find_map(|l| l.trim().strip_prefix("pub const PROTOCOL_VERSION: u16 = ")?.strip_suffix(';')?.parse().ok())
 }
 
@@ -1283,7 +1288,7 @@ mod tests {
         // Two real commits where PROTOCOL_VERSION is known to differ (v9 -> v11, per git history).
         let baseline = "7918af0";
         let target = "af0f0e0";
-        if git_show(root, baseline, "src/net/protocol.rs").is_ok() && git_show(root, target, "src/net/protocol.rs").is_ok() {
+        if protocol_text(root, baseline).is_some() && protocol_text(root, target).is_some() {
             let c = protocol_version_confidence(
                 &Evidence {
                     game: GameConfig {

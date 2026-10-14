@@ -66,12 +66,20 @@ fn compositions_in_source() -> BTreeSet<Vec<String>> {
             }
         }
     }
-    const NEEDLE: &str = "include_str!(\"shaders/";
+    // `include_str!("shaders/x.wgsl")` in the engine; `include_str!("../../../src/shaders/x.wgsl")` in the core (`atmosphere`'s compositions).
+    const NEEDLE: &str = "include_str!(\"";
     let names = |text: &str| -> Vec<String> {
-        text.match_indices(NEEDLE).filter_map(|(i, _)| text[i + NEEDLE.len()..].split_once(".wgsl\")").map(|(n, _)| n.to_string())).collect()
+        text.match_indices(NEEDLE)
+            .filter_map(|(i, _)| {
+                let path = text[i + NEEDLE.len()..].split_once("\")")?.0;
+                Some(path.strip_suffix(".wgsl")?.rsplit_once("shaders/")?.1.to_string())
+            })
+            .collect()
     };
     let mut files = Vec::new();
-    rust_files(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+    for dir in ["src", "crates/red_core/src"] {
+        rust_files(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(dir), &mut files);
+    }
     let mut found = BTreeSet::new();
     for f in files {
         let text = fs::read_to_string(&f).unwrap_or_default();

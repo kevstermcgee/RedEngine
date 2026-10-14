@@ -269,13 +269,8 @@ fn red2d_steps(changed: &[String], tests: bool) -> Vec<Step> {
 const KILLCHAIN_ENGINE_DIRS: &[&str] = &["src/net/", "src/sim/", "src/ui/", "crates/red_core/src/"];
 const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "src/viewer.rs",
-    "src/player.rs",
-    "src/schema.rs",
-    "src/sfx.rs",
     "src/audio.rs",
-    "src/arsenal.rs",
     "src/firearms.rs",
-    "src/weapons.rs",
     "src/killcam.rs",
     "src/streaks.rs",
     "src/shooter_world.rs",
@@ -285,8 +280,6 @@ const KILLCHAIN_ENGINE_FILES: &[&str] = &[
     "src/clipboard.rs",
     "src/capture.rs",
     "src/gpu.rs",
-    "src/feel.rs",
-    "src/hit.rs",
     "src/avatar.rs",
     "Cargo.toml",
     "Cargo.lock",
@@ -1194,7 +1187,7 @@ pub fn needs(p: &Plan) -> Vec<Need> {
     vec![
         one(
             "network",
-            changed_in(&["src/net/", "src/sim/match_sim.rs"]) || step_has("--test net_"),
+            changed_in(&["src/net/", "crates/red_core/src/net/", "crates/red_core/src/sim/match_sim.rs"]) || step_has("--test net_"),
             "a networking file changed or a net_* suite is in the plan",
             "no networking file changed and no net_* suite is in the plan",
         ),
@@ -1295,7 +1288,8 @@ mod tests {
         vec![
             feature("core", &["src/sim/clock.rs"], &["lib:sim::clock", "alloc_budget"], &[]),
             feature("net", &["src/net/**"], &["lib:net", "net_e2e"], &["core"]),
-            feature("flow", &["src/sim/flow.rs"], &["lib:sim::flow", "net_flow"], &["net"]),
+            // A file that stays in the engine crate: a partial plan only compiles and runs what exists on disk.
+            feature("flow", &["src/sim/scenario.rs"], &["lib:sim::scenario", "net_flow"], &["net"]),
             feature("maps", &["src/tools/lint.rs"], &["lib:tools::lint", "maps_verify"], &[]),
             feature("docs", &["README.md"], &["repo_hygiene"], &[]),
             feature("a", &["src/a.rs"], &["s1", "s2"], &[]),
@@ -1605,11 +1599,11 @@ mod tests {
 
     #[test]
     fn a_partial_plan_type_checks_and_runs_the_touched_modules_and_always_says_full_verification_is_still_required() {
-        let p = partial_of(&["src/sim/flow.rs"], &Options { partial: true, ..Options::default() });
+        let p = partial_of(&["src/sim/scenario.rs"], &Options { partial: true, ..Options::default() });
         assert_eq!(p.scope, Scope::Partial);
         assert_eq!(names(&p), ["fmt", "check", "unit"]);
         assert_eq!(step(&p, "check").argv.join(" "), "cargo clippy --locked --lib --bins -- -D warnings");
-        assert_eq!(step(&p, "unit").argv.join(" "), "cargo test --locked --lib -- sim::flow");
+        assert_eq!(step(&p, "unit").argv.join(" "), "cargo test --locked --lib -- sim::scenario");
         assert!(p.escalated.is_none());
         assert!(p.deferred.iter().any(|d| d == "net_flow"), "the owner's integration suites are listed as not run: {:?}", p.deferred);
         assert!(p.full_required.iter().any(|r| r.contains("not verification")), "{:?}", p.full_required);
@@ -1624,12 +1618,12 @@ mod tests {
     #[test]
     fn a_partial_plan_never_escalates_to_full_ci_and_check_only_drops_the_tests() {
         for boundary in ["Cargo.toml", "src/lib.rs", "scripts/ci.sh"] {
-            let p = partial_of(&[boundary, "src/sim/flow.rs"], &Options { partial: true, ..Options::default() });
+            let p = partial_of(&[boundary, "src/sim/scenario.rs"], &Options { partial: true, ..Options::default() });
             assert_eq!(p.scope, Scope::Partial, "{boundary}");
             assert!(p.steps.iter().all(|s| s.name != "ci"), "{boundary}: {:?}", names(&p));
             assert!(p.full_required.iter().any(|r| r.contains(boundary)), "{boundary}: {:?}", p.full_required);
         }
-        let quick = partial_of(&["src/sim/flow.rs"], &Options { partial: true, check_only: true, ..Options::default() });
+        let quick = partial_of(&["src/sim/scenario.rs"], &Options { partial: true, check_only: true, ..Options::default() });
         assert_eq!(names(&quick), ["fmt", "check"]);
         // A changed test file runs itself (serial suites one at a time); nothing else is run for it.
         let t = partial_of(&["tests/net_e2e.rs"], &Options { partial: true, ..Options::default() });
@@ -1639,7 +1633,7 @@ mod tests {
 
     #[test]
     fn the_feature_set_is_chosen_explicitly_and_reaches_every_cargo_step() {
-        let changed = vec!["src/sim/flow.rs".to_string()];
+        let changed = vec!["src/sim/scenario.rs".to_string()];
         let p = plan_partial(&world(), &serial(), &changed, &Options { partial: true, ..Options::default() }, Features::Headless);
         assert_eq!(p.features, Features::Headless);
         assert!(step(&p, "check").argv.contains(&"--no-default-features".to_string()));

@@ -40,7 +40,7 @@ A human is the Human unless `--as` / `RE2_CHARACTER` says otherwise (there is no
 humans: they wear `bots.roster[].character` (human, wizard, cowboy, alien or robot, never the rat) and, beyond the roster, a rotation of cowboy, wizard, alien, robot (`BotsConfig::spec`).
 A body travels as one byte (`character_to_wire`, the order of `Character::ALL`) in `Hello`, `Welcome`, every `PlayerSnap` and the roster. In a lobby C cycles bodies unless one is forced.
 
-- **Open**: `src/bin/re2/main.rs::resolved_character`, `src/net/server.rs::apply_character_policy` and `::on_hello`, `src/sim/ai/mod.rs::spec`, `src/net/protocol.rs::character_to_wire`.
+- **Open**: `src/bin/re2/main.rs::resolved_character`, `src/net/server.rs::apply_character_policy` and `::on_hello`, `crates/red_core/src/sim/ai/mod.rs::spec`, `crates/red_core/src/net/protocol.rs::character_to_wire`.
 - **Tuned by**: scene `player.humans_play_as`, `bots.roster[].character`, `bots.fill`; `re2 --as`.
 - **How to see it**: `/online/roster` (`character`, `bot` per entry) and `/player/character` in the dump; `src/net/server.rs`'s `a_scene_character_overrides_join_and_lobby_requests`,
   `src/bin/re2/main.rs`'s `a_scene_policy_skips_and_overrides_the_generic_picker`; `red_bot --as cowboy` joins in that body.
@@ -55,8 +55,8 @@ reservation is given up. That id is `Welcome.player_id`, the slot in `MatchSim`,
 token. The body appears when the world does: at once in open play, or on joining a running countdown or round when `match.join_in_progress` allows it; otherwise when the next countdown
 starts (`begin_round_world`). Bots take the highest free slots (`sync_bots`), a joining human takes the weakest bot's place and a leaver hands it back; `bots_spawned` restarts each round.
 
-- **Open**: `src/net/server.rs::free_slot`, `::on_hello`, `::welcome_for`, `::sync_bots`, `::begin_round_world`, `src/sim/match_sim.rs::add_player_in_slot`.
-- **Tuned by**: `MAX_PLAYERS` (8, `src/sim/match_sim.rs`), `ServerConfig::resume_grace` (30 s) and `client_timeout` (3 s), `limits::MAX_PARKED` (32), scene `match.join_in_progress`, `bots.fill`.
+- **Open**: `src/net/server.rs::free_slot`, `::on_hello`, `::welcome_for`, `::sync_bots`, `::begin_round_world`, `crates/red_core/src/sim/match_sim.rs::add_player_in_slot`.
+- **Tuned by**: `MAX_PLAYERS` (8, `crates/red_core/src/sim/match_sim.rs`), `ServerConfig::resume_grace` (30 s) and `client_timeout` (3 s), `limits::MAX_PARKED` (32), scene `match.join_in_progress`, `bots.fill`.
 - **How to see it**: `/online/id` and `/online/roster` (`id`, `bot`, `in_round`) in the dump; `red_server` logs `join ADDR as player N 'NAME'`;
   `tests/net_bots.rs::a_server_fills_empty_slots_with_bots_a_human_takes_a_place_and_gives_it_back`, `tests/net_flow.rs::a_player_who_joins_during_the_countdown_is_in_the_round_not_waiting_for_the_next_one`.
 - **Fails silently when**: the roster lists a player in the round whom you never see: that is step 4, not the slot (compare `/remote/roster_others` with `/remote/in_view`). Code that assumes
@@ -67,10 +67,10 @@ starts (`begin_round_world`). Bots take the highest free slots (`sync_bots`), a 
 Every `snapshot_every` (2) ticks, 30 Hz, `player_snaps` writes one `PlayerSnap` per player in the sim: id, body, `flags` (bit 0 crouching, bit 1 swinging, bit 2 dead, `FLAG_PROTECTED`),
 position (x, foot y, z), yaw, pitch, speed, vy, velocity, weapon (index in `Weapon::ALL`), carried prop, hp, `shots`. Records are complete, not deltas, and capped at 8; the server never sends an
 animation, only the state that drives one. Adding a state others must see touches, in order: `PlayerSnap` with its encode and decode, `player_snaps`, `impl From<&PlayerSnap> for PlayerPose` and
-`Blend for PlayerPose` (`src/net/interp.rs`), `avatar::animate`, and `PROTOCOL_VERSION`. The compiler checks the struct literals; nothing forces `animate` to read the field or you to bump the version.
+`Blend for PlayerPose` (`crates/red_core/src/net/interp.rs`), `avatar::animate`, and `PROTOCOL_VERSION`. The compiler checks the struct literals; nothing forces `animate` to read the field or you to bump the version.
 
-- **Open**: `src/net/snapshots.rs::player_snaps`, `src/net/server.rs::send_snapshots`, `src/net/protocol.rs::snapshot_bytes`.
-- **Tuned by**: `ServerConfig::snapshot_every`, `MAX_PLAYERS_PER_SNAPSHOT` (8) in `src/net/protocol.rs`; the size budget of `tests/net_budget.rs`.
+- **Open**: `src/net/snapshots.rs::player_snaps`, `src/net/server.rs::send_snapshots`, `crates/red_core/src/net/protocol.rs::snapshot_bytes`.
+- **Tuned by**: `ServerConfig::snapshot_every`, `MAX_PLAYERS_PER_SNAPSHOT` (8) in `crates/red_core/src/net/protocol.rs`; the size budget of `tests/net_budget.rs`.
 - **How to see it**: `/remote/players` in the dump (`id`, `body`, `avatar`, `pos`, `dead`); `BotFrame::remote` as read by `tests/net_e2e.rs::two_clients_join_move_and_see_each_other_smoothly`;
   `red_bot --server ADDR --duration 5` prints JSON reports of who it sees.
 - **Fails silently when**: a field is added on the server but `animate` never reads it: it reaches every client and changes nothing on screen (today's example: `PlayerPose::protected` is
@@ -85,7 +85,7 @@ the scene's `zones` (rooms), `portals` (`between` two zones, `open` unless it sa
 the props. Your own record and your own `Feedback` are always sent. The room comes from position (`room_at`: x and z inside a zone's rectangle, the highest floor at most 0.5 m above the feet), never
 from line of sight. `red_server` and `re2 --host` build the map at start when the scene has zones (`red_server --no-interest` turns it off).
 
-- **Open**: `src/sim/interest.rs::parse`, `::relevant`, `::room_at`, `src/net/snapshots.rs::visible_players`, `src/net/server.rs::set_interest`.
+- **Open**: `crates/red_core/src/sim/interest.rs::parse`, `::relevant`, `::room_at`, `src/net/snapshots.rs::visible_players`, `src/net/server.rs::set_interest`.
 - **Tuned by**: scene `zones[]` (`id`, `rect`, `y`), `portals[]` (`between`, `open`), `interest.hops`; `red_server --no-interest`.
 - **How to see it**: `red_engine2 lint MAP` (code `interest`); `red_server` prints `interest management: N rooms, M portal hop(s)` (or `off (the map has no zones)`); `/remote/roster_others`,
   `/remote/in_view`, `/remote/hidden_by_interest` in the dump, and `roster others N  hidden by interest M` on the F3 overlay; `tests/net_interest.rs::clients_in_far_rooms_stop_receiving_props_and_players_and_bandwidth_drops`,
@@ -102,11 +102,11 @@ samples it blends position, yaw, pitch and speed, and takes flags and weapon fro
 `MAX_EXTRAPOLATE` (0.25 s), then holds. A drawn position that would jump farther than `TELEPORT_DISTANCE` (4 m, a respawn) snaps; a shorter jump after an outage glides at no less than
 `CATCH_UP_SPEED`, more for fast maps (`catch_up_speed`). A player missing from a snapshot is forgotten at once, so a newcomer in the slot does not glide in.
 
-- **Open**: `src/net/interp.rs::apply`, `::view`, `::sample`, `::limit_catch_up`, `src/net/client.rs::view`, `src/net/session.rs::update_scene`.
-- **Tuned by**: `INTERP_DELAY`, `MAX_EXTRAPOLATE`, `CATCH_UP_SPEED`, `TELEPORT_DISTANCE` in `src/net/interp.rs`; the scene's `player` block and `jump_pads`, which `NetSession::connect_with` hands to
+- **Open**: `crates/red_core/src/net/interp.rs::apply`, `::view`, `::sample`, `::limit_catch_up`, `src/net/client.rs::view`, `src/net/session.rs::update_scene`.
+- **Tuned by**: `INTERP_DELAY`, `MAX_EXTRAPOLATE`, `CATCH_UP_SPEED`, `TELEPORT_DISTANCE` in `crates/red_core/src/net/interp.rs`; the scene's `player` block and `jump_pads`, which `NetSession::connect_with` hands to
   `NetClient::set_movement_profile`.
 - **How to see it**: `red_engine2 net-test MAP --profile bad` (check "other players glide, they do not teleport": worst drawn jump at most 0.15 m);
-  `tests/net_sim.rs::a_cruel_link_still_keeps_everyone_connected_and_nobody_teleports`; `src/net/interp.rs`'s `a_burst_of_lost_snapshots_carries_a_moving_player_on_instead_of_freezing_then_snapping`
+  `tests/net_sim.rs::a_cruel_link_still_keeps_everyone_connected_and_nobody_teleports`; `crates/red_core/src/net/interp.rs`'s `a_burst_of_lost_snapshots_carries_a_moving_player_on_instead_of_freezing_then_snapping`
   and `a_long_outage_ends_in_a_quick_glide_not_a_snap_but_a_teleport_still_snaps`.
 - **Fails silently when**: snapshots stop and a remote player freezes, then snaps forward (found by `net-test`, fixed by the extrapolation cap and the glide); a fast game's players outrun
   the glide when the movement profile is not set. `RemoteStats::unposed` (`/remote/unposed`) counts players a snapshot named but the buffer cannot pose yet.
@@ -139,7 +139,7 @@ The gun is not part of the avatar object. `avatar::animate` returns a `RemoteHan
 `PlayerSnap::weapon`, so a ladder rung up swaps the held parts when that pose is drawn.
 
 - **Open**: `src/avatar.rs::animate`, `src/viewer.rs::set_remote_hands`, `::remote_hand_transform`, `::build_all_held_parts`, `src/firearms.rs::build_firearm_parts`.
-- **Tuned by**: `REMOTE_HANDS` (8, `src/viewer.rs`), `MUZZLE_FLASH_TIME` (`src/weapons.rs`), `firearms::grip_anchor`, `AIM_SHOULDER_X` and `AIM_ELBOW_DEG` (`src/avatar.rs`).
+- **Tuned by**: `REMOTE_HANDS` (8, `src/viewer.rs`), `MUZZLE_FLASH_TIME` (`crates/red_core/src/weapons.rs`), `firearms::grip_anchor`, `AIM_SHOULDER_X` and `AIM_ELBOW_DEG` (`src/avatar.rs`).
 - **How to see it**: a script picture `{"shot": "gun", "camera": "follow"}` (behind the nearest other player); `cargo run --example weapon_poses -- out/weapon-poses` (every firearm through the
   live renderer) and `cargo run --example avatar_poses -- out/poses.png` (avatars with guns); `src/avatar.rs`'s `a_player_holding_a_gun_holds_it_out_and_the_wrist_follows_the_body`.
 - **Fails silently when**: a remote body is drawn without its gun. Rats and the dead hold nothing by design; nothing counts a gun missing for any other reason, so look at a `follow` picture.
@@ -152,7 +152,7 @@ following the aim with a kick each time `shots` changes, the bat swing when `swi
 same constants (`src/bin/re2/avatar.rs::pose_human`), so everyone holds a weapon the same way.
 
 - **Open**: `src/avatar.rs::animate`, `::recoil_kick`, `::swing_blend`, `src/bin/re2/avatar.rs::pose_human`.
-- **Tuned by**: `WALK_CYCLES_PER_SEC_AT_WALK_SPEED`, `HIP_SWING_DEG`, `SHOULDER_SWING_DEG`, `FALL_SECS`, `RISE_SECS` in `src/avatar.rs`; `RECOIL_TIME` in `src/weapons.rs`.
+- **Tuned by**: `WALK_CYCLES_PER_SEC_AT_WALK_SPEED`, `HIP_SWING_DEG`, `SHOULDER_SWING_DEG`, `FALL_SECS`, `RISE_SECS` in `src/avatar.rs`; `RECOIL_TIME` in `crates/red_core/src/weapons.rs`.
 - **How to see it**: pictures (`overview`, `follow`); `/remote/players` (`dead`); `src/avatar.rs`'s `the_dead_fall_over_and_lose_their_weapon_then_stand_when_they_respawn`,
   `the_bat_swings_through_its_arc_when_the_swing_flag_rises`, `walking_cycles_the_legs_and_a_rat_gets_no_weapon`; `cargo run --example avatar_poses -- out/poses.png`.
 - **Fails silently when**: a shot fired in the snapshot where a player first appears is not animated (the first sighting of a counter is a baseline); a state the server has but `PlayerSnap`
@@ -164,9 +164,9 @@ There is no name above a head. A player's name (`Hello.name`, cut to `MAX_NAME` 
 results table and the in-round scoreboard (`sb{i}_name`, `sb{i}_score`, yours in gold), all from `Status.roster`, sent at 5 Hz and at once when the roster or the flow changes. With a firearm in hand the crosshair
 turns red over a living, drawn remote body with no wall in front (`NetSession::player_in_sight`).
 
-- **Open**: `src/ui/online.rs::hud_layout` and `::lobby_layout`, `src/net/server.rs::roster` and `::send_statuses`, `src/bin/re2/online.rs::online_view`, `src/net/protocol.rs::sanitize_name`,
+- **Open**: `src/ui/online.rs::hud_layout` and `::lobby_layout`, `src/net/server.rs::roster` and `::send_statuses`, `src/bin/re2/online.rs::online_view`, `crates/red_core/src/net/protocol.rs::sanitize_name`,
   `src/net/session.rs::nearest_body_on_ray`.
-- **Tuned by**: `MAX_NAME` (16) and `MAX_ROSTER` (8) in `src/net/protocol.rs`; `STATUS_EVERY_TICKS` in `src/net/server.rs`.
+- **Tuned by**: `MAX_NAME` (16) and `MAX_ROSTER` (8) in `crates/red_core/src/net/protocol.rs`; `STATUS_EVERY_TICKS` in `src/net/server.rs`.
 - **How to see it**: `red_engine2 ui-shot hud out/hud.png` (and `ui-check`, which audits the screens at several sizes); `/hud/lines` (`sb0_name`, `sb0_score`, ...), `/online/roster`,
   `/crosshair/state` in the dump.
 - **Fails silently when**: no scoreboard is drawn until the first `Status` arrives (`online_view` is `None`); two players can share a name (only ids differ) and nothing above a head tells them apart.
@@ -179,8 +179,8 @@ A `Bye` or `client_timeout` (3 s) of silence ends the session: `drop_session` re
 `src/bin/re2/frame.rs::hidden_ids` collects the rule-hidden objects of the server's `RuleState` (`NetSession::hidden_objects`), the unworn avatars (`hidden_avatar_ids`), the idle tracer boxes and,
 in first person, your own body, and `LiveRenderer::set_hidden_objects` skips them in the colour and shadow passes: a mesh scaled to a speck is still a draw call.
 
-- **Open**: `src/net/server.rs::drop_session`, `src/net/interp.rs::apply`, `src/net/session.rs::apply_view` and `::hidden_avatar_ids`, `src/scene_pool.rs::release` and `::hidden_ids`,
-  `src/sim/interact.rs::respawn`, `src/viewer.rs::set_hidden_objects`.
+- **Open**: `src/net/server.rs::drop_session`, `crates/red_core/src/net/interp.rs::apply`, `src/net/session.rs::apply_view` and `::hidden_avatar_ids`, `src/scene_pool.rs::release` and `::hidden_ids`,
+  `crates/red_core/src/sim/interact.rs::respawn`, `src/viewer.rs::set_hidden_objects`.
 - **Tuned by**: `ServerConfig::client_timeout` (3 s) and `resume_grace` (30 s), scene `combat.respawn_secs`, `combat.spawn`, `TELEPORT_DISTANCE`, `FALL_SECS`, `RISE_SECS`.
 - **How to see it**: `/remote/pool` (`in_use` returns to 0 when everyone left) in the dump; `tests/net_e2e.rs::a_client_can_disconnect_and_reconnect_gracefully_and_by_timing_out`;
   `src/net/session.rs`'s `a_networked_session_draws_the_other_player_and_moved_props_into_the_scene` (the avatar appears, then is hidden) and

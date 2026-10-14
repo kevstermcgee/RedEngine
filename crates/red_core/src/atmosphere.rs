@@ -113,14 +113,22 @@ impl SkyShader {
     }
 }
 
-/// The engine's background module: the shared declarations, the sky dome and the background pass.
-const BACKGROUND_WGSL: &str = concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/sky.wgsl"), include_str!("shaders/background.wgsl"));
+/// The engine's background module: the shared declarations, the sky dome and the background pass. The engine's shaders are read from its source tree
+/// (`src/shaders`), only in a build that checks shaders (`shader-check`, which the engine's `render` turns on): the core's other builds need none.
+#[cfg(feature = "shader-check")]
+const BACKGROUND_WGSL: &str = concat!(
+    include_str!("../../../src/shaders/common.wgsl"),
+    include_str!("../../../src/shaders/sky.wgsl"),
+    include_str!("../../../src/shaders/background.wgsl")
+);
 
 /// The function in `background.wgsl` that a game's sky replaces.
+#[cfg(feature = "shader-check")]
 const SKY_HOOK: &str = "fn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    return sky_color_px(dir, px);\n}\n";
 
 /// The WGSL of the background pass: the engine's own, or with a game's sky (`custom`) in place of the engine's dome. A game's painted surfaces (`art`,
 /// `museum.art`) come first, so its sky may call the same functions (a painting's world drawn around the player).
+#[cfg(feature = "shader-check")]
 pub fn background_source(custom: Option<&str>, art: Option<&str>) -> std::borrow::Cow<'static, str> {
     match custom {
         None => std::borrow::Cow::Borrowed(BACKGROUND_WGSL),
@@ -134,13 +142,16 @@ pub fn background_source(custom: Option<&str>, art: Option<&str>) -> std::borrow
 }
 
 /// The engine's scene module: the shared declarations and the lit object shader.
-const SCENE_WGSL: &str = concat!(include_str!("shaders/common.wgsl"), include_str!("shaders/scene.wgsl"));
+#[cfg(feature = "shader-check")]
+const SCENE_WGSL: &str = concat!(include_str!("../../../src/shaders/common.wgsl"), include_str!("../../../src/shaders/scene.wgsl"));
 
 /// The function in `scene.wgsl` that a game's painted surfaces replace.
+#[cfg(feature = "shader-check")]
 const SURFACE_HOOK: &str = "fn surface_of(s: SurfaceIn) -> vec4<f32> {\n    return vec4<f32>(1.0, 1.0, 1.0, 0.0);\n}\n";
 
 /// The WGSL of the scene (object) pass: the engine's own, or with a game's `fn surface(s: SurfaceIn) -> vec4<f32>` (`museum.art`) painting every object whose
 /// `surface.x` is above 0.5.
+#[cfg(feature = "shader-check")]
 pub fn scene_source(art: Option<&str>) -> std::borrow::Cow<'static, str> {
     match art {
         None => std::borrow::Cow::Borrowed(SCENE_WGSL),
@@ -167,7 +178,7 @@ pub fn check_art_shader(file: &str, code: &str) -> Result<(), String> {
     art_compile_check(file, code)
 }
 
-#[cfg(feature = "render")]
+#[cfg(feature = "shader-check")]
 fn art_compile_check(file: &str, code: &str) -> Result<(), String> {
     let source = scene_source(Some(code));
     let before = SCENE_WGSL[..SCENE_WGSL.find(SURFACE_HOOK).unwrap_or(0)].lines().count();
@@ -182,7 +193,7 @@ fn art_compile_check(file: &str, code: &str) -> Result<(), String> {
     })
 }
 
-#[cfg(not(feature = "render"))]
+#[cfg(not(feature = "shader-check"))]
 fn art_compile_check(_file: &str, _code: &str) -> Result<(), String> {
     Ok(())
 }
@@ -207,7 +218,7 @@ pub fn check_sky_shader_with(file: &str, code: &str, art: Option<&str>) -> Resul
 }
 
 /// The naga half of [`check_sky_shader`], in a build that can draw (`render`); the headless server, which never draws a sky, only checks the shape above.
-#[cfg(feature = "render")]
+#[cfg(feature = "shader-check")]
 fn compile_check(file: &str, code: &str, art: Option<&str>) -> Result<(), String> {
     let source = background_source(Some(code), art);
     // naga reports lines of the whole module: move them back to the game's file (a game's surfaces come first: their lines count as before the sky's).
@@ -223,13 +234,13 @@ fn compile_check(file: &str, code: &str, art: Option<&str>) -> Result<(), String
     })
 }
 
-#[cfg(not(feature = "render"))]
+#[cfg(not(feature = "shader-check"))]
 fn compile_check(_file: &str, _code: &str, _art: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
 /// Rewrites naga's `:LINE:` / `(line LINE)` / `LINE |` references into the game's file where they fall inside it.
-#[cfg(feature = "render")]
+#[cfg(feature = "shader-check")]
 fn relocate_line(line: &str, before: usize, user_lines: usize, file: &str) -> String {
     let map = |n: usize| -> Option<usize> { (n > before && n <= before + user_lines).then(|| n - before) };
     let t = line.trim_start();
@@ -437,10 +448,10 @@ mod tests {
         assert!(e[0].contains("ocean.roughness"), "{e:?}");
     }
 
-    #[cfg(feature = "render")]
+    #[cfg(feature = "shader-check")]
     const AURORA: &str = "fn sky(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    let t = sky_time() + sky_seed();\n    return vec3<f32>(0.1, 0.4 + 0.3 * fbm(dir * 3.0 + t), 0.6) * max(dir.y, 0.0);\n}\n";
 
-    #[cfg(feature = "render")]
+    #[cfg(feature = "shader-check")]
     fn sky_dir(tag: &str, file: &str, code: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("re2-sky-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("sky")).unwrap();
@@ -448,7 +459,7 @@ mod tests {
         dir
     }
 
-    #[cfg(feature = "render")]
+    #[cfg(feature = "shader-check")]
     #[test]
     fn a_game_sky_replaces_the_engines_and_is_checked_for_every_backend() {
         // The engine's own module is untouched without one, and a game's sky sits in place of the hook with the engine's helpers before it.
@@ -467,7 +478,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[cfg(feature = "render")]
+    #[cfg(feature = "shader-check")]
     #[test]
     fn a_broken_game_sky_is_refused_naming_its_own_file_and_line() {
         // No `sky` function at all.

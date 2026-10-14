@@ -185,8 +185,8 @@ sit on the wall's face and face into the room, small ones are walk-through by de
 (`name`, `tags`, `desc`, `params` with defaults, `objects`; variants are `"extends"` + new defaults),
 `cargo test --release` (it checks: expands, has tags/desc, floor prefabs start at y=0, unique names),
 then `red_engine2 catalog <name> --sheet out/x.png` and *look* at it. Categories are the file names
-listed in `src/prefabs.rs::BUILTIN_FILES` (a new file must be added there). For one-off items, define
-them in the scene's own `"prefabs"` instead. Props (Rust, `src/props.rs`) are for things needing
+listed in `crates/red_core/src/prefabs.rs::BUILTIN_FILES` (a new file must be added there). For one-off items, define
+them in the scene's own `"prefabs"` instead. Props (Rust, `crates/red_core/src/props.rs`) are for things needing
 custom collision.
 
 Use **Reuse -> Modify -> Generate -> Import**, in that order. Do not grow the core pre-emptively:
@@ -289,21 +289,21 @@ Lessons from building them (all bit at least once):
 ## Engine internals (when you must change Rust)
 
 ```
-src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
-src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
-src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
-src/strict.rs     unknown-field detection with did-you-mean; the extension namespace (`x-`, `_`, notes)
-src/collide.rs    static-world collision + ground height (stairs ramp, box tops), interactables — renderer-free (was in viewer.rs)
-src/geometry.rs   `trs` + stair treads, shared by renderer, physics and tools
-src/weapons.rs    the weapons as data (`weapons` in the scene: starting weapon, ladder, bat damage, the ammunition every firearm draws on) + timings
+crates/red_core/src/schema.rs     JSON -> Scene (validation, macro expansion hook, `post`, `zones` ignored here)
+crates/red_core/src/macros.rs     `wall` / `fence` expand to groups of boxes at parse time (add new sugar here)
+crates/red_core/src/props.rs      prop library: parts, `collision()` policy, `lifted()` for origin-at-base
+crates/red_core/src/strict.rs     unknown-field detection with did-you-mean; the extension namespace (`x-`, `_`, notes)
+crates/red_core/src/collide.rs    static-world collision + ground height (stairs ramp, box tops), interactables — renderer-free (was in viewer.rs)
+crates/red_core/src/geometry.rs   `trs` + stair treads, shared by renderer, physics and tools
+crates/red_core/src/weapons.rs    the weapons as data (`weapons` in the scene: starting weapon, ladder, bat damage, the ammunition every firearm draws on) + timings
 src/physics/      loose props on rapier: `mod.rs` (world, step), `classify.rs` (what is loose/carriable), `interact.rs` (per-player carry, strikes), `fixed.rs`
 src/net/          UDP multiplayer: protocol, server (+ sessions, snapshots, limits), client, interpolation, prediction, headless bot (ADR 0016)
 src/sim/          headless sim core (no wgpu/winit): clock, `match_sim` (authoritative world), `interact` (pick-up/combat), `interest` (rooms/portals),
                   `rules*` (game rules as data), `scenario` (headless play-throughs), `trace`/`replay`/`checksum` (deterministic replay, ADR 0021)
 src/viewer.rs     live renderer (feature `gfx`): camera, held models, frustum culling
-src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
+crates/red_core/src/player.rs     player constants + `step_horizontal` / `vertical_step` (shared by re2 and tools)
 src/render.rs     offline renderer; gpu.rs pipelines (incl. the clarity `PostFx`); shaders/*.wgsl
-src/prefabs.rs    JSON prefab templates: params, `$x` / `=expr` substitution, `extends`, parse-time expansion
+crates/red_core/src/prefabs.rs    JSON prefab templates: params, `$x` / `=expr` substitution, `extends`, parse-time expansion
 src/tools/        world (MapWorld) reach lint plan font edit gen inspect shots walk pathing sight patch (analysis/edit)
                   blueprint game newgame status doctor (the framework layer, handoff, environment probe)
 src/ui/           headless pixel-UI kit: `Layout` of widgets drives painting, hit-testing and the audit; `screens.rs` = launch + pause menus
@@ -384,7 +384,7 @@ Do not confuse synthetic controller tests with physical-device validation.
 
 `re2 [map.json] [--as human|rat]` — there is no character picker (ADR no-character-selector): the Human unless `--as` (or `RE2_CHARACTER`) says otherwise. The human swings the bat; **Cheddar the rat** (`type:"rat"` in a scene too) is tiny, has no
 bat, has one pace of 4.0 m/s (`player::RAT_SPEED`; a human walks 3.2 and sprints 6.5), fits through 0.25 m gaps and runs under anything with a 0.25 m clearance (tables, platforms: `RAT_BAND_TOP`, `props::has_clearance`). Body numbers live in
-`player::Character::body()`; models in `src/characters.rs` (`human_parts`, `rat_parts`; `frame` renders
+`player::Character::body()`; models in `crates/red_core/src/characters.rs` (`human_parts`, `rat_parts`; `frame` renders
 them offline — put a `humanoid`/`rat` in a scene to look at them). Swings use `hit::raycast_shapes` (real
 shapes, not bounding boxes): no hit -> no thunk. `tests/melee_hits.rs` guards it. Debug: `RE2_VIEW=third`
 starts in third person. See ADR 0011.

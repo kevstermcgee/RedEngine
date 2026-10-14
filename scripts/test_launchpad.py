@@ -368,7 +368,7 @@ class TraceRoutes(Sandbox):
 
     def test_engine_change_owners_come_from_file_names_and_commands_before_summary_words(self):
         features = {"map_analysis": {"summary": "lint, reach, walk", "files": ["src/tools/lint.rs"], "commands": ["red_engine2 lint examples/test_lab.json"]},
-                    "scene_format": {"summary": "The JSON scene language", "files": ["src/schema.rs"], "commands": []},
+                    "scene_format": {"summary": "The JSON scene language", "files": ["crates/red_core/src/schema.rs"], "commands": []},
                     "sim_core": {"summary": "the simulation", "files": ["src/sim/change.rs"], "commands": []}}
         owners = launchpad.feature_owners(features, "Engine change: add a lint code for a scene that has a ui block but no start rule")
         self.assertEqual(owners[0]["feature"], "map_analysis", owners)

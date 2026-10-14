@@ -18,14 +18,18 @@ fn the_feature_index_is_true() {
 #[test]
 fn a_changed_source_file_names_its_feature_dependents_and_tests() {
     let all = features::load().unwrap();
-    let i = features::impact(&all, &["src/sim/flow.rs".to_string()]);
+    let i = features::impact(&all, &["crates/red_core/src/sim/flow.rs".to_string()]);
     assert!(i.direct.contains_key("match_flow"));
     for dependent in ["net_server", "ui_kit", "net_protocol"] {
         assert!(i.downstream.contains(dependent), "{dependent} is built on match_flow: {:?}", i.downstream);
     }
-    assert!(i.lib_filters.contains("sim::flow") && i.suites.contains("net_flow") && i.suites.contains("net_auth"), "{i:?}");
+    // `sim::flow` lives in the core, so its unit tests are the core's (`affected` plans `-p red_core`); the feature's suites still run.
+    assert!(i.suites.contains("net_flow") && i.suites.contains("net_auth"), "{i:?}");
     let cmds = i.cargo_commands().join("\n");
-    assert!(cmds.contains("cargo test --lib -- ") && cmds.contains("--test net_flow"), "{cmds}");
+    assert!(cmds.contains("--test net_flow"), "{cmds}");
+    // A module in the engine crate is named as a library test filter.
+    let replay = features::impact(&all, &["src/sim/replay.rs".to_string()]);
+    assert!(replay.lib_filters.contains("sim::replay") && replay.cargo_commands().join("\n").contains("cargo test --lib -- "), "{replay:?}");
     assert!(i.docs.contains("docs/adr/0029-match-flow-lobby-rounds-rematch.md"));
 }
 

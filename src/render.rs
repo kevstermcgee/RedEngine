@@ -42,7 +42,10 @@ fn sample_material(mat: &Material, t: f32) -> SampledMaterial {
     SampledMaterial { color: mat.color.sample(t), metallic: mat.metallic, roughness: mat.roughness, emissive: mat.emissive, opacity: mat.opacity }
 }
 
-pub(crate) fn build_prim_mesh(p: &PrimKind) -> Mesh {
+/// The mesh of one primitive (box, sphere, a prop part...). Public only for the mesh tests of the core's props and characters (`tests/prop_meshes.rs`,
+/// `tests/character_meshes.rs`), which live in the engine's suites since props and characters moved into the core.
+#[doc(hidden)]
+pub fn build_prim_mesh(p: &PrimKind) -> Mesh {
     match p {
         PrimKind::Box { size } => Mesh::cuboid(*size),
         PrimKind::Sphere { radius } => Mesh::uv_sphere(*radius, 22, 30),

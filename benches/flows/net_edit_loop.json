@@ -8,7 +8,7 @@
       "cmd": [
         "{RED}",
         "context",
-        "src/net/interp.rs"
+        "crates/red_core/src/net/interp.rs"
       ]
     },
     {
@@ -18,7 +18,7 @@
         "{RED}",
         "affected",
         "--dry-run",
-        "src/net/interp.rs"
+        "crates/red_core/src/net/interp.rs"
       ]
     },
     {

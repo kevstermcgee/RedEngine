@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn a_query_resolves_by_name_path_or_words() {
         let all = vec![
-            feature("match_flow", "lobby, countdown and rounds", &["src/sim/flow.rs"]),
+            feature("match_flow", "lobby, countdown and rounds", &["crates/red_core/src/sim/flow.rs"]),
             feature("net_client", "the UDP client and prediction", &["src/net/client.rs"]),
         ];
         let names = |q: &[&str]| resolve(&all, &q.iter().map(|s| s.to_string()).collect::<Vec<_>>()).iter().map(|f| f.name.clone()).collect::<Vec<_>>();

@@ -452,7 +452,7 @@ pub fn title_alpha(t: f32, secs: f32) -> f32 {
 }
 
 /// A decoded song: interleaved samples to play, mono samples at [`RATE`] to listen to, and its title.
-#[cfg(feature = "gfx")]
+#[cfg(feature = "decode")]
 pub struct Song {
     /// Interleaved samples at `rate`, `channels` wide.
     pub samples: Vec<f32>,
@@ -465,7 +465,7 @@ pub struct Song {
     pub seed: u32,
 }
 
-#[cfg(feature = "gfx")]
+#[cfg(feature = "decode")]
 impl Song {
     /// Length in seconds.
     pub fn secs(&self) -> f32 {
@@ -474,7 +474,7 @@ impl Song {
 }
 
 /// Decodes an audio file (mp3, flac, ogg vorbis, wav, m4a/aac) with symphonia. Errors say which file and why, in words a player can act on.
-#[cfg(feature = "gfx")]
+#[cfg(feature = "decode")]
 pub fn decode(path: &std::path::Path) -> Result<Song, String> {
     use symphonia::core::audio::SampleBuffer;
     use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
@@ -701,7 +701,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gfx")]
+    #[cfg(feature = "decode")]
     #[test]
     fn a_wav_file_decodes_to_samples_mono_a_title_and_a_seed_and_a_bad_file_says_why() {
         let dir = std::env::temp_dir().join(format!("re2-listen-{}", std::process::id()));

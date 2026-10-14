@@ -132,7 +132,7 @@ fn prop_entry(k: PropKind) -> Entry {
         license: "MIT".to_string(),
         origin: "authored".to_string(),
         provenance: Some("RedEngine procedural prop geometry".to_string()),
-        source: "engine:src/props.rs".to_string(),
+        source: "engine:crates/red_core/src/props.rs".to_string(),
         error: None,
     }
 }

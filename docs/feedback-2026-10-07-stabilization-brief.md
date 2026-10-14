@@ -93,7 +93,7 @@ Acceptance:
 * Ordinary respawn modes continue working.
 
 Starting points:
-src/net/sessions.rs, src/net/server.rs, src/sim/match_sim.rs, src/sim/objective_run.rs.
+src/net/sessions.rs, src/net/server.rs, crates/red_core/src/sim/match_sim.rs, src/sim/objective_run.rs.
 
 Duel capacity after replacement and resume
 
@@ -176,7 +176,7 @@ Acceptance:
 * Diagnostics identify useful differences rather than merely reporting a generic mismatch.
 
 Starting points:
-src/sim/checksum.rs, src/sim/shooter.rs, src/sim/trace.rs, src/sim/replay.rs, src/bin/red_server.rs, src/tools/simrun.rs.
+crates/red_core/src/sim/checksum.rs, crates/red_core/src/sim/shooter.rs, crates/red_core/src/sim/trace.rs, src/sim/replay.rs, src/bin/red_server.rs, src/tools/simrun.rs.
 
 4. Finish the native 2D delivery path
 

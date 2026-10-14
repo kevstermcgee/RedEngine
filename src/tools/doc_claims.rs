@@ -38,6 +38,7 @@ fn without_facts(text: &str) -> String {
 /// began and stays true, so it is allowed; a current version should be written as `<!--fact:protocol-->N<!--/fact-->`, which `preflight --fix` keeps right.
 pub fn protocol_claims(root: &Path) -> Vec<String> {
     let Some(current) = status::protocol_version(root) else { return Vec::new() };
+    let file = status::protocol_file(root).unwrap_or(status::PROTOCOL_FILES[0]);
     let mut out = Vec::new();
     for doc in CLAIM_DOCS {
         let text = without_facts(&read(root, doc));
@@ -53,7 +54,7 @@ pub fn protocol_claims(root: &Path) -> Vec<String> {
                 continue;
             }
             out.push(format!(
-                "{doc}: says `protocol v{n}`, src/net/protocol.rs has v{current}; write the current version as <!--fact:protocol-->{current}<!--/fact--> (or \"vN and later\" for when something began)"
+                "{doc}: says `protocol v{n}`, {file} has v{current}; write the current version as <!--fact:protocol-->{current}<!--/fact--> (or \"vN and later\" for when something began)"
             ));
         }
     }
@@ -63,10 +64,10 @@ pub fn protocol_claims(root: &Path) -> Vec<String> {
 /// A sentence the code has disproved: `(file, text that is in the file while the feature exists, phrases that say it is missing, what is true)`.
 const DISPROVED: &[(&str, &str, &[&str], &str)] = &[
     (
-        "src/sim/match_sim.rs",
+        "crates/red_core/src/sim/match_sim.rs",
         "pub const HISTORY_TICKS",
         &["no lag compensation", "have: lag compensation", "lag compensation for hitscan yet", "without lag compensation", "lacks lag compensation"],
-        "lag compensation is built (`HISTORY_TICKS` in src/sim/match_sim.rs, ADR 0053)",
+        "lag compensation is built (`HISTORY_TICKS` in crates/red_core/src/sim/match_sim.rs, ADR 0053)",
     ),
     (
         "AGENTS.md",
@@ -298,10 +299,10 @@ mod tests {
     #[test]
     fn a_missing_feature_is_only_disproved_while_its_code_is_there() {
         let sentence = "What it does **not** have: lag compensation for hitscan.\n";
-        let with_code = tree(&[("README.md", sentence), ("src/sim/match_sim.rs", "pub const HISTORY_TICKS: usize = 16;\n")]);
+        let with_code = tree(&[("README.md", sentence), ("crates/red_core/src/sim/match_sim.rs", "pub const HISTORY_TICKS: usize = 16;\n")]);
         let found = disproved_claims(with_code.path());
         assert!(found.iter().any(|f| f.contains("lag compensation is built")), "{found:?}");
-        let without_code = tree(&[("README.md", sentence), ("src/sim/match_sim.rs", "// nothing\n")]);
+        let without_code = tree(&[("README.md", sentence), ("crates/red_core/src/sim/match_sim.rs", "// nothing\n")]);
         assert!(disproved_claims(without_code.path()).is_empty());
         let spec = tree(&[("AGENTS.md", "Do not open SPEC.md whole.\n"), ("README.md", "Both are written to be read once and used directly.\n")]);
         assert!(disproved_claims(spec.path()).iter().any(|f| f.starts_with("README.md") && f.contains("never to open SPEC.md whole")));

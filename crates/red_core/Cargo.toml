@@ -19,9 +19,15 @@ subtle = { workspace = true }
 # tests/shader_validation.rs, and a game's own sky (`sky.shader`) when its scene is validated. It compiles text and draws nothing; the engine's `render`
 # turns it on (a build that can draw the shader checks it), the headless server has none.
 naga = { workspace = true, optional = true }
+# Heightmap terrains (`terrain`): PNG only, pure Rust.
+image = { workspace = true }
+# Decodes the player's own music (`audio.playlist`, `listen::decode`): mp3, flac, ogg vorbis, wav, m4a/aac. Pure Rust; behind `decode`, which the
+# engine's `gfx` turns on (a game that plays music has a window).
+symphonia = { workspace = true, optional = true }
 
 [features]
 shader-check = ["dep:naga"]
+decode = ["dep:symphonia"]
 
 # The same style policy as the engine crate.
 [lints.clippy]

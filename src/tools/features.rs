@@ -442,7 +442,7 @@ pub fn check_with(features: &[Feature], serial: &[String], root: &Path) -> Vec<S
         for t in &f.tests {
             match t.strip_prefix("lib:") {
                 Some(filter) => {
-                    // `sim::flow` must be a real module path: src/sim/flow.rs or src/sim/flow/mod.rs (or a directory for a prefix).
+                    // `sim::flow` must be a real module path: crates/red_core/src/sim/flow.rs or src/sim/flow/mod.rs (or a directory for a prefix).
                     let rel = filter.replace("::", "/");
                     let head = rel.trim_end_matches('/');
                     let exists = ["", ".rs", "/mod.rs"].iter().any(|suffix| root.join("src").join(format!("{head}{suffix}")).exists());
@@ -605,7 +605,7 @@ mod tests {
         assert!(packs[0].files.iter().any(|g| glob_match(g, "games/killchain/src/app.rs")));
         assert!(packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/2026-09-30-ten-minigames-feedback.md")));
         assert!(!packs[1].files.iter().any(|g| glob_match(g, "docs/analysis/external-architecture-study.md")));
-        assert_eq!(content_tier("src/sim/flow.rs"), None);
+        assert_eq!(content_tier("crates/red_core/src/sim/flow.rs"), None);
         assert_eq!(content_tier("games/killchain/src/app.rs"), Some("game"));
         assert_eq!(content_tier("examples/house.json"), Some("legacy"));
     }
@@ -645,7 +645,7 @@ mod tests {
         let fs = vec![
             f("sim_core", &["src/sim/clock.rs"], &["lib:sim::clock", "alloc_budget"], &[]),
             f("net", &["src/net/**"], &["net_e2e"], &["sim_core"]),
-            f("flow", &["src/sim/flow.rs"], &["lib:sim::flow", "net_flow"], &["net"]),
+            f("flow", &["crates/red_core/src/sim/flow.rs"], &["lib:sim::flow", "net_flow"], &["net"]),
             f("docs", &["README.md"], &["repo_hygiene"], &[]),
         ];
         let i = impact(&fs, &["src/sim/clock.rs".to_string(), "mystery.txt".to_string()]);
@@ -664,11 +664,11 @@ mod tests {
         assert!(parse("not json").is_err());
         assert!(parse(r#"{"features":{"x":{"files":[]}}}"#).unwrap_err().contains("summary"));
         assert!(parse(r#"{"features":{"x":{"summary":"s","files":"src"}}}"#).is_err());
-        let fs = vec![f("match_flow", &["src/sim/flow.rs"], &[], &[]), f("perf", &["src/tools/perf.rs"], &[], &[])];
+        let fs = vec![f("match_flow", &["crates/red_core/src/sim/flow.rs"], &[], &[]), f("perf", &["src/tools/perf.rs"], &[], &[])];
         assert_eq!(find(&fs, "flow").len(), 1);
         assert_eq!(find(&fs, "summary").len(), 2);
         assert_eq!(find(&fs, "zzz").len(), 0);
-        assert!(render_list(&fs).contains("match_flow") && render_one(&fs[0]).contains("src/sim/flow.rs"));
+        assert!(render_list(&fs).contains("match_flow") && render_one(&fs[0]).contains("crates/red_core/src/sim/flow.rs"));
     }
 
     const SAMPLE: &str = "{\n  \"serial_suites\": [\"a\"],\n  \"features\": {\n    \"sim\": {\n      \"summary\": \"s\",\n      \"files\": [\"src/sim/a.rs\", \"src/sim/b.rs\"],\n      \"tests\": []\n    },\n    \"net\": {\n      \"summary\": \"n\",\n      \"files\": [\n        \"src/net/a.rs\",\n        \"src/net/b.rs\"\n      ],\n      \"tests\": [\"net_e2e\"]\n    }\n  }\n}\n";
