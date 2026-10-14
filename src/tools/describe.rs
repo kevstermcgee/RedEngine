@@ -249,6 +249,13 @@ pub const TYPES: &[TypeInfo] = &[
 ];
 
 /// Top-level scene keys and what each does.
+/// What `describe scene` lists: the built-in keys ([`SCENE_KEYS`]), each scene block defined above the parser (`schema::define_blocks`) with its own line,
+/// then the extension namespace.
+pub fn scene_keys() -> Vec<(&'static str, &'static str)> {
+    let (plain, wild): (Vec<_>, Vec<_>) = SCENE_KEYS.iter().copied().partition(|(k, _)| !k.contains('*'));
+    plain.into_iter().chain(crate::schema::defined_blocks().into_iter().map(|b| (b.key, b.describe))).chain(wild).collect()
+}
+
 pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("schema_version", "optional whole number, currently 1 (omitted = 1); a newer number is refused with a message"),
     ("recipe", "{title, summary, teaches, tips} — what a known-good example map is for (`recipe` lists them)"),
@@ -284,7 +291,6 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("ui", "{title, labels: {var: name}, counters: [{var, of?, label?, format?: number|clock}], objective: text | [{if?, text}], start: {title, text, button}, end: {outcome|default: {title, text, button}}} the game's own words: friendly HUD, objective, start card, end cards with restart (`describe ui`); texts may use {var}"),
     ("persist", "[var, ...] scene vars the game keeps between sessions (loaded at start, saved when they change); with a clock, rules can react to events sunrise and sunset"),
     ("audio", "{ambience: \"nature\", music: {dawn|day|dusk|night: score file}, journey: {scores, seed, fade, repeats}, playlist: true|{title_secs, corner, shuffle}, music_volume, ambience_volume} the sounds of the world: countryside ambience and a score per time of day, crossfaded by the clock; or a journey: music that never repeats; or a playlist: the player's own music files (`describe audio`)"),
-    ("museum", "{collection, art, seed, start_theme} an endless museum built around the player: rooms, doors and wings from the seed, art with plaques written from the collection file (themes, words, styles, masterpieces), a key hidden in each room (a sculpture, or a painting up to three worlds deep), the worlds inside paintings. art: a .wgsl file defining `fn surface(s: SurfaceIn) -> vec4<f32>` (colour, glow) that paints every canvas and sculpture, composed in front of the sky too; `game_param(i)` says which painting's world surrounds the player. `red_engine2 museum SCENE` prints a room, `--inside N --shot`, `--map`, `--styles`; examples/frameless"),
     ("procgen", "{seed, relief, trees, flowers, grass} an endless world of hills, meadows and forests of real plants, built around the player as they walk (`procgen` map, `flora` sheet)"),
     ("clock", "{day_secs, start, sun_max_deg, latitude_deg, fog, stars, moon, moon_phase, night_light, light} a day that turns to night: sun, moon, stars, sky, sun light, ambient, haze follow the scene time; `frame --hour 18.5`, `sky` contact sheet"),
     ("hud", "{enabled, show_combat, show_crosshair, show_ping, show_scoreboard, show_round, show_events, show_help, show_rules_vars, custom_vars: [var, ...]} which on-screen display is drawn; `enabled:false` is a clean screen; defaults are all-on, or combat/crosshair/ping/scoreboard/round off when `player.mode` is peaceful"),
@@ -830,7 +836,7 @@ pub fn all_json(commands: &Value) -> Value {
         "commands": commands,
         "common_fields": COMMON_FIELDS.iter().map(|(n, t, d)| json!({"name": n, "type": t, "desc": d})).collect::<Vec<_>>(),
         "objects": types_json(),
-        "scene": SCENE_KEYS.iter().map(|(k, d)| json!({"key": k, "about": d})).collect::<Vec<_>>(),
+        "scene": scene_keys().iter().map(|(k, d)| json!({"key": k, "about": d})).collect::<Vec<_>>(),
         "lint": LINT_CODES.iter().map(|(c, s, d)| json!({"code": c, "severity": s, "about": d})).collect::<Vec<_>>(),
         "physics": physics().iter().map(|(k, v, d)| json!({"name": k, "value": v, "about": d})).collect::<Vec<_>>(),
         "conventions": CONVENTIONS.iter().map(|(k, d)| json!({"topic": k, "rule": d})).collect::<Vec<_>>(),
@@ -979,7 +985,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             }
         }
         "scene" => {
-            for (k, d) in SCENE_KEYS {
+            for (k, d) in scene_keys() {
                 out.push_str(&format!("{k:<16} {d}\n"));
             }
         }
@@ -1035,13 +1041,14 @@ mod tests {
     /// Every key the strict parser accepts at the scene root is described (and vice versa), so the doc cannot drift.
     #[test]
     fn describe_scene_lists_exactly_the_strict_root_keys() {
-        // The parser's root keys: the built-in ones and the blocks the engine defines above it (the museum).
+        // The parser's root keys: the built-in ones and the blocks the engine defines above it (the museum), which describe themselves.
         crate::scene_blocks::register();
         let root = crate::schema::root_keys();
+        let keys = scene_keys();
         for k in &root {
-            assert!(SCENE_KEYS.iter().any(|(d, _)| d == k), "`describe scene` does not mention the root key `{k}` (add it to SCENE_KEYS)");
+            assert!(keys.iter().any(|(d, _)| d == k), "`describe scene` does not mention the root key `{k}` (add it to SCENE_KEYS, or a block's `describe`)");
         }
-        for (d, _) in SCENE_KEYS.iter().filter(|(d, _)| !d.contains('*')) {
+        for (d, _) in keys.iter().filter(|(d, _)| !d.contains('*')) {
             assert!(root.contains(d), "`describe scene` lists `{d}` but the parser would reject it");
         }
     }

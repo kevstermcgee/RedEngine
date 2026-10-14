@@ -142,7 +142,7 @@ fn every_game_sky_in_the_repository_validates_and_translates_to_hlsl() {
         wgsl_files(&root.join(dir), &mut skies);
     }
     assert!(!skies.is_empty(), "examples/wormhole ships a game sky: this test must find it");
-    // A museum's painted surfaces (`museum.art`, a file defining `fn surface(`) are checked in the scene module, and the sky beside them with them in front.
+    // A game's painted surfaces (a file defining `fn surface(`, a museum's `museum.art`) are checked in the scene module, and the sky beside them with them in front.
     let is_art = |code: &str| code.lines().any(|l| l.trim_start().starts_with("fn surface("));
     let failures: Vec<String> = skies
         .iter()
@@ -150,7 +150,7 @@ fn every_game_sky_in_the_repository_validates_and_translates_to_hlsl() {
             let code = fs::read_to_string(p).unwrap_or_default();
             let name = p.strip_prefix(&root).unwrap_or(p).display().to_string();
             if is_art(&code) {
-                return red_engine2::atmosphere::check_art_shader(&name, &code).err();
+                return red_engine2::atmosphere::check_art_shader("art", &name, &code).err();
             }
             let art = skies.iter().filter(|q| q.parent() == p.parent()).map(|q| fs::read_to_string(q).unwrap_or_default()).find(|c| is_art(c));
             red_engine2::atmosphere::check_sky_shader_with(&name, &code, art.as_deref()).err()
@@ -267,4 +267,40 @@ fn the_shadow_loop_that_broke_direct3d_stays_refused() {
     // The fix that shipped, in the same shape: the Level variant needs no derivatives, so the identical control flow is accepted.
     let fixed = THE_SHADOW_LOOP_THAT_BROKE_DIRECT3D.replace("textureSampleCompare(", "textureSampleCompareLevel(");
     assert_eq!(check("the fixed shadow lookup", &fixed), Ok(()));
+}
+
+/// A scene block that names painted surfaces (`BlockDef::art_file`, as the museum's `art` does) has them composed in front of the scene's sky when the
+/// sky is checked: a sky may call the art's functions, and fails without them.
+#[test]
+fn a_sky_is_checked_with_the_painted_surfaces_its_scene_block_names() {
+    use red_engine2::schema::{self, BlockDef, BlockValue};
+    fn parse(root: &serde_json::Map<String, serde_json::Value>, _: Option<&std::path::Path>) -> Result<Option<BlockValue>, Vec<String>> {
+        Ok(root.get("painted").map(|_| std::sync::Arc::new(()) as BlockValue))
+    }
+    static BLOCKS: &[BlockDef] = &[BlockDef {
+        key: "painted",
+        parse,
+        fix_launch_seed: |_, _| None,
+        art_file: |v| v.get("art").and_then(serde_json::Value::as_str),
+        endless: false,
+        describe: "{art} a test block",
+    }];
+    schema::define_blocks(BLOCKS);
+    let dir = std::env::temp_dir().join(format!("re2_block_art_{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("art.wgsl"),
+        "fn tint() -> vec3<f32> {\n    return vec3<f32>(0.2, 0.4, 0.8);\n}\nfn surface(s: SurfaceIn) -> vec4<f32> {\n    return vec4<f32>(tint(), 0.0);\n}\n",
+    )
+    .unwrap();
+    fs::write(dir.join("sky.wgsl"), "fn sky(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    return tint() * (0.5 + 0.5 * dir.y);\n}\n").unwrap();
+    let scene = |block: &str| format!(r#"{{"camera": {{"position": [0, 2, 5], "target": [0, 0, 0]}}, "objects": [], "sky": {{"shader": "sky.wgsl"}}{block}}}"#);
+    let with = schema::parse_scene_in(&scene(r#", "painted": {"art": "art.wgsl"}"#), Some(&dir));
+    assert!(with.is_ok(), "the sky calls the block's art: {:?}", with.err());
+    let without = schema::parse_scene_in(&scene(""), Some(&dir));
+    assert!(
+        without.is_err_and(|e| e.iter().any(|m| m.contains("sky.shader") || m.contains("sky.wgsl"))),
+        "without the block the sky's call has nothing to call"
+    );
+    fs::remove_dir_all(&dir).ok();
 }

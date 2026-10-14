@@ -127,7 +127,7 @@ const BACKGROUND_WGSL: &str = concat!(
 const SKY_HOOK: &str = "fn sky_of(dir: vec3<f32>, px: f32) -> vec3<f32> {\n    return sky_color_px(dir, px);\n}\n";
 
 /// The WGSL of the background pass: the engine's own, or with a game's sky (`custom`) in place of the engine's dome. A game's painted surfaces (`art`,
-/// `museum.art`) come first, so its sky may call the same functions (a painting's world drawn around the player).
+/// a scene block's, [`crate::schema::BlockDef::art_file`]) come first, so its sky may call the same functions (a painting's world drawn around the player).
 #[cfg(feature = "shader-check")]
 pub fn background_source(custom: Option<&str>, art: Option<&str>) -> std::borrow::Cow<'static, str> {
     match custom {
@@ -149,7 +149,7 @@ const SCENE_WGSL: &str = concat!(include_str!("../../../src/shaders/common.wgsl"
 #[cfg(feature = "shader-check")]
 const SURFACE_HOOK: &str = "fn surface_of(s: SurfaceIn) -> vec4<f32> {\n    return vec4<f32>(1.0, 1.0, 1.0, 0.0);\n}\n";
 
-/// The WGSL of the scene (object) pass: the engine's own, or with a game's `fn surface(s: SurfaceIn) -> vec4<f32>` (`museum.art`) painting every object whose
+/// The WGSL of the scene (object) pass: the engine's own, or with a game's `fn surface(s: SurfaceIn) -> vec4<f32>` (a scene block's art) painting every object whose
 /// `surface.x` is above 0.5.
 #[cfg(feature = "shader-check")]
 pub fn scene_source(art: Option<&str>) -> std::borrow::Cow<'static, str> {
@@ -163,38 +163,39 @@ pub fn scene_source(art: Option<&str>) -> std::borrow::Cow<'static, str> {
     }
 }
 
-/// Whether a game's painted surfaces (`museum.art`) compile everywhere the engine runs: the file must define `fn surface(s: SurfaceIn) -> vec4<f32>`;
-/// it is checked inside the scene module, like the engine's own shaders. Errors name the game's file and its own line numbers.
-pub fn check_art_shader(file: &str, code: &str) -> Result<(), String> {
+/// Whether a game's painted surfaces compile everywhere the engine runs: the file must define `fn surface(s: SurfaceIn) -> vec4<f32>`; it is checked
+/// inside the scene module, like the engine's own shaders. Errors begin with `key`, the scene key that names the file (`museum.art`), and name the game's
+/// file and its own line numbers.
+pub fn check_art_shader(key: &str, file: &str, code: &str) -> Result<(), String> {
     let has = code.lines().any(|l| {
         let l = l.trim_start();
         l.starts_with("fn surface(") || l.starts_with("fn surface (")
     });
     if !has {
         return Err(format!(
-            "museum.art: `{file}` has no `fn surface(s: SurfaceIn) -> vec4<f32>` (the colour and glow of a painted point; the engine calls it for every pixel of a painting or sculpture)"
+            "{key}: `{file}` has no `fn surface(s: SurfaceIn) -> vec4<f32>` (the colour and glow of a painted point; the engine calls it for every pixel of a painted surface)"
         ));
     }
-    art_compile_check(file, code)
+    art_compile_check(key, file, code)
 }
 
 #[cfg(feature = "shader-check")]
-fn art_compile_check(file: &str, code: &str) -> Result<(), String> {
+fn art_compile_check(key: &str, file: &str, code: &str) -> Result<(), String> {
     let source = scene_source(Some(code));
     let before = SCENE_WGSL[..SCENE_WGSL.find(SURFACE_HOOK).unwrap_or(0)].lines().count();
     let user_lines = code.lines().count();
-    crate::shader_check::check("museum.art", &source).map_err(|e| {
+    crate::shader_check::check(key, &source).map_err(|e| {
         let mut out = String::new();
         for line in e.lines() {
             out.push_str(&relocate_line(line, before, user_lines, file));
             out.push('\n');
         }
-        format!("museum.art: `{file}` does not compile for every GPU backend:\n{}", out.trim_end())
+        format!("{key}: `{file}` does not compile for every GPU backend:\n{}", out.trim_end())
     })
 }
 
 #[cfg(not(feature = "shader-check"))]
-fn art_compile_check(_file: &str, _code: &str) -> Result<(), String> {
+fn art_compile_check(_key: &str, _file: &str, _code: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -203,7 +204,7 @@ pub fn check_sky_shader(file: &str, code: &str) -> Result<(), String> {
     check_sky_shader_with(file, code, None)
 }
 
-/// [`check_sky_shader`] for a sky that may call a game's painted-surface functions (`art`, `museum.art`), composed in front of it as the renderer does.
+/// [`check_sky_shader`] for a sky that may call a game's painted-surface functions (`art`, a scene block's), composed in front of it as the renderer does.
 pub fn check_sky_shader_with(file: &str, code: &str, art: Option<&str>) -> Result<(), String> {
     let has_sky = code.lines().any(|l| {
         let l = l.trim_start();
@@ -296,8 +297,12 @@ pub fn parse_sky_shader(root: &Map<String, Value>, base: Option<&std::path::Path
     let path = base.join(&file);
     let source = std::fs::read_to_string(&path)
         .map_err(|e| vec![format!("sky.shader: `{file}` cannot be read (looked for {}): {e}; a game published without it draws no sky", path.display())])?;
-    // A museum's painted surfaces are composed in front of the sky (it may call them): check the sky with them. Their own errors are `museum.art`'s.
-    let art = root.get("museum").and_then(|m| m.get("art")).and_then(Value::as_str).and_then(|f| std::fs::read_to_string(base.join(f)).ok());
+    // A scene block's painted surfaces (a museum's) are composed in front of the sky (it may call them): check the sky with them. Their own errors
+    // are the block's.
+    let art = crate::schema::defined_blocks()
+        .into_iter()
+        .find_map(|b| root.get(b.key).and_then(b.art_file).map(str::to_string))
+        .and_then(|f| std::fs::read_to_string(base.join(f)).ok());
     check_sky_shader_with(&file, &source, art.as_deref()).map_err(|e| vec![e])?;
     Ok(Some(SkyShader { file, source, seed }))
 }

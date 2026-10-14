@@ -55,6 +55,9 @@ Measured at 94e5263 before deciding:
 - **Frameless moves to `games/frameless`** behind those seams: `src/museum`, `museum_gpu`, the museum mode and the `museum` tool. Its binary registers
   the `museum` block and its layer and runs the client with its mode. Parity: the same rooms, plaques and keys for the same seed, and a save written
   before the move loads after it. Then `src/museum` is gone from the engine crate.
+  *First (2026-10-14):* what the engine and the core still asked of the museum by name, a scene block now says of itself (`schema::BlockDef`):
+  `art_file` (the painted surfaces a `sky.shader` is checked with), `endless` (the tools treat the scene as a world built around the player) and
+  `describe` (its line in `describe scene`); `atmosphere::check_art_shader` takes the key that names the file.
 - Each bullet is its own pull request in this order, structural moves never mixed with behaviour.
 
 ## Consequences
