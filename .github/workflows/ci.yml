@@ -24,6 +24,7 @@ jobs:
     outputs:
       native: ${{ steps.f.outputs.native }}
       docker: ${{ steps.f.outputs.docker }}
+      docker_own: ${{ steps.f.outputs.docker_own }}
       pytools: ${{ steps.f.outputs.pytools }}
       games_only: ${{ steps.f.outputs.games_only }}
     steps:
@@ -35,18 +36,20 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "no usable base commit: running everything"
-            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "docker_own=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           # NUL-separated, because the default output quotes a name with a non-ASCII or special character ("scripts/\303\274.py") and the anchored patterns below would never match the
           # opening quote; a line per file is rebuilt from it. `has` reads the list from a here-string, not a pipe: under `pipefail`, `echo | grep -q` fails when grep exits before echo is done.
           files="$(git diff --name-only -z "$base" HEAD | tr '\0' '\n')"
           echo "$files"
           has() { grep -Eq "$1" <<<"$files"; }
-          native=false; docker=false; pytools=false
+          native=false; docker=false; docker_own=false; pytools=false
           # Anything that changes a compiled binary or how it is built/tested on a second platform.
           has '^(src/|crates/|tests/|benches/|examples/|assets/|recipes/|Cargo\.(toml|lock)$|rustfmt\.toml$|scripts/ci\.sh$|\.cargo/|\.github/)' && native=true
           # What the container image is made of.
           has '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|src/|crates/|assets/|examples/|Cargo\.(toml|lock)$|\.github/)' && docker=true
+          # The image's own files: a pull request builds the image only when they change; main builds it for every change it is made of.
+          has '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|\.github/)' && docker_own=true
           # The Python tools run on Windows machines too (the launchpad, Idea Forge, the process supervisor, the publisher, the MCP adapter, the bench scripts): paths, quoting, subprocesses and git
           # behave differently there, and a change that is only Python does not touch what `native` looks at. Any Python or PowerShell file, anything under scripts/ (including `dev`, `ci.sh`
           # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it.
@@ -56,7 +59,7 @@ jobs:
           # else (an engine change the game depends on, a fixture, a script) and this is false and the full suite runs. (docs/analysis/2026-10-09-engine-ci-growth.md, proposal 1.)
           games_only=false
           if [ -n "$files" ] && ! grep -Evq '^(examples/2d/|examples/3d/|docs/analysis/idea-forge/)' <<<"$files"; then games_only=true; native=false; docker=false; fi
-          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"
+          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "docker_own=$docker_own" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"
 
   fmt:
     name: rustfmt
@@ -86,11 +89,43 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
       - run: bash scripts/ci.sh content
 
-  # The suite on Linux, split across runners by cargo-nextest (`RED_CI_PARTITION`, ADR 2026-10-10-ci-shards-the-linux-tests): each shard compiles the tests (the
-  # dependencies come from the shared cache) and runs its share; the serial suites are spread over the shards too, one at a time within each.
+  # The suite on Linux, compiled once (`scripts/ci.sh test-archive`: cargo-nextest's archive, and the doctests beside it) and run by five shards that
+  # download it instead of each compiling it (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites; the shards
+  # were ADR 2026-10-10-ci-shards-the-linux-tests). The serial suites are spread over the shards, one at a time within each.
+  build-tests:
+    name: tests (linux, compile once)
+    needs: changes
+    if: needs.changes.outputs.games_only != 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: linux-tests
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - run: bash scripts/ci.sh test-archive
+        env:
+          RED_CI_ARCHIVE: target/nextest-archive.tar.zst
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: target/nextest-archive.tar.zst
+          retention-days: 1
+          compression-level: 0
+
   test:
     name: tests (linux, shard ${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: changes
+    needs: [changes, build-tests]
     if: needs.changes.outputs.games_only != 'true'
     runs-on: ubuntu-24.04
     strategy:
@@ -103,21 +138,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: linux-tests
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.shard == 1 }}
-      # cargo-nextest runs the suite (scripts/ci.sh run_tests; ADR 2026-10-10-ci-runs-the-tests-under-nextest): a prebuilt binary, seconds.
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
       - name: Linux system libraries (audio backend for rodio)
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+          path: target
       # Real-time UDP suites one test at a time (serial_suites in docs/features.json), everything else on all cores. The deterministic performance guards
       # (tests/alloc_budget.rs, body/entity counts) run here; wall-clock bench regressions are NOT gated (shared runners are too noisy: benches/README.md).
       - run: bash scripts/ci.sh tests
         env:
           RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
+          RED_CI_ARCHIVE: target/nextest-archive.tar.zst
 
   # Lints and compile-only checks: nothing here waits for the tests. The lock files first: a stale one is the commonest reason a dependency change fails CI.
   lint:
@@ -251,16 +286,18 @@ jobs:
       - run: bash scripts/ci.sh pytools
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
-  # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS.
+  # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS. On a pull request it runs the suites that run the
+  # server itself (net_*, server_env, sim_replay) headless, in one job; on main the whole suite headless, in three shards
+  # (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
   headless-linux:
-    name: headless server (linux, no gfx, shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    name: headless server (linux, no gfx, ${{ matrix.shard == 0 && 'the server suites' || format('shard {0}/3', matrix.shard) }})
     needs: changes
     if: needs.changes.outputs.games_only != 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0]' || '[1, 2, 3]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -274,9 +311,9 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
-      - run: bash scripts/ci.sh headless-tests
+      - run: bash scripts/ci.sh ${{ matrix.shard == 0 && 'headless-net' || 'headless-tests' }}
         env:
-          RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
+          RED_CI_PARTITION: ${{ matrix.shard != 0 && format('hash:{0}/3', matrix.shard) || '' }}
 
   # The headless dependency tree, build and clippy (no graphics crates may be compiled or linked): their own job, so neither test shard waits for them.
   headless-build:
@@ -295,10 +332,12 @@ jobs:
       - run: bash scripts/ci.sh headless-tree headless-build headless-clippy
 
   # The container image people deploy: builds headless, starts, listens on UDP 27015 and exits cleanly.
+  # On a pull request only when the image's own files change (Dockerfile, deploy/, CI): the source it is built from is CI's anyway, and main builds it
+  # for every change (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
   docker:
     name: container image
     needs: changes
-    if: needs.changes.outputs.docker == 'true'
+    if: needs.changes.outputs.docker == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.docker_own == 'true')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
