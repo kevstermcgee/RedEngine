@@ -1,7 +1,7 @@
 //! Repository housekeeping commands: `preflight`, `adr`, `analysis` (ADR 2026-09-28-generated-bookkeeping).
 
 use super::*;
-use red_engine2::tools::{adr, analysis, preflight, status};
+use crate::tools::{adr, analysis, preflight, status};
 
 /// The repository to work on: `--root`, else the nearest parent of the current directory that is the engine's tree, else the tree this binary was built from.
 fn repo_root(given: Option<&Path>) -> Result<PathBuf, String> {

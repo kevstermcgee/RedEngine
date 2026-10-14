@@ -1,7 +1,7 @@
 //! `servers`: list, inspect, start, stop and restart the Red game servers on this machine. The logic is `tools::servers`; this only parses, calls it and prints (or emits JSON under `--json`).
 
 use super::*;
-use red_engine2::tools::servers::{self, SystemdUser, Verb};
+use crate::tools::servers::{self, SystemdUser, Verb};
 
 /// `servers [list|status|start|stop|restart|logs]`.
 pub(crate) fn run_servers(cmd: Option<ServersCmd>) -> Result<(), String> {

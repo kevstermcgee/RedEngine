@@ -8,8 +8,8 @@
 //! Standard output belongs to the protocol: nothing else may print to it. Commands that never return (servers, interactive play) are refused, not run.
 
 use super::args::Cli;
+use crate::tools::envelope;
 use base64::Engine as _;
-use red_engine2::tools::envelope;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, ContentBlock},
@@ -71,7 +71,7 @@ pub fn exec(args: &[String]) -> Outcome {
     };
     envelope::begin_capture_text();
     let started = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::run(cli.command)));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| super::run(cli.command)));
     let (out, mut err) = envelope::end_capture();
     let code = match result {
         Ok(Ok(())) => 0,
@@ -87,7 +87,7 @@ pub fn exec(args: &[String]) -> Outcome {
             101
         }
     };
-    red_engine2::tools::agent_trace::record(&top, code, started.elapsed().as_millis(), "");
+    crate::tools::agent_trace::record(&top, code, started.elapsed().as_millis(), "");
     Outcome { code, out, err }
 }
 

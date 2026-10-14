@@ -10,7 +10,7 @@ pub(crate) fn analyze(scene: &Path, cell: f32, phase: Option<&str>) -> Result<(M
 }
 
 pub(crate) fn run_validate(scene: &Path) -> Result<(), String> {
-    match red_engine2::validate_scene_file(scene) {
+    match crate::validate_scene_file(scene) {
         Ok(()) => {
             println!("OK: scene is valid");
             Ok(())
@@ -26,7 +26,7 @@ pub(crate) fn run_validate(scene: &Path) -> Result<(), String> {
 
 /// `validate` with no paths, a folder or several files: every content file, `file:line: message` per problem (`content::validate`).
 pub(crate) fn run_validate_all(paths: &[PathBuf]) -> Result<(), String> {
-    use red_engine2::content::validate;
+    use crate::content::validate;
     let root = if paths.is_empty() {
         symbols::find_root().ok_or("`validate` with no paths checks a checkout's content (examples, recipes, assets, tests/fixtures, games): run it inside one, or name files or folders")?
     } else {
@@ -47,7 +47,7 @@ pub(crate) fn run_validate_all(paths: &[PathBuf]) -> Result<(), String> {
 /// `schema`: write the JSON Schema of every content format.
 #[cfg(feature = "schema")]
 pub(crate) fn run_schema(out: &Path) -> Result<(), String> {
-    let written = red_engine2::content::json_schema::write(out)?;
+    let written = crate::content::json_schema::write(out)?;
     for p in &written {
         println!("wrote {}", p.display());
     }
@@ -114,7 +114,7 @@ pub(crate) fn run_reach(scene: &Path, from: Option<&str>, to: Option<&str>, cell
             }
         );
         if !ok {
-            let why = red_engine2::tools::pathing::unreachable_why(&world, &r, p);
+            let why = crate::tools::pathing::unreachable_why(&world, &r, p);
             if !why.is_empty() {
                 println!("  why: {why}");
             }
@@ -278,12 +278,12 @@ pub(crate) fn run_walk(
     explain: Option<&Path>,
     phase: Option<&str>,
 ) -> Result<(), String> {
-    use red_engine2::tools::pathing;
+    use crate::tools::pathing;
     let world = load_or_report_phase(scene, phase)?;
     let (start, start_y) = from.map(v2y).transpose()?.unwrap_or((world.spawn, Some(world.spawn_y)));
     let json = envelope::capturing();
     let write_explain =
-        |wps: &[Vec2], steps: &[red_engine2::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>, rr: Option<&reach::Reach>| -> Result<(), String> {
+        |wps: &[Vec2], steps: &[crate::tools::walk::WalkStep], diag: Option<&pathing::Diagnosis>, rr: Option<&reach::Reach>| -> Result<(), String> {
             if let Some(out) = explain {
                 let img = pathing::explain_image(&world, start, wps, steps, diag, rr);
                 if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -341,7 +341,7 @@ pub(crate) fn run_walk(
             }
             Err(e) => {
                 // Say why: walk the straight line and diagnose where it stops.
-                let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &[dest]);
+                let steps = crate::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &[dest]);
                 // One flood from the stop point serves the diagnosis and the picture.
                 let rr = steps.last().filter(|s| !s.reached).map(|s| reach::compute(&world, &ReachParams { start: Some(s.pos), ..Default::default() }));
                 let diag = steps.last().filter(|s| !s.reached).zip(rr.as_ref()).map(|(s, r)| pathing::diagnose_with(&world, s.pos, s.foot_y, dest, r));
@@ -361,16 +361,16 @@ pub(crate) fn run_walk(
     if wps.is_empty() {
         return Err("--path needs at least one waypoint".to_string());
     }
-    let steps = red_engine2::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &wps);
+    let steps = crate::tools::walk::walk_from(&world, start, start_y.unwrap_or(0.0), &wps);
     let failed = steps.len() < wps.len() || steps.last().is_some_and(|l| !l.reached);
     let rr = steps.last().filter(|s| !s.reached).map(|s| reach::compute(&world, &ReachParams { start: Some(s.pos), ..Default::default() }));
     let diag = steps.last().filter(|s| !s.reached).zip(rr.as_ref()).map(|(s, r)| pathing::diagnose_with(&world, s.pos, s.foot_y, s.target, r));
     if json {
-        let mut v = red_engine2::tools::walk::to_json(&steps, wps.len());
+        let mut v = crate::tools::walk::to_json(&steps, wps.len());
         v["diagnosis"] = diag.as_ref().map(|d| d.to_json()).unwrap_or(Value::Null);
         println!("{v}");
     } else {
-        print!("{}", red_engine2::tools::walk::format_walk(&steps, wps.len()));
+        print!("{}", crate::tools::walk::format_walk(&steps, wps.len()));
         if let Some(d) = &diag {
             print!("{}", d.render());
         }
@@ -407,7 +407,7 @@ pub(crate) fn run_diff(a: &Path, b: Option<&Path>, git: bool) -> Result<(), Stri
         }
         _ => return Err("give two scene files, or one file with --git".to_string()),
     };
-    print!("{}", red_engine2::tools::diff::diff(&old, &new).text);
+    print!("{}", crate::tools::diff::diff(&old, &new).text);
     Ok(())
 }
 
@@ -425,7 +425,7 @@ pub(crate) fn run_verify(scene: &Path, bless: bool, no_views: bool, only: Option
 }
 
 pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> {
-    use red_engine2::tools::features;
+    use crate::tools::features;
     let root = std::env::current_dir().map_err(|e| e.to_string())?;
     let all = features::load_at(&root)?;
     if check {
@@ -470,7 +470,7 @@ pub(crate) fn run_features(query: &[String], check: bool) -> Result<(), String> 
 }
 
 pub(crate) fn run_impact(files: &[String], git: Option<&str>) -> Result<(), String> {
-    use red_engine2::tools::features;
+    use crate::tools::features;
     let all = features::load_at(&std::env::current_dir().map_err(|e| e.to_string())?)?;
     let changed: Vec<String> = match git {
         Some(base) => features::changed_files(&std::env::current_dir().map_err(|e| e.to_string())?, base)?,
@@ -553,13 +553,13 @@ fn lib_rs_only_adds_modules(root: &std::path::Path, base_ref: &str) -> bool {
     let old =
         std::process::Command::new("git").args(["show", &format!("{base_ref}:src/lib.rs")]).current_dir(root).output().ok().filter(|o| o.status.success());
     match (old, std::fs::read_to_string(root.join("src/lib.rs"))) {
-        (Some(old), Ok(new)) => red_engine2::tools::affected::crate_root_only_adds_modules(&String::from_utf8_lossy(&old.stdout), &new),
+        (Some(old), Ok(new)) => crate::tools::affected::crate_root_only_adds_modules(&String::from_utf8_lossy(&old.stdout), &new),
         _ => false,
     }
 }
 
 pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: AffectedFlags) -> Result<(), String> {
-    use red_engine2::tools::{affected, features, symbols};
+    use crate::tools::{affected, features, symbols};
     let AffectedFlags { quick, full, dry_run, keep_going, no_cache, partial, check_only, headless } = flags;
     let root = symbols::find_root().ok_or("`affected` needs the engine's source tree: run it inside a red-engine-2 checkout (or set RE2_SRC)")?;
     let all = features::load_at(&root)?;
@@ -699,7 +699,7 @@ pub(crate) fn run_affected(files: &[String], base: Option<&str>, flags: Affected
 }
 
 pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build: bool) -> Result<(), String> {
-    use red_engine2::tools::package;
+    use crate::tools::package;
     if verify {
         let bytes = std::fs::read(zip).map_err(|e| format!("{}: {e}", zip.display()))?;
         let (manifest, problems) = package::verify(&bytes)?;
@@ -771,7 +771,7 @@ pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build:
 }
 
 pub(crate) fn run_portmap(action: &str, port: u16, lease: u32, router: Option<std::net::IpAddr>, allow_permanent: bool) -> Result<(), String> {
-    use red_engine2::net::portmap::{self, Options};
+    use crate::net::portmap::{self, Options};
     let opts = Options { port, lease, router, allow_permanent };
     let out = match action {
         "status" => portmap::status(&opts),
@@ -795,7 +795,7 @@ pub(crate) fn run_portmap(action: &str, port: u16, lease: u32, router: Option<st
 }
 
 pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, windows: Option<usize>, budget_file: Option<&Path>) -> Result<(), String> {
-    use red_engine2::tools::perf;
+    use crate::tools::perf;
     // The budget: a file, else the scene's own `checks.perf`, else the defaults.
     let block = match budget_file {
         Some(p) => Some(
@@ -829,8 +829,8 @@ pub(crate) fn run_perf(scene: &Path, players: Option<usize>, secs: Option<f64>, 
     }
 }
 
-pub(crate) fn run_race_track(out: &Path, spec: red_engine2::tools::racetrack::TrackSpec) -> Result<(), String> {
-    use red_engine2::tools::racetrack;
+pub(crate) fn run_race_track(out: &Path, spec: crate::tools::racetrack::TrackSpec) -> Result<(), String> {
+    use crate::tools::racetrack;
     let scene = racetrack::build(&spec)?;
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -841,7 +841,7 @@ pub(crate) fn run_race_track(out: &Path, spec: red_engine2::tools::racetrack::Tr
 }
 
 pub(crate) fn run_race_test(scene: &Path, bots: usize, level: f32, secs: f32, drivers: Option<&str>) -> Result<(), String> {
-    use red_engine2::tools::racetest;
+    use crate::tools::racetest;
     let drivers = match drivers {
         Some(list) => racetest::parse_drivers(list)?,
         None => Vec::new(),
@@ -865,7 +865,7 @@ pub(crate) fn run_net_identity(out: &Path, names: &[String]) -> Result<(), Strin
         return Err(format!("{} already exists: not overwriting a server identity (delete it deliberately to replace it)", key_path.display()));
     }
     std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
-    let gen = red_engine2::net::quic::ServerIdentity::generate(names)?;
+    let gen = crate::net::quic::ServerIdentity::generate(names)?;
     std::fs::write(out.join("cert.pem"), &gen.cert_pem).map_err(|e| format!("cert.pem: {e}"))?;
     write_private(&key_path, &gen.key_pem)?;
     println!("wrote {} and {} (keep the key private; never commit it)", out.join("cert.pem").display(), key_path.display());
@@ -894,8 +894,8 @@ pub(crate) fn run_net_test(scene: &Path, profile: &[String], players: usize, sec
         "udp" => false,
         other => return Err(format!("--transport must be udp or quic, not '{other}'")),
     };
-    use red_engine2::net::netsim::{self, LinkProfile};
-    use red_engine2::tools::nettest;
+    use crate::net::netsim::{self, LinkProfile};
+    use crate::tools::nettest;
     let mut profiles: Vec<LinkProfile> = Vec::new();
     for name in profile {
         if name == "all" {
@@ -927,7 +927,7 @@ pub(crate) fn run_sim(
     checkpoint_every: u32,
     dump_every: u32,
 ) -> Result<(), String> {
-    use red_engine2::sim::scenario::RecordOptions;
+    use crate::sim::scenario::RecordOptions;
     let record = trace.map(|_| RecordOptions { map_hash: 0, checkpoint_every: checkpoint_every.max(1), dump_every });
     let (report, recorded) = simrun::run(scene, scenario, only, record)?;
     let mut json = report.to_json();

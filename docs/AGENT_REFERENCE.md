@@ -313,7 +313,7 @@ docs/GLOSSARY.md  vocabulary; docs/adr/NNNN-*.md  architecture decision records 
 docs/LIFE_OF_A_SHOT.md            one trigger pull, click to hit marker: the function, the tuning key, how to see each step, how it fails silently
 docs/LIFE_OF_A_REMOTE_PLAYER.md   another player on your screen, Hello to avatar to hidden id: the same four lines per step
 src/bin/re2/      the windowed game: `main.rs` (App state, setup), `frame.rs` (fixed step + update + draw), `events.rs` (winit input), `weapons.rs`, `avatar.rs`, `window.rs`
-src/main.rs + src/cli/   the `red_engine2` CLI: `args.rs` (clap definition), `analyze.rs`, `editing.rs`, `info.rs`, `render_cmds.rs`, `util.rs`
+src/cli/ + src/main.rs   the `red_engine2` CLI, a library (`cli::main`; `src/main.rs` calls it): `mod.rs` (dispatch), `args.rs` (clap definition), `analyze.rs`, `editing.rs`, `info.rs`, `render_cmds.rs`, `util.rs`
 Cargo feature `gfx` (default) = everything that draws or plays sound; without it the server, bot and analysis CLI still build (ADR 0017).
 ```
 

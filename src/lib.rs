@@ -13,6 +13,9 @@ pub mod avatar;
 pub mod capture;
 pub use red_core::characters;
 /// The first-person client `re2` runs (`client::main`), library code so a game binary can run it as well.
+/// The `red_engine2` command line (`src/main.rs` runs [`cli::main`]).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cli;
 #[cfg(feature = "gfx")]
 pub mod client;
 pub mod clipboard;

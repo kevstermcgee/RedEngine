@@ -71,7 +71,7 @@ pub(crate) fn run_search(query: &str, kind: Option<&str>, limit: usize) -> Resul
 }
 
 pub(crate) fn run_context(query: &[String], git: bool, budget: usize) -> Result<(), String> {
-    use red_engine2::tools::{context, features};
+    use crate::tools::{context, features};
     let root = symbols::find_root().ok_or("cannot find the source tree (run inside the repo or set RE2_SRC=<repo path>)")?;
     let all = features::load_at(&root)?;
     let mut query = query.to_vec();
@@ -134,7 +134,7 @@ pub(crate) fn run_recipe(name: Option<&str>, new: Option<&Path>, print: bool) ->
 #[allow(clippy::too_many_arguments)]
 /// `style-report GAME [--sheet out.png]`: the measured look (text, or the report object under `--json`), and the game's own prefabs drawn in its style.
 pub(crate) fn run_style_report(game: &Path, sheet: Option<&Path>, cols: u32, json: bool) -> Result<(), String> {
-    use red_engine2::tools::style_report;
+    use crate::tools::style_report;
     let r = style_report::report(game)?;
     if let Some(out) = sheet {
         let (own, overlay) = catalog::scene_entries(game)?;
@@ -216,7 +216,7 @@ pub(crate) fn run_catalog(
         return Ok(());
     }
     if rows.is_empty() && query.len() == 1 {
-        let hint = red_engine2::prefabs::suggest(&query[0], all.iter().map(|e| e.name.as_str()));
+        let hint = crate::prefabs::suggest(&query[0], all.iter().map(|e| e.name.as_str()));
         if !hint.is_empty() {
             println!("no match for '{}' — did you mean: {}?", query[0], hint.join(", "));
             return Ok(());
@@ -237,7 +237,7 @@ fn catalogue_errors(rows: &[&catalog::Entry]) -> Result<(), String> {
 }
 
 pub(crate) fn run_status(root: &Path, init: bool, note: Option<&str>, section: &str, facts: bool, sync_docs: &[PathBuf]) -> Result<(), String> {
-    use red_engine2::tools::status;
+    use crate::tools::status;
     if init {
         let p = status::init(root)?;
         println!("STATUS.md ready at {}", p.display());
@@ -269,7 +269,7 @@ pub(crate) fn run_status(root: &Path, init: bool, note: Option<&str>, section: &
 }
 
 pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: bool, example: bool) -> Result<(), String> {
-    use red_engine2::tools::blueprint;
+    use crate::tools::blueprint;
     if example {
         print!("{}", blueprint::example());
         return Ok(());
@@ -279,8 +279,8 @@ pub(crate) fn run_build(blueprint: Option<&Path>, out: Option<&Path>, check: boo
     let value: Value = serde_json::from_str(&text).map_err(|e| format!("{}: not valid JSON: {e}", bp_path.display()))?;
     let built = blueprint::compile_in(&value, bp_path.parent())
         .map_err(|errs| format!("{}: the blueprint has {} problem(s):\n  {}", bp_path.display(), errs.len(), errs.join("\n  ")))?;
-    let project_dest = if out.is_none() { red_engine2::tools::game::destination_for_blueprint(bp_path).map_err(|errors| errors.join("\n"))? } else { None };
-    let dest = out.map(Path::to_path_buf).or(project_dest.clone()).unwrap_or_else(|| red_engine2::tools::game::blueprint_out(bp_path));
+    let project_dest = if out.is_none() { crate::tools::game::destination_for_blueprint(bp_path).map_err(|errors| errors.join("\n"))? } else { None };
+    let dest = out.map(Path::to_path_buf).or(project_dest.clone()).unwrap_or_else(|| crate::tools::game::blueprint_out(bp_path));
     if project_dest.is_some() {
         println!("game project mapping: {} -> {}", bp_path.display(), dest.display());
     }
@@ -324,7 +324,7 @@ pub(crate) fn run_new_game(
     engine_git: Option<String>,
     engine_ref: Option<String>,
 ) -> Result<(), String> {
-    use red_engine2::tools::{game::EngineRef, newgame};
+    use crate::tools::{game::EngineRef, newgame};
     let name = match name {
         Some(n) => n.to_string(),
         None => std::fs::canonicalize(dir)
@@ -364,7 +364,7 @@ pub(crate) fn run_new_game(
 }
 
 pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
-    use red_engine2::tools::game;
+    use crate::tools::game;
     let cfg = game::load(dir).map_err(|e| {
         e.join(
             "
@@ -428,7 +428,7 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             Ok(())
         }
         GameCmd::Publish { games, host, no_host } => {
-            let done = red_engine2::tools::gamepublish::publish(
+            let done = crate::tools::gamepublish::publish(
                 &cfg,
                 &games,
                 if host {
@@ -449,7 +449,7 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             );
             // What the listed playable runs: the project's binary, unless an entry that was already there names another.
             let runs = done.listed_binary_differs.as_deref().unwrap_or(&done.binary);
-            let exe = if runs == red_engine2::tools::game::DEFAULT_BINARY { "RedEngine.exe".to_string() } else { format!("{runs}.exe") };
+            let exe = if runs == crate::tools::game::DEFAULT_BINARY { "RedEngine.exe".to_string() } else { format!("{runs}.exe") };
             println!("the download's launcher runs: {exe} {}", done.arguments.join(" "));
             if let Some(listed) = &done.listed_binary_differs {
                 println!(
@@ -486,8 +486,8 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
     }
 }
 
-fn run_game_upgrade(cfg: &red_engine2::tools::game::GameConfig, cmd: GameUpgradeCmd) -> Result<(), String> {
-    use red_engine2::tools::upgrade;
+fn run_game_upgrade(cfg: &crate::tools::game::GameConfig, cmd: GameUpgradeCmd) -> Result<(), String> {
+    use crate::tools::upgrade;
     let migrations_path = Path::new(upgrade::MIGRATIONS_PATH);
     match cmd {
         GameUpgradeCmd::Plan { to, engine, fixes, out } => {
@@ -547,10 +547,10 @@ fn parse_wh(s: &str) -> Result<(u32, u32), String> {
 }
 
 /// A scene's `ui` block with its variables at their starting values, `overrides` (`name=value`) applied.
-fn game_screen_of(scene: &Path, overrides: &[String], outcome: Option<String>) -> Result<red_engine2::ui::screens::GameScreen, String> {
-    use red_engine2::sim::rules::BUILTIN_VARS;
+fn game_screen_of(scene: &Path, overrides: &[String], outcome: Option<String>) -> Result<crate::ui::screens::GameScreen, String> {
+    use crate::sim::rules::BUILTIN_VARS;
     let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
-    let parsed = red_engine2::scene_blocks::parse_scene_in(&text, scene.parent())
+    let parsed = crate::scene_blocks::parse_scene_in(&text, scene.parent())
         .map_err(|errs| format!("{}: scene is invalid:\n  {}", scene.display(), errs.join("\n  ")))?;
     let ui = parsed.ui.clone().ok_or_else(|| format!("{}: the scene has no `ui` block (see `describe rules`, `ui`)", scene.display()))?;
     let skip = BUILTIN_VARS.len().min(parsed.rules.var_names.len());
@@ -568,7 +568,7 @@ fn game_screen_of(scene: &Path, overrides: &[String], outcome: Option<String>) -
             }
         }
     }
-    Ok(red_engine2::ui::screens::GameScreen { ui, vars, outcome, event: None })
+    Ok(crate::ui::screens::GameScreen { ui, vars, outcome, event: None })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -583,7 +583,7 @@ pub(crate) fn run_ui_shot(
     vars: &[String],
     outcome: Option<String>,
 ) -> Result<(), String> {
-    use red_engine2::ui::screens::{self, PauseAction, ScreenOpts};
+    use crate::ui::screens::{self, PauseAction, ScreenOpts};
     let (w, h) = parse_wh(size)?;
     let game = scene.map(|s| game_screen_of(s, vars, outcome)).transpose()?;
     // `--hover` names a pause button (`resume`, `quit`) or any button id of an online screen (`ready`, `leave`,
@@ -616,7 +616,7 @@ pub(crate) fn run_ui_shot(
 }
 
 pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
-    use red_engine2::tools::audio;
+    use crate::tools::audio;
     match cmd {
         AudioCmd::List => print!("{}", audio::list_text()),
         AudioCmd::Export { name } => print!("{}", audio::export_json(&name)?),
@@ -664,7 +664,7 @@ pub(crate) fn run_audio(cmd: AudioCmd) -> Result<(), String> {
 }
 
 pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>, scene: Option<&Path>) -> Result<(), String> {
-    use red_engine2::ui::screens;
+    use crate::ui::screens;
     let mut problems = if screen.is_none() && size.is_none() {
         screens::audit_all()
     } else {
@@ -717,7 +717,7 @@ pub(crate) fn run_ui_check(screen: Option<&str>, size: Option<&str>, scene: Opti
 }
 
 pub(crate) fn run_doctor(out_dir: &Path) -> Result<(), String> {
-    use red_engine2::tools::doctor;
+    use crate::tools::doctor;
     let checks = doctor::run(out_dir);
     if envelope::capturing() {
         let items: Vec<Value> =
@@ -733,7 +733,7 @@ pub(crate) fn run_doctor(out_dir: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn run_nav(scene: &Path, route: &[String], all: bool) -> Result<(), String> {
-    use red_engine2::tools::nav;
+    use crate::tools::nav;
     let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
     if let [from, to] = route {
         let t = nav::route_text(&text, from, to)?;
@@ -754,7 +754,7 @@ pub(crate) fn run_nav(scene: &Path, route: &[String], all: bool) -> Result<(), S
 }
 
 pub(crate) fn run_ray(scene: &Path, from: &str, to: &str, skip: &[String]) -> Result<(), String> {
-    use red_engine2::tools::sight;
+    use crate::tools::sight;
     let p = |s: &str| -> Result<Vec3, String> {
         let v = floats(s)?;
         if v.len() != 3 {
