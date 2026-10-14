@@ -227,6 +227,16 @@ pub fn touches_core(changed: &[String]) -> bool {
     changed.iter().any(|c| c.starts_with("crates/red_core/"))
 }
 
+/// The core's test filter for a changed core file: `crates/red_core/src/sim/rules.rs` -> `sim::rules` (the core keeps the engine's paths); `None` for
+/// its crate root and for files outside it.
+fn core_filter(path: &str) -> Option<String> {
+    let rel = path.strip_prefix("crates/red_core/src/")?.strip_suffix(".rs")?;
+    if rel == "lib" {
+        return None;
+    }
+    Some(rel.strip_suffix("/mod").unwrap_or(rel).replace('/', "::"))
+}
+
 /// The steps the core adds. Cargo's package selection is by `-p`, so none of the engine-crate steps covers it.
 fn core_steps(changed: &[String], tests: bool) -> Vec<Step> {
     if !touches_core(changed) {
@@ -822,7 +832,10 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
     if has_rs {
         plan.steps.push(Step::new("fmt", &["cargo", "fmt", "--check"], "a Rust file changed"));
     }
-    if has_rs || build_settings {
+    // A change that touches only other workspace crates (the core, the 2D crate, a game) has their own steps below: the inner loop does not
+    // re-check the whole engine for it. The engine and the 2D crate build on the core; `affected` checks them (ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share).
+    let engine_rs = changed.iter().any(|c| c.ends_with(".rs") && !c.starts_with("crates/") && !c.starts_with("games/"));
+    if (has_rs && engine_rs) || build_settings {
         // clippy, not check: it type-checks the same targets and also fails on what CI's clippy stage would (warnings are errors), so a lint
         // problem shows up in seconds here and not at the end of a 7-minute full run.
         let mut argv: Vec<String> = ["cargo", "clippy", "--locked"].iter().map(|s| s.to_string()).collect();
@@ -872,8 +885,22 @@ pub fn plan_partial(all: &[Feature], serial: &[String], changed: &[String], opts
             plan.steps.push(Step { name: name.into(), argv, env, why: "a changed test file runs itself".into() });
         }
     }
-    plan.steps.extend(core_steps(&changed, !opts.check_only));
-    plan.steps.extend(red2d_steps(&changed, !opts.check_only));
+    // The core's own lint and the unit tests of its touched modules; the engine and the 2D crate built on it are `affected`'s.
+    let core_filters = minimal_filters(&changed.iter().filter(|c| std::path::Path::new(c).exists()).filter_map(|c| core_filter(c)).collect());
+    for mut step in core_steps(&changed, !opts.check_only) {
+        if step.name == "core" && !core_filters.is_empty() {
+            step.argv.push("--lib".into());
+            step.argv.push("--".into());
+            step.argv.extend(core_filters.iter().cloned());
+            step.why = format!("unit tests of the touched core modules: {}", core_filters.join(", "));
+        }
+        plan.steps.push(step);
+    }
+    if touches_core(&changed) && !engine_rs && !build_settings {
+        plan.full_required.push("the engine and the 2D crate build on the core and were not checked: `scripts/dev affected` does".into());
+    } else {
+        plan.steps.extend(red2d_steps(&changed, !opts.check_only));
+    }
     plan.steps.extend(killchain_steps(&changed, !opts.check_only, false));
     if opts.check_only {
         plan.notes.push("--check-only: formatting and type-check only, no tests".into());
@@ -1594,6 +1621,17 @@ mod tests {
     fn partial_of(changed: &[&str], opts: &Options) -> Plan {
         let changed: Vec<String> = changed.iter().map(|c| c.to_string()).collect();
         plan_partial(&world(), &serial(), &changed, opts, Features::Default)
+    }
+
+    #[test]
+    fn a_partial_plan_for_a_core_file_checks_and_tests_the_core_only_and_leaves_its_dependents_to_affected() {
+        let p = partial_of(&["crates/red_core/src/sim/rules.rs"], &Options { partial: true, ..Options::default() });
+        assert_eq!(names(&p), ["fmt", "core-clippy", "core"], "the engine is not re-checked in the inner loop: {:?}", names(&p));
+        assert_eq!(step(&p, "core").argv.join(" "), "cargo test --locked -p red_core --all-features --lib -- sim::rules");
+        assert!(p.full_required.iter().any(|r| r.contains("build on the core") && r.contains("affected")), "{:?}", p.full_required);
+        // An engine file beside it brings the engine's check (and the 2D crate's steps) back.
+        let both = partial_of(&["crates/red_core/src/sim/rules.rs", "src/sim/scenario.rs"], &Options { partial: true, ..Options::default() });
+        assert!(names(&both).contains(&"check") && names(&both).contains(&"red2d"), "{:?}", names(&both));
     }
 
     #[test]

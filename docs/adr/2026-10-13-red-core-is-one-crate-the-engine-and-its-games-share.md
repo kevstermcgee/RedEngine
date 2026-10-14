@@ -32,7 +32,9 @@ the sky, the UI configuration) and `net::session` builds presentation (`ui::race
   under the engine's `gfx`. `affected` lints and tests the core with every feature.
 - `red_core` never draws or plays sound: `preflight`'s headless check covers `crates/red_core/src` with nothing gated. The tools know it: `src map|show|deps`
   index it under the engine's module names (its `lib.rs` is `red_core`), `context` lists its files, and `affected` plans `red_core`'s clippy and tests for a change
-  there, plus the 2D crate and the features that own the file.
+  there, plus the 2D crate and the features that own the file. `iterate`'s partial plan for a change only in the core checks and tests the core (the
+  touched modules' tests) and leaves the engine and the 2D crate built on it to `affected`, saying so: a one-line simulation edit goes through it in
+  9-14 s warm (docs/analysis/2026-10-13-red-core-inner-loop-measured.md).
 
 ## Consequences
 One copy and one type for each shared module, the 58 tests compile and run once, and the 2D crate's shims are gone. The remaining outward edges of the core,
