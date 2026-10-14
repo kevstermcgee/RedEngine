@@ -25,7 +25,7 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         id: slot as u8,
         character: character_to_wire(p.state.character),
         flags: (p.crouching as u8)
-            | (((p.combat.is_swinging() || p.combat.kit.as_ref().is_some_and(|k| k.swinging())) as u8) << 1)
+            | (((p.combat.is_swinging() || sim.kit(slot).is_some_and(|k| k.swinging())) as u8) << 1)
             | ((p.combat.is_dead() as u8) << 2)
             | if sim.tick() < p.combat.protected_until { FLAG_PROTECTED } else { 0 },
         pos: [p.state.pos.x, p.state.foot_y, p.state.pos.y],
@@ -38,7 +38,7 @@ pub(super) fn player_snaps(sim: &MatchSim, out: &mut Vec<PlayerSnap>) {
         held: sim.props().held_by(slot).map_or(NO_PROP, |h| h as u16),
         hp: p.combat.hp.min(255) as u8,
         shots: p.combat.shots as u8,
-        extra: match &p.combat.kit {
+        extra: match sim.kit(slot) {
             Some(k) => {
                 (p.team & 3)
                     | ((k.aiming as u8) << 2)
@@ -154,7 +154,7 @@ pub(super) fn arena_snap(sim: &MatchSim, viewer: usize) -> Option<ArenaSnap> {
     let arena = sim.arena()?;
     let now = sim.tick();
     let own = sim.player(viewer).and_then(|p| {
-        let kit = p.combat.kit.as_ref()?;
+        let kit = sim.kit(viewer)?;
         let gun = |i: usize| kit.guns[i].map_or((0, 0, 0), |g| (g.weapon.wire() + 1, g.loaded, g.reserve));
         let (killed_by, killed_weapon, killed_head) = match p.combat.killed_by {
             Some((by, w, head)) if p.combat.is_dead() => (by, w.wire(), head),

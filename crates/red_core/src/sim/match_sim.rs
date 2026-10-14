@@ -114,8 +114,9 @@ pub struct MatchSim {
     pub(super) hazards: HazardPool,
     /// The track's item boxes and their respawn timers (race matches).
     pub(super) item_boxes: ItemBoxes,
-    /// Loadout-match state (the scene's `shooter` block): pickups, projectiles, smoke and fire, team scores. `None` in the classic arena.
-    pub(super) arena: Option<crate::sim::shooter::ArenaState>,
+    /// The game's own rules for this match (the scene's `shooter` block: the loadout shooter's kits, pickups, projectiles, smoke and fire, team
+    /// scores and objectives), `None` in the classic arena: [`crate::sim::game`].
+    pub(super) game: Option<Box<dyn crate::sim::game::MatchGame>>,
     /// The scene's own `"teams": true` (see [`MatchSim::teams_enabled`]), independent of whether it also has a `shooter` block.
     pub(super) teams_requested: bool,
 }
@@ -182,7 +183,7 @@ impl MatchSim {
                 ),
                 None => ItemBoxes::new(Vec::new(), 0),
             },
-            arena: scene.shooter.clone().map(crate::sim::shooter::ArenaState::new),
+            game: scene.shooter.clone().map(|cfg| Box::new(crate::sim::shooter::ShooterGame::new(cfg)) as Box<dyn crate::sim::game::MatchGame>),
             teams_requested: scene.teams,
         })
     }
@@ -308,14 +309,14 @@ impl MatchSim {
 
     /// Kills scored by each team so far (index = team - 1); zeros outside a loadout match.
     pub fn team_kills(&self) -> [u32; 2] {
-        self.arena.as_ref().map_or([0; 2], |a| a.team_kills)
+        self.arena().map_or([0; 2], |a| a.team_kills)
     }
 
     /// What each team is scoring toward (index = team - 1): kills in team deathmatch, captures in capture the flag, rounds won in search
     /// and destroy. Zeros in free for all (where players score, not teams) and outside a loadout match.
     pub fn team_score(&self) -> [u32; 2] {
         use super::shooter::ModeKind;
-        self.arena.as_ref().map_or([0; 2], |a| match a.cfg.mode {
+        self.arena().map_or([0; 2], |a| match a.cfg.mode {
             ModeKind::Tdm => a.team_kills,
             ModeKind::Ctf | ModeKind::Snd => a.points,
             ModeKind::Ffa => [0; 2],
@@ -324,7 +325,12 @@ impl MatchSim {
 
     /// The loadout-match state (pickups, projectiles, smoke, fire, kills), if this is a loadout match.
     pub fn arena(&self) -> Option<&crate::sim::shooter::ArenaState> {
-        self.arena.as_ref()
+        self.game::<crate::sim::shooter::ShooterGame>().map(|g| &g.arena)
+    }
+
+    /// Player `slot`'s loadout kit, in a loadout match.
+    pub fn kit(&self, slot: usize) -> Option<&crate::sim::kit::Kit> {
+        self.game::<crate::sim::shooter::ShooterGame>().and_then(|g| g.kits.get(slot)).and_then(Option::as_ref)
     }
 
     /// Adds a player to `team` in a chosen `slot` at that team's spawn (see [`add_player_in_slot`](Self::add_player_in_slot)).
@@ -376,9 +382,6 @@ impl MatchSim {
             team: 0,
             combat: {
                 let mut combat = Combat::new(&self.weapons);
-                if let Some(arena) = &self.arena {
-                    combat.kit = Some(arena.cfg.start_kit());
-                }
                 if self.combat_cfg.protect_ticks > 0 {
                     combat.protected_until = self.tick + self.combat_cfg.protect_ticks;
                 }
@@ -391,7 +394,7 @@ impl MatchSim {
         });
         self.karts[slot] = KartState::default();
         self.rules.reset_player(slot);
-        self.sync_kit(slot);
+        self.with_game(|g, s| g.spawn(s, slot));
         let body = state.character.body();
         self.props.set_player_slot(slot, glam::Vec3::new(state.pos.x, state.foot_y, state.pos.y), body.radius, body.body_height);
         if let Some(r) = &mut self.recorder {
@@ -405,6 +408,9 @@ impl MatchSim {
     /// Removes a player, returning their last state.
     pub fn remove_player(&mut self, slot: usize) -> Option<PlayerState> {
         let p = self.players.get_mut(slot)?.take()?;
+        if let Some(g) = self.game.as_mut() {
+            g.left(slot);
+        }
         self.bots[slot] = None;
         self.kart_bots[slot] = None;
         self.props.remove_player_slot(slot);
@@ -513,8 +519,7 @@ impl MatchSim {
                 if !dead {
                     // A heavy weapon slows its carrier (the client predicts with the same factor).
                     let mut tuning = self.player_tuning;
-                    if let Some(kit) = p.combat.kit.as_ref() {
-                        let m = kit.current().kit().move_mult;
+                    if let Some(m) = self.game.as_ref().and_then(|g| g.move_mult(slot)) {
                         tuning.walk_speed *= m;
                         tuning.sprint_speed *= m;
                         tuning.max_speed *= m;
@@ -535,11 +540,7 @@ impl MatchSim {
         if self.race.is_some() {
             self.kart_bumps_and_race(&kart_events);
         }
-        if self.arena.is_some() {
-            self.kit_pickups_tick();
-            self.step_projectiles();
-            self.objective_tick();
-        }
+        self.with_game(|g, s| g.tick(s));
         self.props.step();
         let mut frame = [None; MAX_PLAYERS];
         for (slot, p) in self.players.iter().enumerate().take(MAX_PLAYERS) {

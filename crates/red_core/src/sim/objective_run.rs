@@ -9,24 +9,26 @@
 use super::match_sim::MatchSim;
 use super::objective::{Actor, BombState, Cmd, FlagState, ObjEvent, BLAST_RADIUS, DEFUSE_RADIUS, EVENT_LOG};
 use super::ordnance::{FxEvent, FxKind};
-use super::shooter::ModeKind;
+use super::shooter::{ModeKind, ShooterGame};
 use crate::weapons::Weapon;
 use glam::Vec3;
 
 impl MatchSim {
-    /// Whether players are held in place (the freeze before a search and destroy round).
+    /// Whether players are held in place (the freeze before a search and destroy round): the match game's to say.
     pub fn input_locked(&self) -> bool {
-        self.arena.as_ref().and_then(|a| a.snd.as_ref()).is_some_and(|s| s.locked())
+        self.game.as_ref().is_some_and(|g| g.input_locked())
     }
 
-    /// Whether the dead stay dead for now (search and destroy: one life per round).
+    /// Whether the dead stay dead for now (search and destroy: one life per round): the match game's to say.
     pub(super) fn respawn_blocked(&self) -> bool {
-        self.arena.as_ref().is_some_and(|a| a.cfg.mode == ModeKind::Snd)
+        self.game.as_ref().is_some_and(|g| g.respawn_blocked())
     }
+}
 
+impl ShooterGame {
     /// Everybody on a team, as the objective modes see them.
-    fn objective_actors(&self) -> Vec<Actor> {
-        self.players()
+    fn objective_actors(&self, sim: &MatchSim) -> Vec<Actor> {
+        sim.players()
             .filter(|(_, p)| (1..=2).contains(&p.team))
             .map(|(slot, p)| Actor {
                 slot: slot as u8,
@@ -39,17 +41,17 @@ impl MatchSim {
     }
 
     /// One tick of capture the flag or search and destroy (nothing in the other modes).
-    pub(super) fn objective_tick(&mut self) {
-        let mode = self.arena.as_ref().map_or(ModeKind::Tdm, |a| a.cfg.mode);
+    pub(super) fn objective_tick(&mut self, sim: &mut MatchSim) {
+        let mode = self.arena.cfg.mode;
         if !matches!(mode, ModeKind::Ctf | ModeKind::Snd) {
             return;
         }
-        let actors = self.objective_actors();
-        let tick = self.tick;
+        let actors = self.objective_actors(sim);
+        let tick = sim.tick;
         let mut events = Vec::new();
         let mut cmds = Vec::new();
         {
-            let Some(arena) = self.arena.as_mut() else { return };
+            let arena = &mut self.arena;
             let win_rounds = arena.cfg.objective.win_rounds;
             if let Some(ctf) = arena.ctf.as_mut() {
                 ctf.step(tick, &actors, &mut arena.points, &mut events);
@@ -68,19 +70,20 @@ impl MatchSim {
         }
         for cmd in cmds {
             match cmd {
-                Cmd::NewRound => self.snd_new_round(),
-                Cmd::Explode(at) => self.bomb_blast(at),
+                Cmd::NewRound => self.snd_new_round(sim),
+                Cmd::Explode(at) => self.bomb_blast(sim, at),
             }
         }
     }
 
     /// Back to the spawns with a fresh kit for everyone, and the floor cleared (a new search and destroy round).
-    fn snd_new_round(&mut self) {
-        let slots: Vec<usize> = self.players().map(|(s, _)| s).collect();
+    fn snd_new_round(&mut self, sim: &mut MatchSim) {
+        let slots: Vec<usize> = sim.players().map(|(s, _)| s).collect();
         for slot in slots {
-            self.respawn(slot);
+            sim.respawn_in(slot, self.me());
         }
-        if let Some(arena) = self.arena.as_mut() {
+        {
+            let arena = &mut self.arena;
             arena.dropped.clear();
             arena.projectiles.clear();
             arena.zones.clear();
@@ -91,8 +94,8 @@ impl MatchSim {
     }
 
     /// The bomb goes off: a big blast, lethal near the site and fading to nothing at the edge.
-    fn bomb_blast(&mut self, at: Vec3) {
-        let victims: Vec<(usize, f32)> = self
+    fn bomb_blast(&mut self, sim: &mut MatchSim, at: Vec3) {
+        let victims: Vec<(usize, f32)> = sim
             .players()
             .filter(|(_, p)| !p.combat.is_dead())
             .map(|(slot, p)| (slot, (Vec3::new(p.state.pos.x, p.state.foot_y + 1.0, p.state.pos.y) - at).length()))
@@ -101,10 +104,11 @@ impl MatchSim {
         for (slot, d) in victims {
             let dmg = (220.0 * (1.0 - d / BLAST_RADIUS).powf(0.8)).round() as u32;
             // Credited to nobody: a bomb is not a kill for anyone's score.
-            self.damage_ex(slot, dmg.max(1), slot, Weapon::Frag, false);
+            sim.damage_in(slot, dmg.max(1), slot, Weapon::Frag, false, self.me());
         }
-        let now = self.tick;
-        if let Some(arena) = self.arena.as_mut() {
+        let now = sim.tick;
+        {
+            let arena = &mut self.arena;
             let id = arena.next_id();
             if arena.fx.len() >= 6 {
                 arena.fx.remove(0);
@@ -129,7 +133,7 @@ impl MatchSim {
     /// What the bot in `slot` should do about the objective right now, `None` in the kill modes or when it has nothing to do. It never
     /// overrides a fight: the bot brain asks only when no enemy is in view.
     pub fn bot_objective_goal(&self, slot: usize) -> Option<ObjGoal> {
-        let arena = self.arena.as_ref()?;
+        let arena = self.arena()?;
         let me = self.player(slot)?;
         if me.combat.is_dead() || !(1..=2).contains(&me.team) {
             return None;

@@ -38,7 +38,7 @@ impl MatchSim {
             for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.velocity.x, p.state.velocity.y, p.state.yaw, p.state.pitch] {
                 players.f(f);
             }
-            players.mix(p.combat.state_hash());
+            players.mix(p.combat.state_hash_with(self.game.as_ref().and_then(|g| g.player_hash(slot))));
             players.mix(self.props.held_by(slot).map_or(u64::MAX, |h| h as u64));
         }
         let mut props = Hasher::new();
@@ -92,7 +92,7 @@ impl MatchSim {
             for f in [p.state.pos.x, p.state.pos.y, p.state.foot_y, p.state.vy, p.state.velocity.x, p.state.velocity.y] {
                 c.q(f);
             }
-            c.mix(p.combat.state_hash());
+            c.mix(p.combat.state_hash_with(self.game.as_ref().and_then(|g| g.player_hash(slot))));
             c.mix(self.props.held_by(slot).map_or(u64::MAX, |h| h as u64));
         }
         let e = self.props.entities();
