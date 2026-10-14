@@ -433,8 +433,44 @@ pub fn failures(problems: &[Problem]) -> Vec<&Problem> {
     problems.iter().filter(|p| !p.starts_with("note:")).collect()
 }
 
+/// The games of the engine's workspace that ship as their own binary (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): each
+/// `games/<dir>` the root `Cargo.toml` lists as a member whose package has a `[[bin]]` of its own name (`killchain`). Sorted.
+pub fn game_binaries(root: &Path) -> Vec<String> {
+    let workspace = std::fs::read_to_string(root.join("Cargo.toml")).unwrap_or_default();
+    let mut out = Vec::new();
+    let Ok(dirs) = std::fs::read_dir(root.join("games")) else { return out };
+    for dir in dirs.flatten() {
+        let member = format!("\"games/{}\"", dir.file_name().to_string_lossy());
+        let Ok(text) = std::fs::read_to_string(dir.path().join("Cargo.toml")) else { continue };
+        if !workspace.lines().any(|l| l.trim_start().starts_with("members") && l.contains(&member)) {
+            continue;
+        }
+        // `name = "..."` under [package] and under each [[bin]].
+        let (mut section, mut package, mut bins) = (String::new(), None, Vec::new());
+        for line in text.lines().map(str::trim) {
+            if line.starts_with('[') {
+                section = line.to_string();
+            } else if let Some(v) =
+                line.strip_prefix("name").map(str::trim_start).and_then(|r| r.strip_prefix('=')).map(|v| v.trim().trim_matches('"').to_string())
+            {
+                match section.as_str() {
+                    "[package]" => package = Some(v),
+                    "[[bin]]" => bins.push(v),
+                    _ => {}
+                }
+            }
+        }
+        if let Some(p) = package.filter(|p| bins.contains(p)) {
+            out.push(p);
+        }
+    }
+    out.sort();
+    out
+}
+
 /// Builds the release binaries with cargo into isolated target directories and returns them. GUI and offline tools: default features;
-/// the server and the bot: `--no-default-features` in a different target directory, so nothing graphical can leak into them.
+/// the server and the bot: `--no-default-features` in a different target directory, so nothing graphical can leak into them. A game with its own binary
+/// ([`game_binaries`]) is built on its own (`-p killchain`) into the GUI directory.
 pub fn build_binaries(root: &Path) -> Result<(Vec<Binary>, BTreeMap<String, String>), String> {
     let exe = if cfg!(windows) { ".exe" } else { "" };
     let target = std::env::var("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|_| root.join("target"));
@@ -451,8 +487,13 @@ pub fn build_binaries(root: &Path) -> Result<(Vec<Binary>, BTreeMap<String, Stri
     let (gui, headless) = (target.join("package-gui"), target.join("package-headless"));
     run(&gui, &[], &["re2", "red_engine2"])?;
     run(&headless, &["--no-default-features"], &["red_server", "red_bot"])?;
+    let games = game_binaries(root);
+    for g in &games {
+        run(&gui, &["-p", g], &[g])?;
+    }
     let mut bins = Vec::new();
-    for (dir, names) in [(&gui, ["re2", "red_engine2"]), (&headless, ["red_server", "red_bot"])] {
+    let gui_names = ["re2", "red_engine2"].into_iter().map(str::to_string).chain(games.iter().cloned()).collect::<Vec<_>>();
+    for (dir, names) in [(&gui, gui_names), (&headless, vec!["red_server".to_string(), "red_bot".to_string()])] {
         for n in names {
             bins.push(Binary { name: format!("{n}{exe}"), path: dir.join("release").join(format!("{n}{exe}")) });
         }
@@ -463,6 +504,9 @@ pub fn build_binaries(root: &Path) -> Result<(Vec<Binary>, BTreeMap<String, Stri
     }
     notes.insert("gui_build".to_string(), "cargo build --release --locked (default features)".to_string());
     notes.insert("headless_build".to_string(), "cargo build --release --locked --no-default-features (separate target directory)".to_string());
+    if !games.is_empty() {
+        notes.insert("game_builds".to_string(), format!("cargo build --release --locked -p GAME --bin GAME (the GUI target directory): {}", games.join(", ")));
+    }
     Ok((bins, notes))
 }
 
@@ -496,6 +540,22 @@ mod tests {
             git: Some(GitInfo { commit: "abc123".into(), commit_time: 1_700_000_000, ..Default::default() }),
             notes: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn a_game_crate_of_the_workspace_with_its_own_binary_is_packaged() {
+        let d = tmp("games");
+        std::fs::write(d.join("Cargo.toml"), "[workspace]\nmembers = [\"crates/core\", \"games/kc\", \"games/lib-only\"]\n").unwrap();
+        for (dir, toml) in [
+            ("kc", "[package]\nname = \"kc\"\n\n[[bin]]\nname = \"kc\"\npath = \"src/main.rs\"\n"),
+            ("lib-only", "[package]\nname = \"lib-only\"\n"),
+            ("stray", "[package]\nname = \"stray\"\n\n[[bin]]\nname = \"stray\"\n"),
+        ] {
+            std::fs::create_dir_all(d.join("games").join(dir)).unwrap();
+            std::fs::write(d.join("games").join(dir).join("Cargo.toml"), toml).unwrap();
+        }
+        assert_eq!(game_binaries(&d), vec!["kc".to_string()], "a member with a binary of its own name; not a library, not a non-member");
+        assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["killchain".to_string()]);
     }
 
     #[test]

@@ -46,6 +46,12 @@ Measured at 94e5263 before deciding:
   (`"binary"`, default `re2`); `package`, `game play` and `publish` build and launch that one (Killchain's `killchain` first). The RedEngineGames
   builder, which builds a RedEngine commit and launches each playable, learns the field in a pull request of its own in that repository, for the
   owner to merge (it changes what players download).
+  *As built (2026-10-14):* the binary is a package of the engine's workspace with a `[[bin]]` of its own name, built on its own (`cargo build -p
+  killchain --bin killchain`): in one cargo build with the engine's binaries its dependency on the engine's graphics would reach the headless server
+  through feature unification. `package` builds every such game (`package::game_binaries`: `games/killchain`); `scripts/red play-local` builds the
+  project's; `game play`, which joins with re2's `--connect`, says that a game with its own client joins from its own menu; `game publish` lists the
+  playable with its `"binary"` and without re2's `--host`. Killchain's download in RedEngineGames played the map with `re2` until then (re2 warns that
+  a `shooter` map has a client of its own).
 - **Frameless moves to `games/frameless`** behind those seams: `src/museum`, `museum_gpu`, the museum mode and the `museum` tool. Its binary registers
   the `museum` block and its layer and runs the client with its mode. Parity: the same rooms, plaques and keys for the same seed, and a save written
   before the move loads after it. Then `src/museum` is gone from the engine crate.

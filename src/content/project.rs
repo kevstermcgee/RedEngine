@@ -15,6 +15,7 @@ strict_struct! {
         maps: Vec<String>,
         server: Server,
         capabilities: Capabilities,
+        binary: String,
     }
 }
 

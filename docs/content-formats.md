@@ -29,7 +29,7 @@ gaps below, 13 of 13 in the synthetic sections, 17 of 17 `checks` paths under `v
 | **Playscript** | `playtest --script FILE` | `playscript::Script::parse` | `Value`, hand-checked | `policy steps schema notes`, every step and `expect` | **refused** (code-read; tests cover it) |
 | **Music score** | `assets/audio/*.json`, `examples/*/audio/*.json`, `examples/3d/drowsy-marathon/lullaby.json` | `score::parse_score` | `Value`, key tables | top, `reverb`, `delay`, tracks | **refused** (code-read) |
 | **Voice (sound)** | `audio export` output; built-ins in code; `tests/fixtures/audio_golden.json` lists them | `voice_spec::parse_voice` | **typed serde, `deny_unknown_fields`** | the voice spec | refused |
-| **Game project** | `game.json` (projects made by `new-game`) | `tools::game` | `Value`, key tables | `game id name engine blueprints maps server capabilities` | **refused** |
+| **Game project** | `game.json` (projects made by `new-game`) | `tools::game` | `Value`, key tables | `game id name engine blueprints maps server capabilities binary` | **refused** |
 | **Match trace / replay** | `tests/fixtures/coin_run.trace.json`, `--record` output | `sim::trace::Trace::from_json` | `Value`, hand-walked | header + `entries` | ignored (machine-written; flag 6) |
 | **Settings / saves** | per-user `settings.json`, `vars.json` | `settings` | `Value`, `unwrap_or(default)` | `music sfx ...` | ignored, on purpose (runtime state; forward compatible) |
 | Repo metadata (not content) | `docs/features.json`, `games-publish.json`, Idea Forge `vocabulary.json` | `tools::features`, `scripts/publish_games.py`, `examples/2d/idea-forge/build.py` | `Value` / Python | | out of scope |

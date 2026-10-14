@@ -402,6 +402,14 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             launch(&exe, &args)
         }
         GameCmd::Play { addr } => {
+            if cfg.binary != game::DEFAULT_BINARY {
+                return Err(format!(
+                    "`game play` joins a server with re2's --connect; '{}' plays with its own client, `{}`, which joins from its own menu: `scripts/red play-local`, then join {}",
+                    cfg.name,
+                    cfg.binary,
+                    addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port))
+                ));
+            }
             let exe =
                 game::sibling_exe("re2").ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play`)")?;
             let addr = addr.unwrap_or_else(|| format!("127.0.0.1:{}", cfg.server.port));
@@ -439,7 +447,16 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
                 done.slug,
                 if done.added_entry { "added to .release-games.json" } else { "already in .release-games.json" }
             );
-            println!("the download's launcher runs: RedEngine.exe {}", done.arguments.join(" "));
+            // What the listed playable runs: the project's binary, unless an entry that was already there names another.
+            let runs = done.listed_binary_differs.as_deref().unwrap_or(&done.binary);
+            let exe = if runs == red_engine2::tools::game::DEFAULT_BINARY { "RedEngine.exe".to_string() } else { format!("{runs}.exe") };
+            println!("the download's launcher runs: {exe} {}", done.arguments.join(" "));
+            if let Some(listed) = &done.listed_binary_differs {
+                println!(
+                    "note: its playable in .release-games.json runs `{listed}`, but game.json names `{}`: edit the entry's \"binary\" by hand",
+                    done.binary
+                );
+            }
             println!("next: review `git -C {} status`, commit and push it yourself; its Windows workflow builds the ZIP", games.display());
             Ok(())
         }
@@ -451,11 +468,16 @@ pub(crate) fn run_game(dir: &Path, cmd: GameCmd) -> Result<(), String> {
             Ok(())
         }
         GameCmd::PlayLocal => {
-            let exe = game::sibling_exe("re2")
-                .ok_or("re2 (the game client) is not built next to red_engine2 (cargo build --bin re2, or use `scripts/red play-local`)")?;
+            let exe = game::sibling_exe(&cfg.binary).ok_or_else(|| {
+                format!(
+                    "{} (the game's client) is not built next to red_engine2 (cargo build --workspace --bin {}, or use `scripts/red play-local`)",
+                    cfg.binary, cfg.binary
+                )
+            })?;
             let map = cfg.dir.join(&cfg.server.map);
             let mut args = vec![map.display().to_string()];
-            if game::map_has_bots(&map) {
+            // re2 plays bots against a server it hosts; a game's own client hosts from its own menu.
+            if cfg.binary == game::DEFAULT_BINARY && game::map_has_bots(&map) {
                 args.push("--host".to_string()); // bots live in a server's simulation: the game hosts one on a thread of its own
             }
             launch(&exe, &args)
