@@ -141,6 +141,10 @@ pub mod net {
     #[cfg(feature = "quic")]
     #[doc(hidden)]
     pub use snapshots::props_to_send;
+    /// What a snapshot for a viewer carries, built without a server: only for the loadout parity harness (`tests/loadout_parity.rs`).
+    #[cfg(feature = "quic")]
+    #[doc(hidden)]
+    pub use snapshots::snapshot_view;
 
     /// The default UDP port of a Red server.
     pub const DEFAULT_PORT: u16 = 27015;

@@ -51,7 +51,7 @@
     "sim_core": {
       "summary": "The headless, renderer-free simulation: fixed tick clock, scratch buffers, change tracking, entities, static props, the authoritative MatchSim, spawns, interest management.",
       "files": ["crates/red_core/Cargo.toml", "crates/red_core/src/lib.rs", "src/sim/mod.rs", "crates/red_core/src/sim/clock.rs", "crates/red_core/src/sim/scratch.rs", "crates/red_core/src/sim/change.rs", "crates/red_core/src/sim/components.rs", "crates/red_core/src/sim/entities.rs", "crates/red_core/src/sim/statics.rs", "crates/red_core/src/sim/snapshot.rs", "crates/red_core/src/sim/match_sim.rs", "crates/red_core/src/sim/spawns.rs", "crates/red_core/src/sim/interest.rs", "src/sim/env.rs", "crates/red_core/src/sim/ordnance.rs", "crates/red_core/src/sim/shooter.rs", "crates/red_core/src/sim/kit.rs", "crates/red_core/src/sim/objective.rs", "crates/red_core/src/sim/objective_run.rs"],
-      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams", "objective_modes", "net_modes"],
+      "tests": ["lib:sim", "alloc_budget", "alloc_sites", "test_lab", "net_interest", "net_virtual", "loadout_bots", "teams", "objective_modes", "net_modes", "loadout_parity"],
       "commands": ["cargo bench --bench sim", "red_engine2 perf examples/test_lab.json"],
       "docs": ["docs/adr/0010-headless-match-server.md", "docs/adr/0014-sim-foundations-fixed-tick-scratch-change-tracking-static-props.md", "docs/adr/0015-engine-first-refocus-test-lab-and-legacy-maps.md"],
       "depends_on": ["player_physics", "prop_physics"]

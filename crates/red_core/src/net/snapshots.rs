@@ -139,6 +139,16 @@ pub fn props_to_send(
     }
 }
 
+/// What a snapshot for `viewer` carries of the players and of the game's own part, built without a server: the loadout parity harness
+/// (`tests/loadout_parity.rs`) fingerprints it every tick so the loadout shooter's move out of the engine can be shown to change nothing a client sees
+/// (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or).
+#[doc(hidden)]
+pub fn snapshot_view(sim: &MatchSim, viewer: usize) -> (Vec<PlayerSnap>, Option<super::protocol::GameMsg>) {
+    let mut players = Vec::new();
+    player_snaps(sim, &mut players);
+    (players, arena_snap(sim, viewer).map(|a| a.to_game_msg()))
+}
+
 /// The loadout match's world for `viewer`: their own kit, which map pickups are there, what lies dropped, flies, burns or just went off.
 pub(super) fn arena_snap(sim: &MatchSim, viewer: usize) -> Option<ArenaSnap> {
     let arena = sim.arena()?;
