@@ -27,6 +27,7 @@ jobs:
       docker_own: ${{ steps.f.outputs.docker_own }}
       pytools: ${{ steps.f.outputs.pytools }}
       games_only: ${{ steps.f.outputs.games_only }}
+      docs_only: ${{ steps.f.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,7 +37,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "no usable base commit: running everything"
-            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "docker_own=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "native=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"; echo "docker_own=true" >> "$GITHUB_OUTPUT"; echo "pytools=true" >> "$GITHUB_OUTPUT"; echo "games_only=false" >> "$GITHUB_OUTPUT"; echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           # NUL-separated, because the default output quotes a name with a non-ASCII or special character ("scripts/\303\274.py") and the anchored patterns below would never match the
           # opening quote; a line per file is rebuilt from it. `has` reads the list from a here-string, not a pipe: under `pipefail`, `echo | grep -q` fails when grep exits before echo is done.
@@ -59,7 +60,13 @@ jobs:
           # else (an engine change the game depends on, a fixture, a script) and this is false and the full suite runs. (docs/analysis/2026-10-09-engine-ci-growth.md, proposal 1.)
           games_only=false
           if [ -n "$files" ] && ! grep -Evq '^(examples/2d/|examples/3d/|docs/analysis/idea-forge/)' <<<"$files"; then games_only=true; native=false; docker=false; fi
-          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "docker_own=$docker_own" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"
+          # A pull request that changes only documentation (`*.md`, `docs/`) compiles nothing: the `docs` job runs the suites that read the docs from an
+          # archive main compiled from the same code (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
+          docs_only=false
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "$games_only" = false ] && [ -n "$files" ] && ! grep -Evq '(\.md$|^docs/)' <<<"$files"; then
+            docs_only=true; native=false; docker=false; docker_own=false
+          fi
+          echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "docker_own=$docker_own" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"; echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
 
   fmt:
     name: rustfmt
@@ -95,7 +102,7 @@ jobs:
   build-tests:
     name: tests (linux, compile once)
     needs: changes
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -120,13 +127,14 @@ jobs:
         with:
           name: nextest-archive
           path: target/nextest-archive.tar.zst
-          retention-days: 1
+          # A week on main, where a docs-only pull request finds it (the `docs` job); a day for a pull request's own.
+          retention-days: ${{ github.event_name == 'push' && 7 || 1 }}
           compression-level: 0
 
   test:
     name: tests (linux, shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [changes, build-tests]
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -154,11 +162,59 @@ jobs:
           RED_CI_PARTITION: hash:${{ matrix.shard }}/${{ strategy.job-total }}
           RED_CI_ARCHIVE: target/nextest-archive.tar.zst
 
+  # A pull request that changes only documentation: the suites that read the docs (`scripts/ci.sh docs`), against this pull request's docs, from the
+  # archive main compiled from the same code: the newest successful run on main whose commit differs from this one only in documentation. Nothing
+  # is compiled; when no such archive is left (a week passed, or main's code moved on), the suites are compiled instead.
+  docs:
+    name: docs (the suites that read them)
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - name: Linux system libraries (audio backend for rodio)
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev pkg-config
+      - id: archive
+        name: main's archive of this code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for row in $(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push --status success --limit 30 --json databaseId,headSha --jq '.[] | "\(.databaseId):\(.headSha)"'); do
+            run="${row%%:*}"; sha="${row#*:}"
+            git cat-file -e "$sha^{commit}" 2>/dev/null || continue
+            # Code that differs from this checkout's (anything but documentation) makes that archive another program.
+            if git diff --name-only "$sha" HEAD | grep -Evq '(\.md$|^docs/)'; then continue; fi
+            if gh run download "$run" -R "$GITHUB_REPOSITORY" -n nextest-archive -D target 2>/dev/null; then
+              echo "the archive of $sha (run $run)"; echo "path=target/nextest-archive.tar.zst" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          done
+          echo "no archive of this code on main (expired, or main's code moved on): the doc suites are compiled"
+      - uses: Swatinem/rust-cache@v2
+        if: steps.archive.outputs.path == ''
+        with:
+          shared-key: linux-tests
+          save-if: false
+      - run: bash scripts/ci.sh docs
+        env:
+          RED_CI_ARCHIVE: ${{ steps.archive.outputs.path }}
+
   # Lints and compile-only checks: nothing here waits for the tests. The lock files first: a stale one is the commonest reason a dependency change fails CI.
   lint:
     name: clippy + benches compile
     needs: changes
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -179,7 +235,7 @@ jobs:
   api:
     name: games on the public API
     needs: changes
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -292,7 +348,7 @@ jobs:
   headless-linux:
     name: headless server (linux, no gfx, ${{ matrix.shard == 0 && 'the server suites' || format('shard {0}/3', matrix.shard) }})
     needs: changes
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -319,7 +375,7 @@ jobs:
   headless-build:
     name: headless server (linux, no gfx, build + clippy)
     needs: changes
-    if: needs.changes.outputs.games_only != 'true'
+    if: needs.changes.outputs.games_only != 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

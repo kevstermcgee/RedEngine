@@ -3,7 +3,7 @@
 # (on this platform). Usage: scripts/ci.sh [stage ...]      (no stage = all of them, in this order)
 #
 #   fmt  content  clippy  tests  benches  headless-tree  headless-build  headless-clippy  headless-tests  external-client  video  pytools
-#   games  direct3d  test-archive  headless-net  (not in the default list: `tests` and `headless-tests` cover them; they are what the hosted workflow runs
+#   games  direct3d  test-archive  headless-net  docs  (not in the default list: `tests` and `headless-tests` cover them; they are what the hosted workflow runs
 #   instead in some cases, see each one)
 #
 # Tests run under cargo-nextest when it is installed (ADR 2026-10-10-ci-runs-the-tests-under-nextest), in ONE run on all cores, each test in its own process:
@@ -136,6 +136,29 @@ stage_headless_build() {
 }
 stage_headless_clippy() { echo "== headless clippy =="; cargo clippy --locked --no-default-features --all-targets -- -D warnings; }
 stage_headless_tests() { echo "== headless tests (incl. real-UDP server tests) =="; run_tests --no-default-features; }
+# A pull request that changes only documentation (`*.md`, `docs/`): the suites that read the docs, run against this checkout's docs. With RED_CI_ARCHIVE
+# from main (a commit whose code is this one's: hosted CI checks that) nothing is compiled, since the docs are read at run time (ADR
+# 2026-10-13-the-engine-reads-its-own-docs-from-the-checkout); without it they are compiled. Which suites: every suite whose source names a doc
+# (`grep -lE '"docs/|\.md"|AGENTS\.md|SPEC\.md|STATUS\.md|CLAUDE\.md|own_docs|features::load|"describe"|"search"' tests/*.rs`), and the engine's `tools::`
+# unit tests (the modules that read them).
+DOC_SUITES="ai_tasks cli_envelope docs_fresh features_index fresh_agent_bench games2d mcp_server optional_features publish_games repo_hygiene"
+stage_docs() {
+  echo "== the suites that read the docs =="
+  local filter="(binary_id(=red_engine2) & test(/^tools::/))" s targets=(--lib)
+  for s in $DOC_SUITES; do
+    filter+=" | binary_id(=red_engine2::$s)"
+    targets+=(--test "$s")
+  done
+  if [ -n "${RED_CI_ARCHIVE:-}" ] && [ -f "$RED_CI_ARCHIVE" ]; then
+    echo "-- from the archive $RED_CI_ARCHIVE (nothing compiled)"
+    cargo nextest run --archive-file "$RED_CI_ARCHIVE" --workspace-remap . --extract-to . --extract-overwrite --config-file "$(nextest_config)" \
+      --no-fail-fast -E "$filter"
+  else
+    echo "-- no archive: compiled"
+    cargo nextest run --locked --config-file "$(nextest_config)" --no-fail-fast "${targets[@]}" -E "$filter"
+  fi
+}
+
 # A pull request's headless check: the suites that run the server itself (real UDP, spawned servers, the replay's determinism) without graphics; the
 # whole suite headless runs on main (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
 stage_headless_net() {
