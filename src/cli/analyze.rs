@@ -735,7 +735,8 @@ pub(crate) fn run_package(zip: &Path, verify: bool, allow_dirty: bool, no_build:
     let (binaries, notes) = if no_build {
         let exe = if cfg!(windows) { ".exe" } else { "" };
         let mut bins = Vec::new();
-        for (dir, names) in [("package-gui", ["re2", "red_engine2"]), ("package-headless", ["red_server", "red_bot"])] {
+        let gui = ["re2".to_string(), "red_engine2".to_string()].into_iter().chain(package::game_binaries(&root)).collect::<Vec<_>>();
+        for (dir, names) in [("package-gui", gui), ("package-headless", vec!["red_server".to_string(), "red_bot".to_string()])] {
             for n in names {
                 bins.push(package::Binary { name: format!("{n}{exe}"), path: root.join("target").join(dir).join("release").join(format!("{n}{exe}")) });
             }

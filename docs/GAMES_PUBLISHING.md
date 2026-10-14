@@ -36,7 +36,9 @@ symlinks, and destination collisions before replacing any managed collection.
 ## Playable releases
 
 The manifest's `playables` array is also copied into the catalog. Each entry names a download, its main published file, every published file or directory it needs, and
-the command-line arguments its launcher uses. `RedEngineGames` builds the cataloged RedEngine commit on a Windows runner and releases **each game on its own**, only when
+the command-line arguments its launcher uses. Its launcher runs the engine's client its `kind` needs (`re2`, or `re2d` for `"kind": "2d"`), or the game's own client
+when it names one: `"binary": "killchain"`, a package of the engine's workspace whose binary has its name (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
+`RedEngineGames` builds the cataloged RedEngine commit on a Windows runner and releases **each game on its own**, only when
 that game's content changed: a per-user installer (desktop shortcut offered, uninstaller, saves in `Saved Games\<game>`) and a portable ZIP, as a permanent GitHub Release
 tagged `<slug>-v<N>`. An installed game updates itself in place, and the download site lists every version. Add an entry only after its content is self-contained and
 manually playable with the listed arguments. How it works, forcing a re-release after an engine change, and code signing: `docs/DISTRIBUTION.md` in RedEngineGames;
@@ -55,5 +57,6 @@ A project's settings and saved variables are filed under the `id` in its `game.j
 A standalone game (made with `new-game`) is published with one command from its directory: `red_engine2 game publish ../RedEngineGames` (or `scripts/red game publish
 ../RedEngineGames`). It copies the project to `projects/<name>` without `out/`, `.red`, `deploy/` or anything that looks like a key, points `game.json` at the sibling engine,
 and adds the playable to `.release-games.json` (`--host` in its launcher arguments when the map has bots, since bots live in a server; `--no-host` to open the map directly).
-It never commits or pushes: review `git status` in the games repository and push it yourself; its Windows workflow builds the ZIP. Push the engine first, so the release is
+A project whose `game.json` names its own client (`"binary": "killchain"`) is listed with that binary and without `--host` (such a client hosts from
+its own menu); `scripts/red play-local` builds and runs it, and `package` builds every such game of the workspace into the release. It never commits or pushes: review `git status` in the games repository and push it yourself; its Windows workflow builds the ZIP. Push the engine first, so the release is
 built from a commit that has your engine changes.

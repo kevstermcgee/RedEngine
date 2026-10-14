@@ -77,6 +77,12 @@ def load_manifest(root: Path) -> dict:
             safe_relative(value, f"playables[{index}].files[{file_index}]")
         if playable.get("kind", "3d") not in ("3d", "2d"):
             raise PublishError(f"playables[{index}].kind must be \"3d\" (the default, played by RedEngine.exe) or \"2d\" (a *.game2d.json played by re2d.exe)")
+        binary = playable.get("binary")
+        if binary is not None and (not isinstance(binary, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,39}", binary)):
+            raise PublishError(
+                f"playables[{index}].binary must name the executable that plays it, like \"killchain\" (a package binary of the engine's workspace; "
+                "the default is the client its kind needs: re2, or re2d for 2d)"
+            )
         arguments = playable.get("arguments")
         if not isinstance(arguments, list) or any(
             not isinstance(value, str) or "\n" in value or "\r" in value for value in arguments

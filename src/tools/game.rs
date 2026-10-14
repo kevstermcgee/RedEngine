@@ -69,9 +69,22 @@ pub struct GameConfig {
     pub server: ServerCfg,
     /// What the game declares it is and where it runs (`red_engine2 capabilities`), if it says: checked against the support matrix by `game check`.
     pub capabilities: Option<red2d::caps::Capabilities>,
+    /// The executable that plays it (`"binary"`): `re2`, the engine's client (the default), or a game's own binary built from the engine's workspace
+    /// (`killchain`; ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
+    pub binary: String,
 }
 
-const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities"];
+const TOP: &[&str] = &["game", "id", "name", "engine", "blueprints", "maps", "server", "capabilities", "binary"];
+
+/// The engine's own client, which plays a project that names no binary.
+pub const DEFAULT_BINARY: &str = "re2";
+
+/// Whether `name` can name an executable: 1 to 40 lowercase letters, digits, `_` and `-`, starting with a letter.
+pub fn valid_binary(name: &str) -> bool {
+    name.len() <= 40
+        && name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+}
 
 /// Whether `id` is a valid game id: 1 to 40 lowercase letters and digits, in groups separated by single hyphens.
 pub fn valid_id(id: &str) -> bool {
@@ -120,6 +133,18 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
             }
         },
     };
+    let binary = match root.get("binary") {
+        None => DEFAULT_BINARY.to_string(),
+        Some(v) => match v.as_str().filter(|s| valid_binary(s)) {
+            Some(s) => s.to_string(),
+            None => {
+                errs.push(
+                    "binary: the executable that plays the game, like \"killchain\" (lowercase letters, digits, `_` and `-`; the default is \"re2\")".into(),
+                );
+                DEFAULT_BINARY.to_string()
+            }
+        },
+    };
     let maps = strs(root.get("maps"));
     let mut server = ServerCfg { map: maps.first().cloned().unwrap_or_default(), port: crate::net::DEFAULT_PORT, spawn_group: String::new(), args: Vec::new() };
     if let Some(s) = root.get("server").and_then(Value::as_object) {
@@ -154,6 +179,7 @@ pub fn parse(dir: &Path, text: &str) -> Result<GameConfig, Vec<String>> {
         blueprints: strs(root.get("blueprints")),
         maps,
         server,
+        binary,
     })
 }
 
@@ -531,6 +557,7 @@ pub fn info(cfg: &GameConfig) -> String {
         cfg.server.map,
         if cfg.server.spawn_group.is_empty() { String::new() } else { format!(" (spawn group {})", cfg.server.spawn_group) }
     ));
+    s.push_str(&format!("binary   {}{}\n", cfg.binary, if cfg.binary == DEFAULT_BINARY { " (the engine's client)" } else { " (the game's own client)" }));
     s.push_str("commands scripts/red check | build-all | play-local | serve | play [HOST:PORT] | <any red_engine2 command>\n");
     s
 }
@@ -654,6 +681,18 @@ mod tests {
         let e = parse(Path::new("."), r#"{"game":1}"#).unwrap_err();
         assert!(e.iter().any(|m| m.contains("engine")), "{e:?}");
         assert!(parse(Path::new("."), r#"{"engine":{"path":"x"}}"#).is_err(), "the version key is required");
+    }
+
+    #[test]
+    fn a_project_is_played_by_re2_unless_it_names_its_own_binary() {
+        assert_eq!(parse(Path::new("."), GOOD).unwrap().binary, "re2");
+        let c = parse(Path::new("."), r#"{"game":1,"engine":{"path":"x"},"maps":["maps/main.json"],"binary":"killchain"}"#).unwrap();
+        assert_eq!(c.binary, "killchain");
+        assert!(info(&c).contains("binary   killchain (the game's own client)"), "{}", info(&c));
+        for bad in [r#""Kill Chain""#, r#""../re2""#, r#""""#, "3"] {
+            let e = parse(Path::new("."), &format!(r#"{{"game":1,"engine":{{"path":"x"}},"binary":{bad}}}"#)).unwrap_err();
+            assert!(e.iter().any(|m| m.starts_with("binary:")), "{bad}: {e:?}");
+        }
     }
 
     #[test]

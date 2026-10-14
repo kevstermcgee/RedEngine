@@ -34,6 +34,10 @@ pub struct Published {
     pub added_entry: bool,
     /// The arguments the Windows launcher passes.
     pub arguments: Vec<String>,
+    /// The executable the launcher runs (`re2`, or the game's own).
+    pub binary: String,
+    /// When the playable was already listed and names another executable than the project's (`.release-games.json` keeps its entry; edit it by hand).
+    pub listed_binary_differs: Option<String>,
 }
 
 /// The slug and display name of a project called `name` (`great-outdoors` -> `Great Outdoors`); the slug must already be the name.
@@ -90,8 +94,17 @@ pub fn published_game_json(text: &str) -> Result<String, String> {
     Ok(serde_json::to_string_pretty(&v).map_err(|e| e.to_string())? + "\n")
 }
 
+/// The executable a listed playable names (`"binary"`; `None` for the engine's client), or an error when no playable has this slug.
+pub fn playable_binary(text: &str, slug: &str) -> Result<Option<String>, String> {
+    let v: Value = serde_json::from_str(text).map_err(|e| format!(".release-games.json: {e}"))?;
+    let list = v.get("data_playables").and_then(Value::as_array).ok_or(".release-games.json has no data_playables list")?;
+    let p = list.iter().find(|p| p.get("slug").and_then(Value::as_str) == Some(slug)).ok_or_else(|| format!("no playable '{slug}'"))?;
+    Ok(p.get("binary").and_then(Value::as_str).map(str::to_string))
+}
+
 /// Adds a playable to `.release-games.json` text in the file's own style, or returns `None` if one with this slug exists. Only `data_playables` is touched.
-pub fn add_playable(text: &str, slug: &str, title: &str, arguments: &[String]) -> Result<Option<String>, String> {
+/// `binary` names the game's own executable (none for the engine's client, `re2`).
+pub fn add_playable(text: &str, slug: &str, title: &str, arguments: &[String], binary: Option<&str>) -> Result<Option<String>, String> {
     let v: Value = serde_json::from_str(text).map_err(|e| format!(".release-games.json: {e}"))?;
     let list = v.get("data_playables").and_then(Value::as_array).ok_or(".release-games.json has no data_playables list")?;
     if list.iter().any(|p| p.get("slug").and_then(Value::as_str) == Some(slug)) {
@@ -127,8 +140,9 @@ pub fn add_playable(text: &str, slug: &str, title: &str, arguments: &[String]) -
     let close = close.ok_or("data_playables is not closed")?;
     let last = text[..close].rfind('}').ok_or("data_playables is empty; add the first entry by hand")?;
     let args = arguments.iter().map(|a| serde_json::to_string(a).unwrap_or_default()).collect::<Vec<_>>().join(", ");
+    let binary = binary.map(|b| format!("      \"binary\": \"{b}\",\n")).unwrap_or_default();
     let entry = format!(
-        ",\n    {{\n      \"slug\": \"{slug}\",\n      \"name\": \"{title}\",\n      \"files\": [\"projects/{slug}\"],\n      \"arguments\": [{args}]\n    }}"
+        ",\n    {{\n      \"slug\": \"{slug}\",\n      \"name\": \"{title}\",\n{binary}      \"files\": [\"projects/{slug}\"],\n      \"arguments\": [{args}]\n    }}"
     );
     let mut out = String::with_capacity(text.len() + entry.len());
     out.push_str(&text[..=last]);
@@ -139,7 +153,8 @@ pub fn add_playable(text: &str, slug: &str, title: &str, arguments: &[String]) -
 }
 
 /// Publishes `cfg`'s project into the checkout of the games repository at `games`. `host` adds `--host` to the launcher's arguments (a game whose opponents are
-/// bots needs a server of its own); `None` decides from the map (bots).
+/// bots needs a server of its own); `None` decides from the map (bots). A game with its own binary (`game.json` `"binary"`) is listed naming it, and hosts
+/// from its own menu (no `--host`).
 pub fn publish(cfg: &GameConfig, games: &Path, host: Option<bool>) -> Result<Published, String> {
     let release = games.join(".release-games.json");
     if !release.is_file() || !games.join("projects").is_dir() {
@@ -158,21 +173,25 @@ pub fn publish(cfg: &GameConfig, games: &Path, host: Option<bool>) -> Result<Pub
     copy_tree(&cfg.dir, &dest, true, &mut files)?;
     let gj = std::fs::read_to_string(cfg.dir.join("game.json")).map_err(|e| format!("game.json: {e}"))?;
     std::fs::write(dest.join("game.json"), published_game_json(&gj)?).map_err(|e| format!("game.json: {e}"))?;
-    let host = host.unwrap_or_else(|| super::game::map_has_bots(&map_abs));
+    let own = (cfg.binary != super::game::DEFAULT_BINARY).then_some(cfg.binary.as_str());
+    let host = own.is_none() && host.unwrap_or_else(|| super::game::map_has_bots(&map_abs));
     let mut arguments: Vec<String> = Vec::new();
     if host {
         arguments.push("--host".into());
     }
     arguments.push(format!("content/projects/{slug}/{}", cfg.server.map.replace('\\', "/")));
     let text = std::fs::read_to_string(&release).map_err(|e| format!("{}: {e}", release.display()))?;
-    let added_entry = match add_playable(&text, &slug, &title, &arguments)? {
+    let (added_entry, listed_binary_differs) = match add_playable(&text, &slug, &title, &arguments, own)? {
         Some(new) => {
             std::fs::write(&release, new).map_err(|e| format!("{}: {e}", release.display()))?;
-            true
+            (true, None)
         }
-        None => false,
+        None => {
+            let listed = playable_binary(&text, &slug)?;
+            (false, (listed.as_deref() != own).then(|| listed.unwrap_or_else(|| super::game::DEFAULT_BINARY.to_string())))
+        }
     };
-    Ok(Published { files, slug, added_entry, arguments })
+    Ok(Published { files, slug, added_entry, arguments, binary: cfg.binary.clone(), listed_binary_differs })
 }
 
 #[cfg(test)]
@@ -190,12 +209,24 @@ mod tests {
     #[test]
     fn a_playable_is_added_in_the_files_own_style_once() {
         let args = vec!["--host".to_string(), "content/projects/kart/maps/main.json".to_string()];
-        let out = add_playable(RELEASE, "kart", "Kart", &args).unwrap().expect("new entry");
+        let out = add_playable(RELEASE, "kart", "Kart", &args, None).unwrap().expect("new entry");
         let v: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["data_playables"].as_array().unwrap().len(), 2);
         assert_eq!(v["data_playables"][1]["arguments"][0], "--host");
         assert!(out.contains("\"native_playables\": []") && out.starts_with("{\n  \"version\": 1"), "the rest of the file is untouched:\n{out}");
-        assert_eq!(add_playable(&out, "kart", "Kart", &args).unwrap(), None, "a second publish keeps the entry");
+        assert_eq!(add_playable(&out, "kart", "Kart", &args, None).unwrap(), None, "a second publish keeps the entry");
+    }
+
+    #[test]
+    fn a_game_with_its_own_binary_is_published_naming_it_and_without_re2s_host_flag() {
+        let args = vec!["content/projects/killchain/maps/main.json".to_string()];
+        let out = add_playable(RELEASE, "killchain", "Killchain", &args, Some("killchain")).unwrap().expect("new entry");
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["data_playables"][1]["binary"], "killchain");
+        let plain = add_playable(RELEASE, "kart", "Kart", &args, None).unwrap().expect("new entry");
+        assert!(!plain.contains("\"binary\""), "re2 is the default and is not written:\n{plain}");
+        assert_eq!(playable_binary(&out, "killchain").unwrap(), Some("killchain".to_string()));
+        assert_eq!(playable_binary(&out, "a-game").unwrap(), None);
     }
 
     #[test]

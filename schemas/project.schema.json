@@ -64,6 +64,12 @@
           "type": "null"
         }
       ]
+    },
+    "binary": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": false,
