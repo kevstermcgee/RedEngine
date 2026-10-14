@@ -166,23 +166,27 @@ fn four_views_cost_four_views_and_the_composition_is_free() {
     assert_eq!(l4.size, (480, 270));
     let v4: Vec<PlayerView> = (0..4).map(|k| PlayerView { camera: camera(eye, k, 960.0 / 540.0, l4.views[k].aspect()), layers: None, hidden: &[] }).collect();
     let v1 = [PlayerView { camera: camera(eye, 0, 960.0 / 540.0, 480.0 / 270.0), layers: None, hidden: &[] }];
-    // Warm up (pipelines, streaming), then take the best of several frames: time is only ever noisy upward.
-    let best = |f: &mut dyn FnMut()| {
+    // Warm up (pipelines, streaming), then take the best of several frames: time is only ever noisy upward. The two are timed in turn, not one batch
+    // after the other: a machine whose load changes between two batches (another build starting) skewed the ratio, never both sides alike
+    // (5.30x locally with the load at 7.5, and on hosted Windows).
+    let time = |f: &mut dyn FnMut()| {
+        let t = std::time::Instant::now();
         f();
-        (0..6)
-            .map(|_| {
-                let t = std::time::Instant::now();
-                f();
-                t.elapsed().as_secs_f64()
-            })
-            .fold(f64::MAX, f64::min)
+        t.elapsed().as_secs_f64()
     };
-    let t4 = best(&mut || {
+    let mut draw4 = || {
         four.render(&s, 0.0, &v4, &[]).unwrap();
-    });
-    let t1 = best(&mut || {
+    };
+    let mut draw1 = || {
         one.render(&s, 0.0, &v1, &[]).unwrap();
-    });
+    };
+    draw4();
+    draw1();
+    let (mut t4, mut t1) = (f64::MAX, f64::MAX);
+    for _ in 0..8 {
+        t4 = t4.min(time(&mut draw4));
+        t1 = t1.min(time(&mut draw1));
+    }
     eprintln!("one view {:.0} ms, four views {:.0} ms ({:.2}x); the last view drew {:?}", t1 * 1000.0, t4 * 1000.0, t4 / t1, four.last_draw_stats());
     // Four views are four times one view plus a blit each: the bound leaves room for a noisy machine but not for a hidden extra pass per view.
     assert!(t4 < t1 * 4.7, "four views cost {:.2}x one: {:.0} ms against {:.0} ms", t4 / t1, t4 * 1000.0, t1 * 1000.0);
