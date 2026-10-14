@@ -69,7 +69,7 @@ pub struct ObjectiveWorld {
 impl ObjectiveWorld {
     /// Adds the objective objects to `scene` (hidden) if the map has flags or bomb sites. Call it before the renderer is built.
     pub fn add_to_scene(scene: &mut Scene) -> Option<ObjectiveWorld> {
-        let cfg = scene.shooter.clone()?;
+        let cfg = crate::sim::shooter::spec_of(scene)?;
         let obj = &cfg.objective;
         if obj.flags.is_empty() && obj.sites.is_empty() {
             return None;

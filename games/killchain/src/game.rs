@@ -460,7 +460,7 @@ impl Game {
             view.banner = Some((text.clone(), *color));
         }
         let Some(obj) = self.arena().map(|a| &a.obj).filter(|o| o.kind != 0) else { return };
-        let sites: Vec<char> = self.scene.shooter.as_ref().map(|c| c.objective.sites.iter().map(|s| s.name).collect()).unwrap_or_default();
+        let sites: Vec<char> = red_engine2::sim::shooter::spec_of(&self.scene).map(|c| c.objective.sites.iter().map(|s| s.name).collect()).unwrap_or_default();
         let alive = self.alive_counts();
         view.objective = objective_hud(&ObjectiveInput { mode: view.mode, my_team: view.team, me, obj, alive, sites: &sites });
         // Markers: only while we can act (alive, in the round).
@@ -489,7 +489,7 @@ impl Game {
         } else if obj.kind == 2 {
             let s = obj.snd;
             if s.bomb < 2 && s.phase != 2 {
-                for (i, site) in self.scene.shooter.iter().flat_map(|c| c.objective.sites.iter()).enumerate() {
+                for (i, site) in red_engine2::sim::shooter::spec_of(&self.scene).iter().flat_map(|c| c.objective.sites.clone()).enumerate() {
                     put(site.at + Vec3::Y * 3.0, format!("SITE {}", sites.get(i).copied().unwrap_or('A')), CALL, view);
                 }
             }
@@ -579,7 +579,7 @@ impl Game {
         let arena = self.arena()?;
         let eye = Vec3::new(self.phys.x, self.foot_y, self.phys.y);
         let near = |p: Vec3| (Vec2::new(p.x, p.z) - self.phys).length() < 2.0 && (p.y - eye.y).abs() < 1.6;
-        let cfg = self.scene.shooter.as_ref()?;
+        let cfg = red_engine2::sim::shooter::spec_of(&self.scene)?;
         let mut best: Option<(f32, String)> = None;
         for (i, spot) in cfg.pickups.iter().enumerate() {
             if arena.pickups[i / 8 % arena.pickups.len()] & (1 << (i % 8)) == 0 || !near(spot.at) {

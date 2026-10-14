@@ -58,6 +58,12 @@ The museum had the same shape on the client side and moved behind `client::GameM
   `ShooterGame` methods (`sim::shooter_snap`). `MAX_TEAM` is the match's (`MAX_PLAYERS / 2`). The engine's `net::server` and `net::snapshots`
   no longer name the shooter; the `shooter` scene key is next (4b).
 
+- *Step 4b as built (2026-10-14):* `shooter` is a scene block (`sim::shooter::BLOCK`, read with `shooter::spec_of`), no longer a key of the core's
+  parser (`strict::ROOT_KEYS`, `schema::Scene::shooter`); the match picks its game from game definitions (`sim::game::GameDef`, `define_games`,
+  `game_for`), and `shooter::GAME` builds the shooter for a scene with the block. The engine defines both with its blocks
+  (`scene_blocks::ENGINE`, `ENGINE_GAMES`) until the shooter moves; the typed content definition keeps `shooter`, as it kept `museum` while
+  the engine defined that block. A scene's `shooter` errors are now reported with the blocks' (earlier in the list), the only visible change.
+
 ## Consequences
 The engine's match simulation no longer knows a loadout match; any game with a server-side rule set of its own (a mode, a kit, an objective) plugs
 in the same way. Killchain gets a server binary of its own, which its hosting (and RedEngineGames, for its download) learns: the engine's

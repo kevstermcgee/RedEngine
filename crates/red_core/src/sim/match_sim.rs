@@ -185,7 +185,7 @@ impl MatchSim {
                 ),
                 None => ItemBoxes::new(Vec::new(), 0),
             },
-            game: scene.shooter.clone().map(|cfg| Box::new(crate::sim::shooter::ShooterGame::new(cfg)) as Box<dyn crate::sim::game::MatchGame>),
+            game: crate::sim::game::game_for(scene),
             teams_requested: scene.teams,
         })
     }

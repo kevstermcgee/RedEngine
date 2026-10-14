@@ -14,6 +14,33 @@ use crate::weapons::Weapon;
 use glam::Vec3;
 use std::any::Any;
 
+/// A game a crate defines for the match simulation: built for a scene that asks for it (its block), as a scene block is defined
+/// (`schema::define_blocks`) and a world layer (`world_layer::define_layers`).
+pub struct GameDef {
+    /// Its name (`shooter`): a name already defined keeps its first definition.
+    pub name: &'static str,
+    /// The game for a scene, when the scene plays it.
+    pub build: fn(&crate::schema::Scene) -> Option<Box<dyn MatchGame>>,
+}
+
+static GAMES: std::sync::RwLock<Vec<&'static GameDef>> = std::sync::RwLock::new(Vec::new());
+
+/// Defines games for the match simulation; call it with the scene blocks (the engine's `scene_blocks::register` does for its own).
+pub fn define_games(defs: &'static [GameDef]) {
+    let mut all = GAMES.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+    for d in defs {
+        if !all.iter().any(|g| g.name == d.name) {
+            all.push(d);
+        }
+    }
+}
+
+/// The game a scene plays: the first defined one that builds for it, `None` for a match with no game of its own.
+pub fn game_for(scene: &crate::schema::Scene) -> Option<Box<dyn MatchGame>> {
+    let defs = GAMES.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    defs.into_iter().find_map(|d| (d.build)(scene))
+}
+
 /// A kill, as the match scored it: who, whom, with what, and whether it counts for the killer and their team.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Kill {
