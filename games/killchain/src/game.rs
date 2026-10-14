@@ -15,8 +15,8 @@ use red_engine2::avatar::recoil_kick;
 use red_engine2::feel::{Cue, Feel, FxParams, Own};
 use red_engine2::firearms;
 use red_engine2::hit::{collect_hit_shapes_where, raycast_shapes, HitShape};
-use red_engine2::killcam::{Playback, LENGTH_SECS};
-use red_engine2::net::arena_wire::{ArenaSnap, FxSnap, OwnKit};
+use red_engine2::killcam::{self, Playback, LENGTH_SECS};
+use red_engine2::net::arena_wire::{self, ArenaSnap, FxSnap, OwnKit};
 use red_engine2::net::bot::ClientWorld;
 use red_engine2::net::client::{ClientConfig, ConnState};
 use red_engine2::net::interp::View;
@@ -196,6 +196,8 @@ impl Game {
         let base = scene.objects.len();
         let loose: HashSet<usize> = world.prop_objects.iter().copied().collect();
         let mut net = NetSession::connect_with(cfg, world).map_err(|e| format!("cannot open a network socket: {e}"))?;
+        net.client.set_game_decoder(arena_wire::decode);
+        net.client.keep_history(killcam::KEEP_SECS);
         let spawn = net.wait_connected(6.0)?;
         net.add_avatar_pool(&mut scene);
         let shooter = ShooterWorld::add_to_scene(&mut scene);
@@ -307,11 +309,11 @@ impl Game {
     }
 
     fn own_kit(&self) -> Option<OwnKit> {
-        self.net.client.arena().and_then(|a| a.own)
+        self.net.client.game_view::<ArenaSnap>().and_then(|a| a.own)
     }
 
     fn arena(&self) -> Option<&ArenaSnap> {
-        self.net.client.arena()
+        self.net.client.game_view::<ArenaSnap>()
     }
 
     fn own_dead(&self) -> bool {
@@ -643,7 +645,8 @@ impl Game {
                 self.scope_level = 0;
                 want_ads = controls.aiming();
             }
-            let reloading = self.net.client.arena().and_then(|a| a.own).is_some_and(|k| k.reload_left > 0) || self.local_reload_until > self.clock_secs;
+            let reloading =
+                self.net.client.game_view::<ArenaSnap>().and_then(|a| a.own).is_some_and(|k| k.reload_left > 0) || self.local_reload_until > self.clock_secs;
             if reloading || self.draw_timer > 0.0 {
                 want_ads = false;
                 if scoped_weapon {
@@ -710,7 +713,7 @@ impl Game {
         }
         let fresh: Vec<FxSnap> = match self.world.as_mut() {
             Some(w) => {
-                let arena = self.net.client.arena();
+                let arena = self.net.client.game_view::<ArenaSnap>();
                 match (&self.killcam, arena) {
                     (Some(kc), Some(a)) if kc.playback.is_some() => {
                         let mut a = a.clone();
@@ -1007,8 +1010,8 @@ impl Game {
             Some(k) if k.killed_by != 255 => (k.killed_by, Weapon::from_wire(k.killed_weapon), k.killed_head),
             _ => (me, self.weapon, false),
         };
-        let recorder = self.net.client.recorder();
-        let playback = if killer != me { recorder.newest().and_then(|t| recorder.playback(killer, t)) } else { None };
+        let history = self.net.client.history();
+        let playback = if killer != me { history.newest().and_then(|t| killcam::playback(history, killer, t)) } else { None };
         self.killcam = Some(Killcam { playback, elapsed: 0.0, killer, weapon, headshot, last_shots: None, flash: 0.0 });
     }
 
@@ -1232,7 +1235,7 @@ impl Game {
                 .map_or((0, false), |s| (s.killer.team(), s.killer.aiming()));
             (shot_weapon, team, kc.map_or(0.0, |k| k.flash / BODY_FLASH_SECS), if aim { 1.0 } else { 0.0 })
         } else {
-            let team = self.net.client.arena().and_then(|a| a.own).map_or(0, |o| o.team);
+            let team = self.net.client.game_view::<ArenaSnap>().and_then(|a| a.own).map_or(0, |o| o.team);
             (self.weapon, team, self.flash_left / BODY_FLASH_SECS, self.ads)
         };
         let reloading = !in_replay && (self.own_kit().is_some_and(|k| k.reload_left > 0) || self.local_reload_until > self.clock_secs);

@@ -1,20 +1,17 @@
 //! The killcam: after you die, the last seconds of the fight from your killer's eyes (ADR 2026-09-30-killchain-loadout-shooter).
 //!
 //! Nothing extra travels on the network. Every snapshot already lists every player's position, look direction, weapon and stance, so the
-//! client keeps the last few seconds of them in a [`Recorder`]; when the server says who killed us, [`Recorder::playback`] cuts out the
+//! client keeps the last [`KEEP_SECS`] of them (`NetClient::keep_history`); when the server says who killed us, [`playback`] cuts out the
 //! window from a few seconds before the death and [`Playback::at`] returns the interpolated poses of the killer (whose eyes the camera
 //! takes) and of everyone else at that moment, which the client draws exactly like live players. Pure data: no window, no GPU.
 //!
 //! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
-use crate::net::arena_wire::{ArenaSnap, ProjSnap};
+use crate::net::game_view::History;
 use crate::net::interp::{Blend, PlayerPose};
-use crate::net::protocol::Snapshot;
-use crate::sim::clock::TICK_DT;
-use std::collections::VecDeque;
 
-/// Seconds of the past a recorder keeps.
+/// Seconds of the past the client keeps for a replay (`NetClient::keep_history`).
 pub const KEEP_SECS: f64 = 10.0;
 /// Seconds before the death that a replay begins.
 pub const LEAD_SECS: f64 = 5.0;
@@ -23,74 +20,27 @@ pub const LENGTH_SECS: f64 = 8.0;
 
 /// Everyone as one snapshot showed them.
 #[derive(Debug, Clone)]
-pub struct Frame {
+struct Frame {
     /// Server time, seconds.
-    pub t: f64,
+    t: f64,
     /// Every player in the snapshot.
-    pub players: Vec<(u8, PlayerPose)>,
-    /// Rockets and grenades in flight.
-    pub projectiles: Vec<ProjSnap>,
+    players: Vec<(u8, PlayerPose)>,
 }
 
-/// The last few seconds of the match, snapshot by snapshot.
-#[derive(Debug, Default)]
-pub struct Recorder {
-    frames: VecDeque<Frame>,
-}
-
-impl Recorder {
-    /// An empty recorder.
-    pub fn new() -> Recorder {
-        Recorder::default()
+/// The replay of a kill: from [`LEAD_SECS`] before `death_t` (or the oldest snapshot held) for [`LENGTH_SECS`], following `killer`. `None` when
+/// the killer is not in the history (they had left, or the history is empty).
+pub fn playback(history: &History, killer: u8, death_t: f64) -> Option<Playback> {
+    let oldest = history.oldest()?;
+    let start = (death_t - LEAD_SECS).max(oldest);
+    let frames: Vec<Frame> = history
+        .iter()
+        .filter(|(t, _)| *t >= start - 0.2)
+        .map(|(t, snap)| Frame { t, players: snap.players.iter().map(|p| (p.id, PlayerPose::from(p))).collect() })
+        .collect();
+    if !frames.iter().any(|f| f.players.iter().any(|(id, _)| *id == killer)) {
+        return None;
     }
-
-    /// Forgets everything (a new round).
-    pub fn clear(&mut self) {
-        self.frames.clear();
-    }
-
-    /// Adds a snapshot (older ones than the newest are ignored; anything older than [`KEEP_SECS`] is dropped).
-    pub fn record(&mut self, snap: &Snapshot) {
-        let t = snap.server_tick as f64 * TICK_DT as f64;
-        if self.frames.back().is_some_and(|f| t <= f.t) {
-            return;
-        }
-        self.frames.push_back(Frame {
-            t,
-            players: snap.players.iter().map(|p| (p.id, PlayerPose::from(p))).collect(),
-            projectiles: snap.game.as_ref().and_then(|g| ArenaSnap::from_game_msg(g).ok().flatten()).map(|a| a.projectiles).unwrap_or_default(),
-        });
-        while self.frames.front().is_some_and(|f| t - f.t > KEEP_SECS) {
-            self.frames.pop_front();
-        }
-    }
-
-    /// The newest server time recorded.
-    pub fn newest(&self) -> Option<f64> {
-        self.frames.back().map(|f| f.t)
-    }
-
-    /// How many snapshots are held.
-    pub fn len(&self) -> usize {
-        self.frames.len()
-    }
-
-    /// Whether nothing is recorded.
-    pub fn is_empty(&self) -> bool {
-        self.frames.is_empty()
-    }
-
-    /// The replay of a kill: from [`LEAD_SECS`] before `death_t` (or the oldest thing held) for [`LENGTH_SECS`], following `killer`. `None` when the
-    /// killer is not in the record (they had left, or the record is empty).
-    pub fn playback(&self, killer: u8, death_t: f64) -> Option<Playback> {
-        let oldest = self.frames.front()?.t;
-        let start = (death_t - LEAD_SECS).max(oldest);
-        let frames: Vec<Frame> = self.frames.iter().filter(|f| f.t >= start - 0.2).cloned().collect();
-        if !frames.iter().any(|f| f.players.iter().any(|(id, _)| *id == killer)) {
-            return None;
-        }
-        Some(Playback { frames, start, killer, death_t })
-    }
+    Some(Playback { frames, start, killer, death_t })
 }
 
 /// A cut-out replay.
@@ -109,8 +59,6 @@ pub struct Shot {
     pub killer: PlayerPose,
     /// Every player (the killer and the victim included) as they were.
     pub players: Vec<(u8, PlayerPose)>,
-    /// Rockets and grenades in flight, as of the nearest snapshot.
-    pub projectiles: Vec<ProjSnap>,
     /// The server time shown.
     pub t: f64,
     /// Whether the shot is before the moment of death (the kill itself is at `false`/`true` boundary).
@@ -152,47 +100,33 @@ impl Playback {
             players.push((*id, pose));
         }
         let killer = players.iter().find(|(id, _)| *id == self.killer).map(|(_, p)| *p)?;
-        let nearest = if k < 0.5 { a } else { b };
-        Some(Shot { killer, players, projectiles: nearest.projectiles.clone(), t, before_death: t < self.death_t })
+        Some(Shot { killer, players, t, before_death: t < self.death_t })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::protocol::PlayerSnap;
+    use crate::net::protocol::{PlayerSnap, Snapshot};
 
     fn snap(tick: u32, killer_x: f32, victim_x: f32) -> Snapshot {
         let p = |id: u8, x: f32| PlayerSnap { id, pos: [x, 0.0, 0.0], yaw: 1.0, ..Default::default() };
         Snapshot { server_tick: tick, players: vec![p(1, killer_x), p(2, victim_x)], ..Default::default() }
     }
 
-    fn recorded(seconds: u32) -> Recorder {
-        let mut r = Recorder::new();
+    fn recorded(seconds: u32) -> History {
+        let mut h = History::new(KEEP_SECS);
         for tick in (0..seconds * 60).step_by(2) {
-            r.record(&snap(tick, tick as f32 * 0.05, 100.0));
+            h.record(&snap(tick, tick as f32 * 0.05, 100.0));
         }
-        r
-    }
-
-    #[test]
-    fn only_the_last_ten_seconds_are_kept_and_old_snapshots_are_ignored() {
-        let mut r = recorded(30);
-        assert!(r.newest().unwrap() > 29.0);
-        let oldest_allowed = r.newest().unwrap() - KEEP_SECS;
-        assert!(r.frames.front().unwrap().t >= oldest_allowed - 0.05, "{}", r.frames.front().unwrap().t);
-        let len = r.len();
-        r.record(&snap(10, 0.0, 0.0)); // a late packet
-        assert_eq!(r.len(), len);
-        r.clear();
-        assert!(r.is_empty());
+        h
     }
 
     #[test]
     fn the_replay_starts_before_the_death_and_follows_the_killer_smoothly() {
-        let r = recorded(20);
+        let h = recorded(20);
         let death_t = 15.0;
-        let pb = r.playback(1, death_t).expect("the killer is in the record");
+        let pb = playback(&h, 1, death_t).expect("the killer is in the history");
         assert!((pb.start() - (death_t - LEAD_SECS)).abs() < 0.05);
         assert!((pb.death_offset() - LEAD_SECS).abs() < 0.05);
         let s0 = pb.at(0.0).unwrap();
@@ -208,16 +142,16 @@ mod tests {
     }
 
     #[test]
-    fn a_killer_who_is_not_in_the_record_gives_no_replay() {
-        let r = recorded(5);
-        assert!(r.playback(9, 4.0).is_none());
-        assert!(Recorder::new().playback(1, 1.0).is_none());
+    fn a_killer_who_is_not_in_the_history_gives_no_replay() {
+        let h = recorded(5);
+        assert!(playback(&h, 9, 4.0).is_none());
+        assert!(playback(&History::new(KEEP_SECS), 1, 1.0).is_none());
     }
 
     #[test]
-    fn a_short_record_starts_where_it_starts() {
-        let r = recorded(3);
-        let pb = r.playback(1, 2.9).unwrap();
+    fn a_short_history_starts_where_it_starts() {
+        let h = recorded(3);
+        let pb = playback(&h, 1, 2.9).unwrap();
         assert!(pb.start() < 0.1, "only three seconds exist: the replay begins at the start of them ({})", pb.start());
     }
 }
