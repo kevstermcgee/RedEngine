@@ -28,12 +28,14 @@ pub const MAGIC: u16 = 0x5244;
 /// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
 /// v10 (ADR 0044): join proofs use a new domain (bound to the TLS exporter on QUIC), and a snapshot carries only as many props as the
 /// client's transport datagram budget allows.
-pub const PROTOCOL_VERSION: u16 = 15;
+pub const PROTOCOL_VERSION: u16 = 16;
 // v14 (ADR 2026-09-30-killchain-loadout-shooter): twelve players; inputs carry two flag bytes (aim, drop, weapon choice); a snapshot of a loadout match
-// carries an [`ArenaSnap`] (your kit, pickups, projectiles, smoke, explosions); players carry a team and a stance byte; the lobby chooses a team; the
+// carries an `ArenaSnap` (your kit, pickups, projectiles, smoke, explosions); players carry a team and a stance byte; the lobby chooses a team; the
 // status carries team scores and the match limits.
 // v15 (ADR 2026-10-07-killchain-game-modes-free-for-all-capture-the-flag): the status names the mode and team size, and its limit is the mode's own (kills, captures or rounds);
-// an [`ArenaSnap`] ends with an [`ObjSnap`] (capture-the-flag flags or search-and-destroy round and bomb, plus the last few objective events).
+// an `ArenaSnap` ends with an `ObjSnap` (capture-the-flag flags or search-and-destroy round and bomb, plus the last few objective events).
+// v16 (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or): a game's own part of a snapshot is a [`GameMsg`], tagged bytes this
+// protocol carries and does not read (the loadout shooter's arena, `net::arena_wire`, is the first); the per-player byte goes with it.
 /// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
 /// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
@@ -364,8 +366,9 @@ pub const NO_PROP: u16 = u16::MAX;
 const WIRE_KART: u8 = 0x40;
 /// Wire-only bit of the player-count byte: a [`RaceSnap`] follows the counts (race matches only).
 const WIRE_RACE: u8 = 0x80;
-/// Wire-only bit of the player-count byte: every player carries a stance byte and an [`ArenaSnap`] ends the message (loadout matches only).
-const WIRE_ARENA: u8 = 0x40;
+/// Wire-only bit of the player-count byte: every player carries its game byte ([`PlayerSnap::extra`]) and a [`GameMsg`] ends the message (a game with
+/// a part of its own only).
+const WIRE_GAME: u8 = 0x40;
 /// Bytes a kart block adds to each player in a race snapshot.
 pub const KART_BYTES: usize = 13;
 /// Bytes the race header adds to a race snapshot, before its hazards (phase, countdown, clock, hazard count).
@@ -491,241 +494,30 @@ pub struct Snapshot {
     pub props: Vec<PropSnap>,
     /// The race, in a race match; `None` everywhere else.
     pub race: Option<RaceSnap>,
-    /// The loadout match's world and the receiving player's kit; `None` in every other kind of match.
-    pub arena: Option<ArenaSnap>,
+    /// The game's own part (the loadout shooter's arena: `net::arena_wire`); `None` in a match of a game without one.
+    pub game: Option<GameMsg>,
 }
 
-/// The receiving player's own kit and what just happened to them, in a loadout match.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct OwnKit {
-    /// The slot in hand (`sim::kit::Slot::to_wire`).
-    pub sel: u8,
-    /// The two gun slots as `(weapon wire + 1, rounds loaded, rounds in reserve)`; weapon `0` = empty.
-    pub guns: [(u8, u16, u16); 2],
-    /// The melee weapon (wire number).
-    pub melee: u8,
-    /// The two grenade slots (wire number + 1, `0` = empty).
-    pub grenades: [u8; 2],
-    /// Ticks until the reload finishes (`0` = not reloading).
-    pub reload_left: u16,
-    /// Ticks until the weapon can be used again.
-    pub busy: u16,
-    /// Ticks the screen stays whited out by a flashbang.
-    pub flash_left: u16,
-    /// Tenths of a second the last flash lasts in total (for the fade).
-    pub flash_total: u8,
-    /// Who killed the player (`255` = alive, or nobody).
-    pub killed_by: u8,
-    /// What killed them (wire number).
-    pub killed_weapon: u8,
-    /// Whether it was a headshot.
-    pub killed_head: bool,
-    /// Kills of the player's that were headshots (wrapping).
-    pub headshots: u8,
-    /// The player's team.
-    pub team: u8,
-}
-
-impl OwnKit {
-    /// The weapon in hand, from the slot and the kit.
-    pub fn current_weapon(&self) -> Option<crate::weapons::Weapon> {
-        use crate::weapons::Weapon;
-        match self.sel {
-            0 | 1 => {
-                let g = self.guns[self.sel as usize].0;
-                (g > 0).then(|| Weapon::from_wire(g - 1))
-            }
-            2 => Some(Weapon::from_wire(self.melee)),
-            3 | 4 => {
-                let g = self.grenades[self.sel as usize - 3];
-                (g > 0).then(|| Weapon::from_wire(g - 1))
-            }
-            _ => None,
-        }
-    }
-}
-
-/// A weapon lying on the floor where somebody dropped it.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DroppedSnap {
-    /// Unique id.
-    pub id: u16,
-    /// Weapon wire number.
-    pub weapon: u8,
-    /// Where.
-    pub pos: [f32; 3],
-}
-
-/// A rocket or grenade in flight or at rest.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ProjSnap {
-    /// Unique id.
-    pub id: u16,
-    /// Weapon wire number.
-    pub weapon: u8,
-    /// Where.
-    pub pos: [f32; 3],
-    /// How fast it moves, m/s (lets a client carry it between snapshots).
-    pub vel: [f32; 3],
-}
-
-/// A smoke cloud or fire.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ZoneSnap {
-    /// Unique id.
-    pub id: u16,
-    /// `0` smoke, `1` fire.
+/// A game's own part of a snapshot (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or): bytes tagged with the game's kind, which this
+/// protocol carries (within [`MAX_GAME_BYTES`]) and does not read; the game that sent them decodes them. With one, every player carries its game byte too
+/// ([`PlayerSnap::extra`]).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GameMsg {
+    /// Whose part this is: a number each game keeps for its own (the loadout shooter's arena is `net::arena_wire::KIND`).
     pub kind: u8,
-    /// Where.
-    pub pos: [f32; 3],
-    /// Radius, tenths of a metre.
-    pub radius_dm: u8,
-    /// Ticks until it ends.
-    pub left_ticks: u16,
+    /// The game's own encoding.
+    pub bytes: Vec<u8>,
 }
 
-/// An explosion or a pop to show and hear once.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FxSnap {
-    /// Unique id (a client plays each id once).
-    pub id: u16,
-    /// `sim::ordnance::FxKind::to_wire`.
-    pub kind: u8,
-    /// Where.
-    pub pos: [f32; 3],
-    /// Size, tenths of a metre.
-    pub size_dm: u8,
-}
-
-/// Most entries of each list an [`ArenaSnap`] carries.
-pub const MAX_DROPPED_SNAP: usize = 12;
-/// See [`MAX_DROPPED_SNAP`].
-pub const MAX_PROJ_SNAP: usize = 12;
-/// See [`MAX_DROPPED_SNAP`].
-pub const MAX_ZONE_SNAP: usize = 6;
-/// See [`MAX_DROPPED_SNAP`].
-pub const MAX_FX_SNAP: usize = 6;
-/// Bytes of the map-pickup availability mask (96 spots).
-pub const PICKUP_MASK_BYTES: usize = 12;
-
-/// The part of a loadout match's world a client draws and hears, beside the players.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ArenaSnap {
-    /// The receiving player's kit (`None` for a spectator).
-    pub own: Option<OwnKit>,
-    /// Kills per team.
-    pub team_kills: [u16; 2],
-    /// Bit `i` set: map pickup spot `i` has its item right now.
-    pub pickups: [u8; PICKUP_MASK_BYTES],
-    /// Dropped weapons.
-    pub dropped: Vec<DroppedSnap>,
-    /// Projectiles.
-    pub projectiles: Vec<ProjSnap>,
-    /// Smoke and fire.
-    pub zones: Vec<ZoneSnap>,
-    /// Explosions and pops of the last moments.
-    pub fx: Vec<FxSnap>,
-    /// Capture the flag or search and destroy state (empty in the other modes).
-    pub obj: ObjSnap,
-}
-
-/// One flag in a snapshot.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct FlagSnap {
-    /// `0` at its base, `1` carried, `2` lying on the ground.
-    pub state: u8,
-    /// The carrier's player id (`255` = nobody).
-    pub carrier: u8,
-    /// Where it is.
-    pub pos: [f32; 3],
-    /// A dropped flag: ticks until it goes home by itself.
-    pub left_ticks: u16,
-}
-
-/// Search and destroy in a snapshot.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct SndSnap {
-    /// `0` freeze, `1` live, `2` round over.
-    pub phase: u8,
-    /// The round number, from 1.
-    pub round: u8,
-    /// The attacking team.
-    pub attackers: u8,
-    /// Ticks until the phase changes (the round clock while live).
-    pub left_ticks: u16,
-    /// `0` carried, `1` on the ground, `2` planted, `3` defused, `4` exploded.
-    pub bomb: u8,
-    /// The carrier's player id (`255` = nobody).
-    pub carrier: u8,
-    /// Where the bomb is.
-    pub pos: [f32; 3],
-    /// A planted bomb: the site's index.
-    pub site: u8,
-    /// A planted bomb: ticks until it goes off.
-    pub fuse_ticks: u16,
-    /// Plant or defuse progress, 0-255, for the HUD.
-    pub progress: u8,
-    /// After a round: the winning team.
-    pub winner: u8,
-}
-
-/// An objective event (a flag taken, the bomb planted...) a client plays once per id.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct ObjEventSnap {
-    /// Unique, growing id.
-    pub id: u16,
-    /// What happened (`sim::objective::ev`).
-    pub kind: u8,
-    /// The team it concerns.
-    pub team: u8,
-    /// The player it concerns (`255` = nobody).
-    pub slot: u8,
-}
-
-/// The objective modes' part of an [`ArenaSnap`].
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ObjSnap {
-    /// `0` none, `1` capture the flag, `2` search and destroy.
-    pub kind: u8,
-    /// Capture the flag: the two flags.
-    pub flags: [FlagSnap; 2],
-    /// Search and destroy.
-    pub snd: SndSnap,
-    /// The last few events.
-    pub events: Vec<ObjEventSnap>,
-}
-
-/// Most objective events a snapshot carries.
-pub const MAX_OBJ_EVENTS: usize = 4;
-
-impl ObjSnap {
-    /// Bytes this block takes on the wire.
+impl GameMsg {
+    /// Bytes this part takes on the wire (its kind and length, then its bytes).
     pub fn wire_bytes(&self) -> usize {
-        1 + match self.kind {
-            1 => 2 * 10,
-            2 => 18,
-            _ => 0,
-        } + if self.kind == 0 { 0 } else { 1 + self.events.len().min(MAX_OBJ_EVENTS) * 5 }
+        3 + self.bytes.len().min(MAX_GAME_BYTES)
     }
 }
 
-impl ArenaSnap {
-    /// Bytes this block takes on the wire.
-    pub fn wire_bytes(&self) -> usize {
-        1 + self.own.map_or(0, |_| OWN_BYTES)
-            + 4
-            + PICKUP_MASK_BYTES
-            + 4
-            + self.dropped.len().min(MAX_DROPPED_SNAP) * 9
-            + self.projectiles.len().min(MAX_PROJ_SNAP) * 16
-            + self.zones.len().min(MAX_ZONE_SNAP) * 12
-            + self.fx.len().min(MAX_FX_SNAP) * 10
-            + self.obj.wire_bytes()
-    }
-}
-
-/// Bytes of an [`OwnKit`] on the wire.
-pub const OWN_BYTES: usize = 1 + 10 + 1 + 2 + 2 + 2 + 2 + 1 + 1 + 1 + 1 + 1 + 1;
+/// Most bytes a game's part of one snapshot carries (a snapshot travels in one datagram).
+pub const MAX_GAME_BYTES: usize = MAX_PACKET;
 
 /// Per-client feedback carried by every [`Snapshot`]: counters that only ever grow (wrapping), so a lost snapshot loses nothing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -860,7 +652,7 @@ pub struct RuleState {
 
 /// Messages a server sends.
 #[derive(Debug, Clone, PartialEq)]
-// A snapshot (with a whole loadout arena in it) is much bigger than the small control messages; they are decoded one at a time and never stored in bulk, so boxing it would
+// A snapshot (with a whole game part in it) is much bigger than the small control messages; they are decoded one at a time and never stored in bulk, so boxing it would
 // only add an allocation to every snapshot.
 #[allow(clippy::large_enum_variant)]
 pub enum ServerMsg {
@@ -892,22 +684,22 @@ pub enum ServerMsg {
 // codec
 // ---------------------------------------------------------------------------------------------
 
-struct W<'a>(&'a mut Vec<u8>);
+pub(crate) struct W<'a>(pub(crate) &'a mut Vec<u8>);
 
 impl W<'_> {
-    fn u8(&mut self, v: u8) {
+    pub(crate) fn u8(&mut self, v: u8) {
         self.0.push(v);
     }
-    fn u16(&mut self, v: u16) {
+    pub(crate) fn u16(&mut self, v: u16) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn u32(&mut self, v: u32) {
+    pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn u64(&mut self, v: u64) {
+    pub(crate) fn u64(&mut self, v: u64) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn f32(&mut self, v: f32) {
+    pub(crate) fn f32(&mut self, v: f32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
     fn header(&mut self, kind: u8) {
@@ -926,36 +718,36 @@ impl W<'_> {
     }
 }
 
-struct R<'a> {
-    b: &'a [u8],
-    i: usize,
+pub(crate) struct R<'a> {
+    pub(crate) b: &'a [u8],
+    pub(crate) i: usize,
 }
 
 impl<'a> R<'a> {
-    fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
+    pub(crate) fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         let end = self.i.checked_add(n).ok_or(DecodeError::Truncated)?;
         let s = self.b.get(self.i..end).ok_or(DecodeError::Truncated)?;
         self.i = end;
         Ok(s)
     }
-    fn u8(&mut self) -> Result<u8, DecodeError> {
+    pub(crate) fn u8(&mut self) -> Result<u8, DecodeError> {
         Ok(self.array::<1>()?[0])
     }
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
+    pub(crate) fn array<const N: usize>(&mut self) -> Result<[u8; N], DecodeError> {
         let mut a = [0u8; N];
         a.copy_from_slice(self.take(N)?);
         Ok(a)
     }
-    fn u16(&mut self) -> Result<u16, DecodeError> {
+    pub(crate) fn u16(&mut self) -> Result<u16, DecodeError> {
         Ok(u16::from_le_bytes(self.array()?))
     }
-    fn u32(&mut self) -> Result<u32, DecodeError> {
+    pub(crate) fn u32(&mut self) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.array()?))
     }
-    fn u64(&mut self) -> Result<u64, DecodeError> {
+    pub(crate) fn u64(&mut self) -> Result<u64, DecodeError> {
         Ok(u64::from_le_bytes(self.array()?))
     }
-    fn f32(&mut self) -> Result<f32, DecodeError> {
+    pub(crate) fn f32(&mut self) -> Result<f32, DecodeError> {
         Ok(f32::from_le_bytes(self.array()?))
     }
     /// A length-prefixed UTF-8 string of at most `max` bytes.
@@ -966,7 +758,7 @@ impl<'a> R<'a> {
         }
         String::from_utf8(self.take(n)?.to_vec()).map_err(|_| DecodeError::OutOfRange)
     }
-    fn finish(&self) -> Result<(), DecodeError> {
+    pub(crate) fn finish(&self) -> Result<(), DecodeError> {
         if self.i == self.b.len() {
             Ok(())
         } else {
@@ -985,213 +777,6 @@ fn open(bytes: &[u8]) -> Result<(u8, R<'_>), DecodeError> {
     let _version = r.u16()?;
     let kind = r.u8()?;
     Ok((kind, r))
-}
-
-/// A world coordinate in 5 cm steps (two bytes).
-fn q16(v: f32) -> i16 {
-    (v * 20.0).round().clamp(-32768.0, 32767.0) as i16
-}
-
-fn put_pos(w: &mut W, p: [f32; 3]) {
-    for v in p {
-        w.u16(q16(v) as u16);
-    }
-}
-
-fn get_pos(r: &mut R) -> Result<[f32; 3], DecodeError> {
-    Ok([r.u16()? as i16 as f32 / 20.0, r.u16()? as i16 as f32 / 20.0, r.u16()? as i16 as f32 / 20.0])
-}
-
-fn put_arena(w: &mut W, a: &ArenaSnap) {
-    match &a.own {
-        Some(o) => {
-            w.u8(1);
-            w.u8(o.sel);
-            for (weapon, loaded, reserve) in o.guns {
-                w.u8(weapon);
-                w.u16(loaded);
-                w.u16(reserve);
-            }
-            w.u8(o.melee);
-            w.u8(o.grenades[0]);
-            w.u8(o.grenades[1]);
-            w.u16(o.reload_left);
-            w.u16(o.busy);
-            w.u16(o.flash_left);
-            w.u8(o.flash_total);
-            w.u8(o.killed_by);
-            w.u8(o.killed_weapon);
-            w.u8(o.killed_head as u8);
-            w.u8(o.headshots);
-            w.u8(o.team);
-        }
-        None => w.u8(0),
-    }
-    w.u16(a.team_kills[0]);
-    w.u16(a.team_kills[1]);
-    w.0.extend_from_slice(&a.pickups);
-    let (nd, np, nz, nf) =
-        (a.dropped.len().min(MAX_DROPPED_SNAP), a.projectiles.len().min(MAX_PROJ_SNAP), a.zones.len().min(MAX_ZONE_SNAP), a.fx.len().min(MAX_FX_SNAP));
-    for n in [nd, np, nz, nf] {
-        w.u8(n as u8);
-    }
-    for d in &a.dropped[..nd] {
-        w.u16(d.id);
-        w.u8(d.weapon);
-        put_pos(w, d.pos);
-    }
-    for p in &a.projectiles[..np] {
-        w.u16(p.id);
-        w.u8(p.weapon);
-        put_pos(w, p.pos);
-        for v in p.vel {
-            w.u16((v * 10.0).round().clamp(-32768.0, 32767.0) as i16 as u16);
-        }
-    }
-    for z in &a.zones[..nz] {
-        w.u16(z.id);
-        w.u8(z.kind);
-        put_pos(w, z.pos);
-        w.u8(z.radius_dm);
-        w.u16(z.left_ticks);
-    }
-    for f in &a.fx[..nf] {
-        w.u16(f.id);
-        w.u8(f.kind);
-        put_pos(w, f.pos);
-        w.u8(f.size_dm);
-    }
-    put_obj(w, &a.obj);
-}
-
-fn put_obj(w: &mut W, o: &ObjSnap) {
-    w.u8(o.kind);
-    match o.kind {
-        1 => {
-            for f in &o.flags {
-                w.u8(f.state);
-                w.u8(f.carrier);
-                put_pos(w, f.pos);
-                w.u16(f.left_ticks);
-            }
-        }
-        2 => {
-            let s = &o.snd;
-            for b in [s.phase, s.round, s.attackers] {
-                w.u8(b);
-            }
-            w.u16(s.left_ticks);
-            w.u8(s.bomb);
-            w.u8(s.carrier);
-            put_pos(w, s.pos);
-            w.u8(s.site);
-            w.u16(s.fuse_ticks);
-            w.u8(s.progress);
-            w.u8(s.winner);
-        }
-        _ => return,
-    }
-    let n = o.events.len().min(MAX_OBJ_EVENTS);
-    w.u8(n as u8);
-    for e in &o.events[..n] {
-        w.u16(e.id);
-        w.u8(e.kind);
-        w.u8(e.team);
-        w.u8(e.slot);
-    }
-}
-
-fn get_obj(r: &mut R) -> Result<ObjSnap, DecodeError> {
-    let kind = r.u8()?;
-    let mut o = ObjSnap { kind, ..Default::default() };
-    match kind {
-        0 => return Ok(o),
-        1 => {
-            for f in o.flags.iter_mut() {
-                *f = FlagSnap { state: r.u8()?.min(2), carrier: r.u8()?, pos: get_pos(r)?, left_ticks: r.u16()? };
-            }
-        }
-        2 => {
-            let (phase, round, attackers) = (r.u8()?.min(2), r.u8()?, r.u8()?.clamp(1, 2));
-            let left_ticks = r.u16()?;
-            let (bomb, carrier, pos) = (r.u8()?.min(4), r.u8()?, get_pos(r)?);
-            o.snd = SndSnap {
-                phase,
-                round,
-                attackers,
-                left_ticks,
-                bomb,
-                carrier,
-                pos,
-                site: r.u8()?,
-                fuse_ticks: r.u16()?,
-                progress: r.u8()?,
-                winner: r.u8()?.min(2),
-            };
-        }
-        _ => return Err(DecodeError::OutOfRange),
-    }
-    let n = r.u8()? as usize;
-    if n > MAX_OBJ_EVENTS {
-        return Err(DecodeError::OutOfRange);
-    }
-    for _ in 0..n {
-        o.events.push(ObjEventSnap { id: r.u16()?, kind: r.u8()?, team: r.u8()?.min(2), slot: r.u8()? });
-    }
-    Ok(o)
-}
-
-fn get_arena(r: &mut R) -> Result<ArenaSnap, DecodeError> {
-    let own = if r.u8()? != 0 {
-        let sel = r.u8()?;
-        let guns = [(r.u8()?, r.u16()?, r.u16()?), (r.u8()?, r.u16()?, r.u16()?)];
-        let (melee, g0, g1) = (r.u8()?, r.u8()?, r.u8()?);
-        let (reload_left, busy, flash_left, flash_total) = (r.u16()?, r.u16()?, r.u16()?, r.u8()?);
-        let (killed_by, killed_weapon, killed_head, headshots, team) = (r.u8()?, r.u8()?, r.u8()? != 0, r.u8()?, r.u8()?.min(2));
-        Some(OwnKit {
-            sel,
-            guns,
-            melee,
-            grenades: [g0, g1],
-            reload_left,
-            busy,
-            flash_left,
-            flash_total,
-            killed_by,
-            killed_weapon,
-            killed_head,
-            headshots,
-            team,
-        })
-    } else {
-        None
-    };
-    let team_kills = [r.u16()?, r.u16()?];
-    let pickups: [u8; PICKUP_MASK_BYTES] = r.array()?;
-    let (nd, np, nz, nf) = (r.u8()? as usize, r.u8()? as usize, r.u8()? as usize, r.u8()? as usize);
-    if nd > MAX_DROPPED_SNAP || np > MAX_PROJ_SNAP || nz > MAX_ZONE_SNAP || nf > MAX_FX_SNAP {
-        return Err(DecodeError::OutOfRange);
-    }
-    let mut dropped = Vec::with_capacity(nd);
-    for _ in 0..nd {
-        dropped.push(DroppedSnap { id: r.u16()?, weapon: r.u8()?, pos: get_pos(r)? });
-    }
-    let mut projectiles = Vec::with_capacity(np);
-    for _ in 0..np {
-        let (id, weapon, pos) = (r.u16()?, r.u8()?, get_pos(r)?);
-        let vel = [r.u16()? as i16 as f32 / 10.0, r.u16()? as i16 as f32 / 10.0, r.u16()? as i16 as f32 / 10.0];
-        projectiles.push(ProjSnap { id, weapon, pos, vel });
-    }
-    let mut zones = Vec::with_capacity(nz);
-    for _ in 0..nz {
-        zones.push(ZoneSnap { id: r.u16()?, kind: r.u8()?.min(1), pos: get_pos(r)?, radius_dm: r.u8()?, left_ticks: r.u16()? });
-    }
-    let mut fx = Vec::with_capacity(nf);
-    for _ in 0..nf {
-        fx.push(FxSnap { id: r.u16()?, kind: r.u8()?, pos: get_pos(r)?, size_dm: r.u8()? });
-    }
-    let obj = get_obj(r)?;
-    Ok(ArenaSnap { own, team_kills, pickups, dropped, projectiles, zones, fx, obj })
 }
 
 fn put_input(w: &mut W, i: &PlayerInput) {
@@ -1399,7 +984,7 @@ impl ServerMsg {
                     w.u8(b);
                 }
                 let np = s.players.len().min(MAX_PLAYERS_PER_SNAPSHOT);
-                w.u8(np as u8 | if s.race.is_some() { WIRE_RACE } else { 0 } | if s.arena.is_some() { WIRE_ARENA } else { 0 });
+                w.u8(np as u8 | if s.race.is_some() { WIRE_RACE } else { 0 } | if s.game.is_some() { WIRE_GAME } else { 0 });
                 let nq = s.props.len().min(MAX_PROPS_PER_SNAPSHOT);
                 w.u8(nq as u8);
                 if let Some(race) = &s.race {
@@ -1437,7 +1022,7 @@ impl ServerMsg {
                     w.u16(p.held);
                     w.u8(p.hp);
                     w.u8(p.shots);
-                    if s.arena.is_some() {
+                    if s.game.is_some() {
                         w.u8(p.extra);
                     }
                     if let Some(k) = &p.kart {
@@ -1465,8 +1050,11 @@ impl ServerMsg {
                         w.f32(v);
                     }
                 }
-                if let Some(a) = &s.arena {
-                    put_arena(&mut w, a);
+                if let Some(g) = &s.game {
+                    let n = g.bytes.len().min(MAX_GAME_BYTES);
+                    w.u8(g.kind);
+                    w.u16(n as u16);
+                    w.0.extend_from_slice(&g.bytes[..n]);
                 }
             }
             ServerMsg::Bye => w.header(KIND_S_BYE),
@@ -1575,7 +1163,7 @@ impl ServerMsg {
                 let echo_hold_ms = r.u16()?;
                 let fx = Feedback { hits: r.u8()?, hurt: r.u8()?, kills: r.u8()?, bearing: r.u8()?, respawn: r.u8()? };
                 let (np_byte, nq) = (r.u8()?, r.u8()? as usize);
-                let (np, has_race, has_arena) = ((np_byte & !(WIRE_RACE | WIRE_ARENA)) as usize, np_byte & WIRE_RACE != 0, np_byte & WIRE_ARENA != 0);
+                let (np, has_race, has_game) = ((np_byte & !(WIRE_RACE | WIRE_GAME)) as usize, np_byte & WIRE_RACE != 0, np_byte & WIRE_GAME != 0);
                 if np > MAX_PLAYERS_PER_SNAPSHOT || nq > MAX_PROPS_PER_SNAPSHOT {
                     return Err(DecodeError::OutOfRange);
                 }
@@ -1615,7 +1203,7 @@ impl ServerMsg {
                         held: r.u16()?,
                         hp: r.u8()?,
                         shots: r.u8()?,
-                        extra: if has_arena { r.u8()? } else { 0 },
+                        extra: if has_game { r.u8()? } else { 0 },
                         kart: if flags & WIRE_KART != 0 {
                             let (driver, boost_ticks, spin_ticks, status) = (r.u8()?, r.u8()?, r.u8()?, r.u8()?);
                             let (drift_charge_ms, slip, lap, next_gate, place) = (r.u16()?, r.u8()?, r.u8()?, r.u8()?, r.u8()?);
@@ -1650,8 +1238,17 @@ impl ServerMsg {
                 for _ in 0..nq {
                     props.push(PropSnap { id: r.u16()?, pos: [r.f32()?, r.f32()?, r.f32()?], rot: [r.f32()?, r.f32()?, r.f32()?, r.f32()?] });
                 }
-                let arena = if has_arena { Some(get_arena(&mut r)?) } else { None };
-                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, fx, players, props, race, arena })
+                let game = if has_game {
+                    let kind = r.u8()?;
+                    let n = r.u16()? as usize;
+                    if n > MAX_GAME_BYTES {
+                        return Err(DecodeError::OutOfRange);
+                    }
+                    Some(GameMsg { kind, bytes: r.take(n)?.to_vec() })
+                } else {
+                    None
+                };
+                ServerMsg::Snapshot(Snapshot { seq, server_tick, ack_input_seq, echo_time_ms, echo_hold_ms, fx, players, props, race, game })
             }
             KIND_S_BYE => ServerMsg::Bye,
             k => return Err(DecodeError::UnknownKind(k)),
@@ -1935,7 +1532,7 @@ mod tests {
             players,
             props,
             race: None,
-            arena: None,
+            game: None,
         }));
     }
 
@@ -1970,7 +1567,7 @@ mod tests {
             ],
             props: vec![PropSnap { id: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }; MAX_PROPS_PER_SNAPSHOT],
             race: None,
-            arena: None,
+            game: None,
         };
         let mut b = Vec::new();
         ServerMsg::Snapshot(s).encode(&mut b);
@@ -2035,7 +1632,7 @@ mod tests {
                 boxes_ready: 0b1010_0101,
                 hazards: (0..hazards).map(|i| HazardSnap { kind: (i % 2) as u8, owner: (i % 8) as u8, pos: [i as f32 * 3.5, -40.0 + i as f32] }).collect(),
             }),
-            arena: None,
+            game: None,
         }
     }
 
@@ -2109,7 +1706,7 @@ mod tests {
             players: vec![],
             props: vec![PropSnap { id: 1, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0] }],
             race: None,
-            arena: None,
+            game: None,
         })
         .encode(&mut valid);
         for cut in 0..valid.len() {
@@ -2165,58 +1762,5 @@ mod tests {
         w.u8(0);
         w.u64(0);
         assert!(matches!(ClientMsg::decode(&b), Ok(ClientMsg::Hello(h)) if h.version == 2));
-    }
-
-    #[test]
-    fn objective_state_round_trips_and_costs_nothing_in_the_kill_modes() {
-        let snap = |obj: ObjSnap| {
-            ServerMsg::Snapshot(Snapshot {
-                server_tick: 9,
-                players: vec![PlayerSnap { id: 1, ..Default::default() }],
-                arena: Some(ArenaSnap { obj, ..Default::default() }),
-                ..Default::default()
-            })
-        };
-        let ctf = ObjSnap {
-            kind: 1,
-            flags: [
-                FlagSnap { state: 0, carrier: 255, pos: [-30.0, 0.0, 1.5], left_ticks: 0 },
-                FlagSnap { state: 1, carrier: 4, pos: [12.5, 0.0, -3.0], left_ticks: 0 },
-            ],
-            snd: SndSnap::default(),
-            events: vec![ObjEventSnap { id: 7, kind: 1, team: 2, slot: 4 }, ObjEventSnap { id: 8, kind: 4, team: 1, slot: 0 }],
-        };
-        let snd = ObjSnap {
-            kind: 2,
-            flags: Default::default(),
-            snd: SndSnap {
-                phase: 1,
-                round: 3,
-                attackers: 2,
-                left_ticks: 4000,
-                bomb: 2,
-                carrier: 255,
-                pos: [4.0, 0.0, 9.5],
-                site: 1,
-                fuse_ticks: 1200,
-                progress: 128,
-                winner: 0,
-            },
-            events: vec![ObjEventSnap { id: 2, kind: 7, team: 2, slot: 5 }],
-        };
-        roundtrip_s(snap(ctf.clone()));
-        roundtrip_s(snap(snd.clone()));
-        roundtrip_s(snap(ObjSnap::default()));
-        // The size accounting matches the bytes written, and the kill modes pay one byte.
-        for o in [ctf, snd, ObjSnap::default()] {
-            let mut buf = Vec::new();
-            put_obj(&mut W(&mut buf), &o);
-            assert_eq!(buf.len(), o.wire_bytes(), "{o:?}");
-        }
-        assert_eq!(ObjSnap::default().wire_bytes(), 1);
-        // An unknown kind is refused, not trusted.
-        let mut bad = Vec::new();
-        W(&mut bad).u8(3);
-        assert!(get_obj(&mut R { b: &bad, i: 0 }).is_err());
     }
 }

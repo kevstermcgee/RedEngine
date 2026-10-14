@@ -183,7 +183,7 @@ fn net_codec(c: &mut Criterion) {
     };
     use red_engine2::sim::player::PlayerInput;
     let snap = Snapshot {
-        arena: None,
+        game: None,
         seq: 1,
         server_tick: 1,
         ack_input_seq: 1,

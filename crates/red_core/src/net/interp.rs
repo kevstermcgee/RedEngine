@@ -452,7 +452,7 @@ mod tests {
             players: vec![PlayerSnap { id: 1, pos: [x, 0.0, 0.0], speed: 3.0, held: crate::net::protocol::NO_PROP, hp: 100, ..Default::default() }],
             props: vec![],
             race: None,
-            arena: None,
+            game: None,
         }
     }
 

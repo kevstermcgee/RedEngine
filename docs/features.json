@@ -97,8 +97,8 @@
     },
     "net_protocol": {
       "summary": "The wire format (bounded, fuzz-tested), abuse limits, sizes.",
-      "files": ["crates/red_core/src/net/protocol.rs", "crates/red_core/src/net/limits.rs", "src/net/mod.rs"],
-      "tests": ["net_abuse", "net_budget", "net_rule_state"],
+      "files": ["crates/red_core/src/net/protocol.rs", "crates/red_core/src/net/limits.rs", "src/net/mod.rs", "crates/red_core/src/net/arena_wire.rs"],
+      "tests": ["net_abuse", "net_budget", "net_rule_state", "net_modes", "loadout"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0036-repeated-bounded-online-rule-state.md"],
       "depends_on": ["match_flow"]
     },

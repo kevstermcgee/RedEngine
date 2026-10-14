@@ -30,6 +30,10 @@ shown by an engine example.
   carries a game's own payload, tagged, that the core does not interpret, so the core protocol no longer names the arena's types; then the simulation
   moves with a Killchain server (the engine's `red_server` stops hosting loadout matches, as ADR
   2026-10-14-the-server-binary-stays-in-the-engine-crate-while-red foresaw for item 5's per-game servers).
+  *Step 1 as built (2026-10-14, protocol v16):* `protocol::GameMsg { kind, bytes }` is a snapshot's game part (`Snapshot::game`: a wire flag, then
+  its kind, a two-byte length and its bytes; `PlayerSnap::extra` rides with it); the arena's types and codec are `net::arena_wire` (kind 1,
+  `ArenaSnap::to_game_msg` / `from_game_msg`); a client that cannot decode the arena drops the snapshot as a bad packet, as before. An arena snapshot
+  costs three bytes more than at v15.
 - A system that falls below the bar later (its second game gone, its example removed) is a candidate to move; one that gains a second game stays.
 
 ## Consequences

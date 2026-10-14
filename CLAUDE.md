@@ -12,5 +12,5 @@
 <!-- facts:begin -->
 - Crate `red_engine2`; binaries: `re2`, `re2d`, `red_bot`, `red_engine2`, `red_relay`, `red_server`.
 - Cargo features: `default`, `video`, `mcp`, `schema`, `render`, `gfx`.
-- Wire protocol v15 (`crates/red_core/src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.
+- Wire protocol v16 (`crates/red_core/src/net/protocol.rs`): a client and a server must be built from the same version. Counts (suites, maps, ADRs) and test totals: `red_engine2 status`, `scripts/dev test`.
 <!-- facts:end -->

@@ -9,7 +9,7 @@
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
 use crate::firearms::{projectile_model, world_model};
-use crate::net::protocol::{ArenaSnap, FxSnap, MAX_FX_SNAP, MAX_ZONE_SNAP};
+use crate::net::arena_wire::{ArenaSnap, FxSnap, MAX_FX_SNAP, MAX_ZONE_SNAP};
 use crate::scene_pool::{ScenePool, HIDDEN_SCALE};
 use crate::schema::{Material, Object, ObjectKind, PrimKind, Scene};
 use crate::sim::ordnance::FxKind;
@@ -460,7 +460,7 @@ impl ShooterWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::protocol::{DroppedSnap, FxSnap, ProjSnap, ZoneSnap, PICKUP_MASK_BYTES};
+    use crate::net::arena_wire::{DroppedSnap, FxSnap, ProjSnap, ZoneSnap, PICKUP_MASK_BYTES};
 
     fn scene() -> Scene {
         crate::scene_blocks::parse_scene(

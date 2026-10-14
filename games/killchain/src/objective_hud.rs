@@ -3,7 +3,7 @@
 //!
 //! Pure functions of the newest [`ObjSnap`] and a little context, so every sentence is tested without a window.
 
-use red_engine2::net::protocol::ObjSnap;
+use red_engine2::net::arena_wire::ObjSnap;
 use red_engine2::sim::objective::{ev, WinHow};
 
 /// Green: good news for our team.
@@ -67,7 +67,7 @@ pub fn objective_hud(i: &ObjectiveInput) -> Option<ObjectiveHud> {
     match (i.mode, o.kind) {
         (2, 1) => {
             let (own, enemy) = (o.flags[mine], o.flags[1 - mine]);
-            let status = |f: &red_engine2::net::protocol::FlagSnap| match f.state {
+            let status = |f: &red_engine2::net::arena_wire::FlagSnap| match f.state {
                 0 => "HOME".to_string(),
                 1 => "TAKEN".to_string(),
                 _ => format!("DOWN {}", f.left_ticks.div_ceil(60)),
@@ -156,7 +156,7 @@ pub fn event_banner(kind: u8, team: u8, slot: u8, my_team: u8, me: u8) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    use red_engine2::net::protocol::{FlagSnap, SndSnap};
+    use red_engine2::net::arena_wire::{FlagSnap, SndSnap};
 
     fn input<'a>(mode: u8, obj: &'a ObjSnap, team: u8, me: u8) -> ObjectiveInput<'a> {
         ObjectiveInput { mode, my_team: team, me, obj, alive: [4, 3], sites: &['A', 'B'] }

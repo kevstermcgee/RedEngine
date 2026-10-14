@@ -8,8 +8,9 @@
 //! Used by Killchain alone and offered by nothing: it moves to `games/killchain` (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or,
 //! system audit, docs/analysis/2026-10-14-system-audit.md).
 
+use crate::net::arena_wire::{ArenaSnap, ProjSnap};
 use crate::net::interp::{Blend, PlayerPose};
-use crate::net::protocol::{ProjSnap, Snapshot};
+use crate::net::protocol::Snapshot;
 use crate::sim::clock::TICK_DT;
 use std::collections::VecDeque;
 
@@ -57,7 +58,7 @@ impl Recorder {
         self.frames.push_back(Frame {
             t,
             players: snap.players.iter().map(|p| (p.id, PlayerPose::from(p))).collect(),
-            projectiles: snap.arena.as_ref().map(|a| a.projectiles.clone()).unwrap_or_default(),
+            projectiles: snap.game.as_ref().and_then(|g| ArenaSnap::from_game_msg(g).ok().flatten()).map(|a| a.projectiles).unwrap_or_default(),
         });
         while self.frames.front().is_some_and(|f| t - f.t > KEEP_SECS) {
             self.frames.pop_front();
