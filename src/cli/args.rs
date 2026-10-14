@@ -1163,10 +1163,10 @@ pub(crate) enum Command {
         /// status | enable | remove | keep
         action: String,
         /// The UDP port (default: the server's default).
-        #[arg(long, default_value_t = red_engine2::net::DEFAULT_PORT)]
+        #[arg(long, default_value_t = crate::net::DEFAULT_PORT)]
         port: u16,
         /// Lease in seconds; the router forgets an unrenewed mapping after this.
-        #[arg(long, default_value_t = red_engine2::net::upnp::DEFAULT_LEASE_SECS)]
+        #[arg(long, default_value_t = crate::net::upnp::DEFAULT_LEASE_SECS)]
         lease: u32,
         /// Ask this gateway address instead of searching the network.
         #[arg(long)]

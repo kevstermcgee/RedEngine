@@ -19,7 +19,7 @@ pub(crate) fn run_propose(
     fn one<T>(what: &str, v: &str, parse: fn(&str) -> Option<T>, names: Vec<&'static str>) -> Result<T, String> {
         parse(v).ok_or_else(|| format!("--{what} `{v}` is not one of {}", names.join(", ")))
     }
-    let o = red_engine2::tools::propose::Overrides {
+    let o = crate::tools::propose::Overrides {
         title,
         presentation: presentation.as_deref().map(|p| one("presentation", p, Presentation::parse, Presentation::names())).transpose()?,
         platforms: platforms.iter().map(|p| one("platform", p, Platform::parse, Platform::names())).collect::<Result<_, _>>()?,
@@ -27,8 +27,8 @@ pub(crate) fn run_propose(
         networking: networking.as_deref().map(|p| one("networking", p, Networking::parse, Networking::names())).transpose()?,
         session_minutes: session,
     };
-    let p = red_engine2::tools::propose::propose(idea, &o);
-    if red_engine2::tools::envelope::capturing() {
+    let p = crate::tools::propose::propose(idea, &o);
+    if crate::tools::envelope::capturing() {
         println!("{}", serde_json::to_string_pretty(&p.to_json()).unwrap_or_default());
     } else {
         print!("{}", p.render());

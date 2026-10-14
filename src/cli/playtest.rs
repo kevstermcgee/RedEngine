@@ -4,7 +4,7 @@
 //! its report into a verdict a person or an AI can read at once.
 
 use super::*;
-use red_engine2::tools::game::sibling_exe;
+use crate::tools::game::sibling_exe;
 
 /// Everything `playtest` passes on to the client.
 pub(crate) struct PlaytestArgs<'a> {

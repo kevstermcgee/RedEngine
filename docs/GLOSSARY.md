@@ -9,7 +9,7 @@ glossary` prints the lot). Terms are grouped; each line says what it *is* and wh
   `--connect`. Windowing, input, held item, audio. Never analyses maps.
 - **`red_server` / `red_bot`** — the headless authoritative UDP server and scripted client (build without the `gfx`
   feature: no window, GPU or audio crates; ADR 0016, 0017).
-- **`red_engine2`** — the offline CLI (`src/main.rs`, `src/cli/`). Validates, renders, lints, plans, edits and
+- **`red_engine2`** — the offline CLI (`src/cli/`, a library module; `src/main.rs` runs it). Validates, renders, lints, plans, edits and
   searches maps; no window. Also the engine's self-description (`describe`, `search`, `src`).
 - **the tools** — everything under `src/tools/`. They call the *same* collision/physics functions as
   `re2` (see ADR 0003), so "the tools say it's walkable" means it is.

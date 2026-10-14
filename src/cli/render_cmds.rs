@@ -21,7 +21,7 @@ pub(crate) fn run_frame(
     let t = match hour {
         Some(h) => {
             let text = std::fs::read_to_string(scene).map_err(|e| format!("{}: {e}", scene.display()))?;
-            let parsed = red_engine2::scene_blocks::parse_scene(&text).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
+            let parsed = crate::scene_blocks::parse_scene(&text).map_err(|e| format!("{}: {}", scene.display(), e.join("; ")))?;
             let clock = parsed.clock.ok_or("--hour needs a scene with a `clock` block (see `describe scene`)")?;
             clock.t_for_hour(h) + t
         }
@@ -36,7 +36,7 @@ pub(crate) fn run_frame(
     };
     let opts = FrameOpts { eye: eye.map(v3).transpose()?, at: at.map(v3).transpose()?, fov, hide, cut_above, size, t, seed, song, play };
     if let (Some(eye), Ok(text)) = (opts.eye, std::fs::read_to_string(scene)) {
-        if let Ok(parsed) = red_engine2::scene_blocks::parse_scene(&text) {
+        if let Ok(parsed) = crate::scene_blocks::parse_scene(&text) {
             let target = opts.at.unwrap_or_else(|| parsed.camera.target.sample(t));
             if let Some(w) = far_plane_warning(eye, target, parsed.camera.far) {
                 eprintln!("{w}");
@@ -51,7 +51,7 @@ pub(crate) fn run_frame(
 #[cfg(feature = "video")]
 pub(crate) fn run_render(scene: &Path, out: &Path) -> Result<(), String> {
     let started = Instant::now();
-    red_engine2::render_video(scene, out, |done, total| {
+    crate::render_video(scene, out, |done, total| {
         print!("\rrendering frame {done}/{total}");
         use std::io::Write;
         std::io::stdout().flush().ok();
@@ -64,19 +64,19 @@ pub(crate) fn run_render(scene: &Path, out: &Path) -> Result<(), String> {
 #[cfg(feature = "gfx")]
 pub(crate) fn run_storyboard(scene: &Path, out: &Path, frames: u32) -> Result<(), String> {
     let started = Instant::now();
-    red_engine2::render_storyboard_png(scene, out, frames).map_err(|e| e.to_string())?;
+    crate::render_storyboard_png(scene, out, frames).map_err(|e| e.to_string())?;
     println!("wrote {} ({:.2}s)", out.display(), started.elapsed().as_secs_f32());
     Ok(())
 }
 
 #[cfg(not(feature = "video"))]
 pub(crate) fn run_render(_scene: &Path, _out: &Path) -> Result<(), String> {
-    Err(red_engine2::tools::NO_VIDEO.to_string())
+    Err(crate::tools::NO_VIDEO.to_string())
 }
 
 #[cfg(not(feature = "gfx"))]
 pub(crate) fn run_storyboard(_scene: &Path, _out: &Path, _frames: u32) -> Result<(), String> {
-    Err(red_engine2::tools::NO_GFX.to_string())
+    Err(crate::tools::NO_GFX.to_string())
 }
 
 pub(crate) fn run_tour(scene: &Path, out: &Path, cols: u32, only: Option<&str>, views: &[String]) -> Result<(), String> {
@@ -147,9 +147,9 @@ pub(crate) fn run_sky(
 /// and `render-trend` (timed, for the fixed scenes), so what is measured is what `splitshot` shows.
 #[cfg(feature = "gfx")]
 struct SplitRun {
-    split: red_engine2::app::OffscreenSplit,
-    scene: red_engine2::schema::Scene,
-    views: Vec<red_engine2::split_gpu::PlayerView<'static>>,
+    split: crate::app::OffscreenSplit,
+    scene: crate::schema::Scene,
+    views: Vec<crate::split_gpu::PlayerView<'static>>,
     t: f32,
     players: usize,
     window: (u32, u32),
@@ -166,12 +166,12 @@ fn parse_size(size: &str) -> Result<(u32, u32), String> {
 
 #[cfg(feature = "gfx")]
 fn prepare_split(scene_path: &Path, players: usize, (w, h): (u32, u32), hour: Option<f32>, spread: f32, gutter: u32) -> Result<SplitRun, String> {
-    use red_engine2::app::{OffscreenSplit, ViewCamera};
-    use red_engine2::split_gpu::PlayerView;
+    use crate::app::{OffscreenSplit, ViewCamera};
+    use crate::split_gpu::PlayerView;
     if !(1..=4).contains(&players) {
         return Err("--players is 1 to 4".into());
     }
-    let scene = red_engine2::load_scene(scene_path).map_err(|e| e.join("\n"))?;
+    let scene = crate::load_scene(scene_path).map_err(|e| e.join("\n"))?;
     let t = match (hour, scene.clock.as_ref()) {
         (Some(hr), Some(c)) => c.t_for_hour(hr),
         (Some(_), None) => return Err("--hour needs a scene with a `clock`".into()),
@@ -190,12 +190,12 @@ fn prepare_split(scene_path: &Path, players: usize, (w, h): (u32, u32), hour: Op
             let mut cam = ViewCamera::look_at(eye, eye + dir * 10.0 + glam::Vec3::Y * looking.y * 10.0);
             cam.far = scene.camera.far;
             cam.near = scene.camera.near;
-            cam.fov_deg = red_engine2::splitscreen::vertical_fov(scene.camera.fov.sample(t), w as f32 / h as f32, layout.views[k].aspect());
+            cam.fov_deg = crate::splitscreen::vertical_fov(scene.camera.fov.sample(t), w as f32 / h as f32, layout.views[k].aspect());
             PlayerView { camera: cam, layers: None, hidden: &[] }
         })
         .collect();
     let mut run = SplitRun { split, scene, views, t, players, window: (w, h) };
-    run.split.set_view_distance(red_engine2::splitscreen::view_distance(players));
+    run.split.set_view_distance(crate::splitscreen::view_distance(players));
     Ok(run)
 }
 
@@ -300,7 +300,7 @@ pub(crate) fn run_render_trend(scenes: Option<&Path>, repeat: u32, out: Option<&
     use serde_json::Value;
     let list = match scenes {
         Some(p) => p.to_path_buf(),
-        None => red_engine2::tools::symbols::find_root()
+        None => crate::tools::symbols::find_root()
             .ok_or("`render-trend` needs the engine checkout's benches/render_scenes.json: run it inside the checkout or pass --scenes FILE")?
             .join("benches/render_scenes.json"),
     };
@@ -382,7 +382,7 @@ pub(crate) fn run_procgen(
     biomes: bool,
     tweaks: [Option<f32>; 4],
 ) -> Result<(), String> {
-    use red_engine2::procgen::{Config, World};
+    use crate::procgen::{Config, World};
     let c = v2(centre)?;
     if !(8.0..=4000.0).contains(&size) || !(0.25..=16.0).contains(&scale) || size * scale as f64 > 8000.0 {
         return Err("--size must be 8 to 4000 m, --scale 0.25 to 16 px/m, and size x scale at most 8000 px".into());
@@ -395,20 +395,20 @@ pub(crate) fn run_procgen(
     }
     let started = Instant::now();
     let world = World::new(cfg);
-    let opts = red_engine2::tools::procgen_map::MapOpts { centre: (c.x as f64, c.y as f64), size, scale, grid, biomes };
-    let (img, stats) = red_engine2::tools::procgen_map::map(&world, &opts);
+    let opts = crate::tools::procgen_map::MapOpts { centre: (c.x as f64, c.y as f64), size, scale, grid, biomes };
+    let (img, stats) = crate::tools::procgen_map::map(&world, &opts);
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
     img.save(out).map_err(|e| format!("{}: {e}", out.display()))?;
-    print!("{}", red_engine2::tools::procgen_map::report(&stats));
+    print!("{}", crate::tools::procgen_map::report(&stats));
     println!("wrote {} ({}x{}, seed {seed}) ({:.2}s)", out.display(), img.width(), img.height(), started.elapsed().as_secs_f32());
     Ok(())
 }
 
 /// `flora`: a contact sheet of plant models.
 pub(crate) fn run_flora(out: &Path, species: Option<&str>, variants: u32, cols: u32, tile: u32, seed: u32) -> Result<(), String> {
-    use red_engine2::procgen::flora;
+    use crate::procgen::flora;
     let ids: Vec<flora::SpeciesId> = match species {
         Some(list) => list
             .split(',')
@@ -422,8 +422,8 @@ pub(crate) fn run_flora(out: &Path, species: Option<&str>, variants: u32, cols: 
     if !(32..=1024).contains(&tile) || variants > 16 {
         return Err("--tile must be 32 to 1024 pixels and --variants at most 16".into());
     }
-    let tiles = red_engine2::tools::flora_sheet::tiles(&ids, variants, seed);
-    let img = red_engine2::tools::flora_sheet::sheet(&tiles, cols, tile);
+    let tiles = crate::tools::flora_sheet::tiles(&ids, variants, seed);
+    let img = crate::tools::flora_sheet::sheet(&tiles, cols, tile);
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
