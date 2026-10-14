@@ -145,6 +145,28 @@ impl ShooterConfig {
     }
 }
 
+/// The `shooter` scene block (ADR 2026-10-13-a-scene-block-can-be-defined-above-the-core): defined with the scene blocks, read back with
+/// [`spec_of`].
+pub const BLOCK: crate::schema::BlockDef = crate::schema::BlockDef {
+    key: "shooter",
+    parse: |root, _| parse_shooter(root).map(|c| c.map(|c| std::sync::Arc::new(c) as crate::schema::BlockValue)),
+    fix_launch_seed: |_, _| None,
+    art_file: |_| None,
+    endless: false,
+    describe: "{start: [weapon, ...], friendly_fire, pickups: [{weapon|ammo:true, at:[x,y,z], respawn_secs}], mode: tdm|ffa|ctf|snd, team_size: 1..6, flags: [{team, at}], sites: [{name, at, radius}], objective: {capture_limit, return_secs, win_rounds, swap_after, round_secs, freeze_secs, plant_secs, defuse_secs, fuse_secs}} a loadout shooter (ADR 2026-09-30-killchain-loadout-shooter, modes: ADR 2026-10-07-killchain-game-modes-free-for-all-capture-the-flag): every player carries up to 2 guns (own magazine and reserve each), 1 melee weapon and 2 grenades; weapons lie on the map and drop from the dead; 39 weapons in `arsenal`; teams (spawn groups team1/team2; ffa uses all spawns, group ffa too), headshots, rockets, grenades, smoke, fire; mode = team deathmatch (default), free for all, capture the flag (needs two flags) or search and destroy (needs a site; attackers spawn at team1); team_size 1 is a duel; the host may override mode and team_size; absent = the classic single-weapon arena",
+};
+
+/// The loadout shooter's game definition: a match whose scene has a `shooter` block plays it ([`ShooterGame`]).
+pub const GAME: super::game::GameDef = super::game::GameDef {
+    name: "shooter",
+    build: |scene| spec_of(scene).map(|cfg| Box::new(ShooterGame::new((*cfg).clone())) as Box<dyn super::game::MatchGame>),
+};
+
+/// The scene's loadout shooter (its `shooter` block), if it has one.
+pub fn spec_of(scene: &crate::schema::Scene) -> Option<std::sync::Arc<ShooterConfig>> {
+    scene.blocks.get_arc::<ShooterConfig>()
+}
+
 /// Parses a scene's optional `shooter` block: `Ok(None)` when there is none.
 pub fn parse_shooter(root: &Map<String, Value>) -> Result<Option<ShooterConfig>, Vec<String>> {
     let Some(value) = root.get("shooter") else { return Ok(None) };

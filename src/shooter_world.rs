@@ -124,7 +124,7 @@ pub struct ShooterWorld {
 impl ShooterWorld {
     /// Adds every object the loadout world can need to `scene` (hidden), if the scene has a `shooter` block. Call it before the renderer is built.
     pub fn add_to_scene(scene: &mut Scene) -> Option<ShooterWorld> {
-        let cfg = scene.shooter.clone()?;
+        let cfg = crate::sim::shooter::spec_of(scene)?;
         let pickup_first = scene.objects.len();
         for (i, p) in cfg.pickups.iter().enumerate() {
             let mut o = world_model(p.weapon, &format!("pickup_{i}"));

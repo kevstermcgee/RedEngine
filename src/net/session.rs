@@ -69,7 +69,7 @@ pub fn avatar_plan(scene: &Scene) -> AvatarPlan {
         bot_bodies[body_index(bots.spec(k).character)] += 1;
     }
     let (mut pool, mut needed) = ([0usize; BODY_KINDS], [0usize; BODY_KINDS]);
-    let team_match = scene.shooter.is_some();
+    let team_match = crate::sim::shooter::spec_of(scene).is_some();
     for (i, who) in Character::ALL.iter().enumerate() {
         // A team match shows soldiers only (one uniform per team); every other match never draws one.
         let soldier = who.soldier_team().is_some();

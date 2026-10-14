@@ -1002,6 +1002,8 @@ mod tests {
 
     #[test]
     fn teammates_choose_different_pickups_and_abandon_taken_goals_immediately() {
+        crate::schema::define_blocks(&[crate::sim::shooter::BLOCK]);
+        crate::sim::game::define_games(&[crate::sim::shooter::GAME]);
         let scene = crate::schema::parse_scene(
             r#"{
             "camera":{"position":[0,1.7,0],"target":[0,1.7,-5]},
