@@ -65,6 +65,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: shooter move step 6b: public match door + ShooterSim + uniforms hook (PR); step 6a merged (#160)
 - 2026-10-14: CLI is a library (ADR a-game-runs-the-engine-s-commands, step 1) (PR); step 6b merged (#161)
 - 2026-10-14: game systems milestone (ADR game-systems-compose-under-one-match-authority): sim::defs/ledger/systems, Workshop reference game (games/workshop), ability reuse fixture, sim game expectations + --inspect, describe systems; fresh-agent trial passed (69.5K tokens, 19 calls, 325 s, 1 tool-caused error)
+- 2026-10-14: game systems milestone: evidence ledger, update-path audit and dependency-ordered roadmap in docs/analysis/2026-10-14-game-systems-milestone.md (PR); #165 merged
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
