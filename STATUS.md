@@ -105,3 +105,4 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - The user's own `RedEngine` checkout has uncommitted work: agents work in worktrees and fresh clones.
 - CI measurements: a probe PR targets a throwaway branch, never `main`, and the throwaway base branch is deleted right after; a pushed branch off `main` invites a "Compare & pull request" click (that is how #89 reached main). Close probes and delete their branches when done.
 - `tests/net_sim.rs` `a_full_match_of_eight_holds_up_on_a_mobile_link` failed once on the Windows runner (#88, bandwidth 25351 B/s against a 24000 limit) and passed on re-run; not seen in the 60 runs before. Watch it; if it recurs the limit is too tight for Windows.
+- 2026-10-15: Friction (item 3): scripts/dev affected's clippy did not lint tests/systems_abilities.rs (an engine-crate test target using sim::defs); hosted CI caught 9 clone-on-Copy lints
