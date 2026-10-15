@@ -203,13 +203,32 @@ impl Ledger {
 
     /// Removes store `id` (its owner is gone), handing everything it holds to `into` in one transaction; if `into` has no room, nothing changes.
     pub fn remove_store(&mut self, id: &Id, into: &Id) -> Result<(), Diagnostic> {
-        let store = self.stores.get(id).ok_or_else(|| Diagnostic::new(code::UNKNOWN, id, "no such store"))?;
+        self.remove_stores(std::slice::from_ref(id), into)
+    }
+
+    /// Removes every store in `ids` (one owner's, gone together), handing all they hold to `into` in one transaction: if `into` has no room
+    /// for all of it, or a store is unknown, nothing changes.
+    pub fn remove_stores(&mut self, ids: &[Id], into: &Id) -> Result<(), Diagnostic> {
+        if !self.stores.contains_key(into) {
+            return Err(Diagnostic::new(code::UNKNOWN, into, "no such store"));
+        }
         let mut tx = Tx::new();
-        for (res, n) in &store.items {
-            tx = tx.moving(id, into, res, *n);
+        for id in ids {
+            if ids.iter().filter(|i| *i == id).count() > 1 {
+                return Err(Diagnostic::new(code::DUPLICATE, id, "named twice"));
+            }
+            if id == into {
+                return Err(Diagnostic::new(code::DEPENDENCY, id, "cannot hand its contents to itself").fix("hand them to a store that stays"));
+            }
+            let store = self.stores.get(id).ok_or_else(|| Diagnostic::new(code::UNKNOWN, id, "no such store"))?;
+            for (res, n) in &store.items {
+                tx = tx.moving(id, into, res, *n);
+            }
         }
         self.apply(&tx)?;
-        self.stores.remove(id);
+        for id in ids {
+            self.stores.remove(id);
+        }
         Ok(())
     }
 
@@ -517,6 +536,31 @@ mod tests {
         l.remove_store(&id("t:furnace/in"), &id("t:storage")).unwrap();
         assert!(l.store(&id("t:furnace/in")).is_none());
         assert_eq!(l.count(&id("t:storage"), &id("t:ore")), 10);
+        l.audit().unwrap();
+    }
+
+    #[test]
+    fn removing_several_stores_is_one_transaction() {
+        let mut l = ledger();
+        l.add_store(id("t:furnace/out"), id("t:furnace"), 4).unwrap();
+        l.apply(&mine(4)).unwrap();
+        l.apply(&Tx::new().moving(&id("t:storage"), &id("t:furnace/in"), &id("t:ore"), 2)).unwrap();
+        l.apply(&smelt("t:furnace/in")).unwrap();
+        l.apply(&Tx::new().moving(&id("t:furnace/in"), &id("t:furnace/out"), &id("t:ingot"), 1)).unwrap();
+        l.apply(&Tx::new().moving(&id("t:storage"), &id("t:furnace/in"), &id("t:ore"), 2)).unwrap();
+        l.apply(&mine(9)).unwrap();
+        // Storage has room for 1: the input's 2 ore alone do not fit, nor the output's 1 ingot with them. Both stores stay, untouched.
+        let both = [id("t:furnace/in"), id("t:furnace/out")];
+        let before = l.clone();
+        assert_eq!(l.remove_stores(&both, &id("t:storage")).unwrap_err().code, code::FULL);
+        assert_eq!(l, before);
+        assert_eq!(l.remove_stores(&[id("t:furnace/out"), id("t:nothing")], &id("t:storage")).unwrap_err().code, code::UNKNOWN);
+        assert_eq!(l.remove_stores(&both, &id("t:furnace/in")).unwrap_err().code, code::DEPENDENCY, "into one of the stores it removes");
+        assert_eq!(l.remove_stores(&both, &id("t:nowhere")).unwrap_err().code, code::UNKNOWN);
+        assert_eq!(l, before);
+        l.apply(&Tx::new().consuming(&id("t:storage"), &id("t:ore"), 2, &Reason::Sink(id("t:ship")))).unwrap();
+        l.remove_stores(&both, &id("t:storage")).unwrap();
+        assert!(l.store(&both[0]).is_none() && l.store(&both[1]).is_none());
         l.audit().unwrap();
     }
 

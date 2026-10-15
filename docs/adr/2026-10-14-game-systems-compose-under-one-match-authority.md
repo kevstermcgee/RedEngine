@@ -23,9 +23,9 @@ Considered: more rule actions (the brief: no giant JSON rule array, no second ex
   `Defs<T>` keeps definitions in id order with their `file#/pointer`, refuses a second definition naming both places, replaces only on purpose,
   resolves with a did-you-mean; every problem is a `Diagnostic` with a stable code and a fix). `sim::ledger` (stores with an explicit owner and
   a capacity; a `Tx` of moves and of consumption/production for a declared recipe, source or sink applies whole or not at all; `audit` proves
-  conservation; removing a store hands its contents on or fails). `sim::systems` (a `System` declares its dependencies, events and commands;
+  conservation; removing a store, or several in one transaction (`remove_stores`), hands their contents on or fails). `sim::systems` (a `System` declares its dependencies, events and commands;
   the `Systems` host orders them by dependency with ties by id, delivers at most a budget of events per tick and halts visibly on overflow,
-  routes commands, keeps one seeded random stream, saves each system with its own version, migrates older state step by step, refuses newer
+  routes commands and restores the ledger and the system's state when one is refused (the host enforces "refused changes nothing", amended 2026-10-14), keeps one seeded random stream, saves each system with its own version, migrates older state step by step, refuses newer
   or unknown state, rolls back on failure, and explains an instance: status, the first reason it is blocked with the fix, its definition
   and where that is written). `write_atomic` writes a save so a crash leaves the old file, kept as `.bak`.
 - **One authority:** a game runs its `Systems` from its `MatchGame::tick`. New hooks, all with defaults that change nothing for other games:

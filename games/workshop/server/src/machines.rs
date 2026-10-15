@@ -250,13 +250,7 @@ impl System for Machines {
             }
             // Takes the machine off the floor: both of its stores go back to where it took from, or nothing happens.
             "ws:dismantle" => {
-                cx.ledger.remove_store(&Catalog::input_store(&inst), &u.from)?;
-                if let Err(e) = cx.ledger.remove_store(&Catalog::output_store(&inst), &u.from) {
-                    // Put the input store back (empty) so the machine is whole again; its contents are already in `from`.
-                    let cap = self.cat.machines.get(&u.kind).map_or(1, |k| k.input);
-                    let _ = cx.ledger.add_store(Catalog::input_store(&inst), inst.clone(), cap);
-                    return Err(e);
-                }
+                cx.ledger.remove_stores(&[Catalog::input_store(&inst), Catalog::output_store(&inst)], &u.from)?;
                 self.units.remove(&inst);
                 Ok(())
             }

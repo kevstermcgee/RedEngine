@@ -139,6 +139,26 @@ fn dismantling_hands_everything_back_or_is_refused_whole() {
     let e = game_mut(&mut full).command(&dismantle).unwrap_err();
     assert_eq!(e.code, code::FULL, "{e}");
     assert_eq!(game(&full).systems().hash(), hash);
+    // Storage has room for what the input holds but not for the output's too: still refused whole, the input's ore not moved.
+    let mut part = sim("workshop.json");
+    let used = |s: &MatchSim, st: &str| game(s).systems().ledger().store(&id(st)).map_or(0, |x| x.used());
+    for _ in 0..6000 {
+        let free = game(&part).systems().ledger().free(&id("ws:storage"));
+        let (inp, out) = (used(&part, "ws:furnace_a/in"), used(&part, "ws:furnace_a/out"));
+        if inp > 0 && out > 0 && inp <= free && free < inp + out {
+            break;
+        }
+        run(&mut part, 1);
+    }
+    let free = game(&part).systems().ledger().free(&id("ws:storage"));
+    let (inp, out) = (used(&part, "ws:furnace_a/in"), used(&part, "ws:furnace_a/out"));
+    assert!(inp > 0 && inp <= free && free < inp + out, "storage free {free}, input {inp}, output {out}");
+    let hash = game(&part).systems().hash();
+    let e = game_mut(&mut part).command(&dismantle).unwrap_err();
+    assert_eq!(e.code, code::FULL, "{e}");
+    assert_eq!(game(&part).systems().hash(), hash, "a refused dismantle changes nothing");
+    assert_eq!((used(&part, "ws:furnace_a/in"), used(&part, "ws:furnace_a/out")), (inp, out));
+    run(&mut part, 120);
     // Early on there is room: the furnace comes apart and everything it held lands in storage.
     let mut s = sim("workshop.json");
     run(&mut s, 100);
