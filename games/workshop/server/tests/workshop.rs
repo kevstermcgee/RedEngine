@@ -50,8 +50,8 @@ fn run(sim: &mut MatchSim, ticks: u32) {
 fn totals(g: &WorkshopGame) -> std::collections::BTreeMap<Id, u64> {
     let mut t = std::collections::BTreeMap::new();
     for (_, s) in g.systems().ledger().stores() {
-        for (r, n) in &s.items {
-            *t.entry(r.clone()).or_insert(0) += *n as u64;
+        for (r, n) in s.items() {
+            *t.entry(r).or_insert(0) += n as u64;
         }
     }
     t
@@ -67,13 +67,13 @@ fn one_machine_behavior_two_kinds_with_their_own_parameters_and_state() {
     assert!(furnace.made > 0 && press.made > 0, "{furnace:?} {press:?}");
     // Each owns its stores; a command to one leaves the other's timer, counters and stores exactly as they were.
     let ledger = game(&s).systems().ledger();
-    assert_eq!(ledger.store(&id("ws:furnace_a/in")).unwrap().owner, id("ws:furnace_a"));
-    assert_eq!(ledger.store(&id("ws:storage")).unwrap().owner, id("workshop:floor"), "shared storage has an explicit owner");
-    let press_store = ledger.store(&id("ws:press_a/in")).cloned();
+    assert_eq!(ledger.store(&id("ws:furnace_a/in")).unwrap().owner(), id("ws:furnace_a"));
+    assert_eq!(ledger.store(&id("ws:storage")).unwrap().owner(), id("workshop:floor"), "shared storage has an explicit owner");
+    let press_store = ledger.store(&id("ws:press_a/in")).map(|s| s.to_store());
     game_mut(&mut s).command(&Command { name: id("ws:stop"), subject: Some(id("ws:furnace_a")), value: 0 }).unwrap();
     let m = game(&s).systems().get::<Machines>().unwrap();
     assert_eq!(m.unit(&id("ws:press_a")), Some(&press));
-    assert_eq!(game(&s).systems().ledger().store(&id("ws:press_a/in")).cloned(), press_store);
+    assert_eq!(game(&s).systems().ledger().store(&id("ws:press_a/in")).map(|s| s.to_store()), press_store);
     assert_eq!(m.unit(&id("ws:furnace_a")).unwrap().left, None);
 }
 

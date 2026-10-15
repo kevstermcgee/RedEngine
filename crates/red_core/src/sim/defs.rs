@@ -38,9 +38,13 @@ pub mod code {
 
 /// A stable, namespaced id: `namespace:name`, each part 1 to 40 lowercase letters, digits, `_` or `-`, starting with a letter (`ws:furnace`); the
 /// name may go on in `/`-separated parts for something an instance owns (`ws:furnace_a/in`, its input store).
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct Id(String);
+///
+/// Interned: the text is stored once per process and an `Id` is a `Copy` handle to it, so copying, comparing for equality and hashing never
+/// touch the heap. Ordering is the text's (maps keyed by ids iterate in the same order as when an id was a `String`, so hashes and saves are
+/// unchanged). Each distinct id is kept for the life of the process: ids come from content and saves; text from elsewhere that may name
+/// nothing (a tool's target, a peer's message) is looked up with [`Id::find`], which never adds one.
+#[derive(Clone, Copy)]
+pub struct Id(&'static str);
 
 fn part_ok(p: &str) -> bool {
     (1..=40).contains(&p.len())
@@ -48,15 +52,39 @@ fn part_ok(p: &str) -> bool {
         && p.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
+fn form_ok(s: &str) -> bool {
+    matches!(s.split_once(':'), Some((ns, name)) if part_ok(ns) && name.split('/').all(part_ok))
+}
+
+fn interned() -> std::sync::MutexGuard<'static, std::collections::HashSet<&'static str>> {
+    static TABLE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<&'static str>>> = std::sync::OnceLock::new();
+    // A panic while holding the lock cannot leave the set half-changed (one insert), so a poisoned lock is still a good set.
+    TABLE.get_or_init(Default::default).lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 impl Id {
     /// Parses `namespace:name`.
     pub fn parse(s: &str) -> Result<Id, String> {
-        match s.split_once(':') {
-            Some((ns, name)) if part_ok(ns) && name.split('/').all(part_ok) => Ok(Id(s.to_string())),
-            _ => Err(format!(
+        if !form_ok(s) {
+            return Err(format!(
                 "`{s}` is not an id: write `namespace:name` (lowercase letters, digits, `_`, `-`; like `ws:furnace`, or `ws:furnace/in` for a part of one)"
-            )),
+            ));
         }
+        let mut table = interned();
+        if let Some(found) = table.get(s) {
+            return Ok(Id(found));
+        }
+        let text: &'static str = Box::leak(s.to_owned().into_boxed_str());
+        table.insert(text);
+        Ok(Id(text))
+    }
+
+    /// The id `s` names if something has already used it (`None` for one never seen, or not an id): a lookup that never adds an id.
+    pub fn find(s: &str) -> Option<Id> {
+        if !form_ok(s) {
+            return None;
+        }
+        interned().get(s).map(|found| Id(found))
     }
 
     /// A reference as written in a file of namespace `ns`: `name` means `ns:name`, `other:name` stays as written.
@@ -69,18 +97,62 @@ impl Id {
     }
 
     /// The namespace (`ws`).
-    pub fn namespace(&self) -> &str {
+    pub fn namespace(&self) -> &'static str {
         self.0.split_once(':').map_or("", |(ns, _)| ns)
     }
 
     /// The name inside the namespace (`furnace`).
-    pub fn name(&self) -> &str {
-        self.0.split_once(':').map_or(self.0.as_str(), |(_, n)| n)
+    pub fn name(&self) -> &'static str {
+        self.0.split_once(':').map_or(self.0, |(_, n)| n)
     }
 
     /// The whole id.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn as_str(&self) -> &'static str {
+        self.0
+    }
+}
+
+impl PartialEq for Id {
+    fn eq(&self, other: &Id) -> bool {
+        // One text per id: the same id is the same address.
+        std::ptr::eq(self.0, other.0)
+    }
+}
+
+impl Eq for Id {}
+
+impl std::hash::Hash for Id {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (self.0.as_ptr() as usize).hash(state)
+    }
+}
+
+impl PartialOrd for Id {
+    fn partial_cmp(&self, other: &Id) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Id {
+    fn cmp(&self, other: &Id) -> std::cmp::Ordering {
+        if self == other {
+            std::cmp::Ordering::Equal
+        } else {
+            self.0.cmp(other.0)
+        }
+    }
+}
+
+impl Serialize for Id {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Id {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Id, D::Error> {
+        let s = std::borrow::Cow::<'de, str>::deserialize(d)?;
+        Id::parse(&s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -93,13 +165,13 @@ impl TryFrom<String> for Id {
 
 impl From<Id> for String {
     fn from(id: Id) -> String {
-        id.0
+        id.0.to_string()
     }
 }
 
 impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(self.0)
     }
 }
 

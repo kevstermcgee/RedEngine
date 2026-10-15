@@ -54,7 +54,7 @@ pub fn encode(game: &WorkshopGame) -> GameMsg {
         w.u32(u.made.min(u32::MAX as u64) as u32);
         w.u8(pos);
     }
-    let resources: Vec<_> = cat.resources.iter().map(|(r, _)| r.clone()).collect();
+    let resources: Vec<_> = cat.resources.iter().map(|(r, _)| *r).collect();
     w.u16(cat.stores.len() as u16);
     w.u16(resources.len() as u16);
     for (sid, _) in cat.stores.iter() {
@@ -103,5 +103,5 @@ pub fn decode(g: &GameMsg) -> Result<Option<Box<dyn GameView>>, DecodeError> {
 
 /// The shared stores in the order a part carries them (id order), for a client to label what it decodes.
 pub fn store_order(cat: &Catalog) -> Vec<red_engine2::sim::defs::Id> {
-    cat.stores.iter().map(|(i, _)| i.clone()).collect()
+    cat.stores.iter().map(|(i, _)| *i).collect()
 }
