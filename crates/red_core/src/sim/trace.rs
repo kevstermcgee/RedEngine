@@ -91,15 +91,27 @@ pub enum Entry {
         /// Magnitude, `f32` bits.
         impulse: u32,
     },
+    /// A player's intention for the match's game (`MatchSim::intend`), before this tick.
+    Intent {
+        /// Tick.
+        tick: u64,
+        /// Slot.
+        slot: usize,
+        /// What the player asked for.
+        intent: crate::sim::game::Intent,
+    },
 }
 
 impl Entry {
     /// The tick this entry was applied before.
     pub fn tick(&self) -> u64 {
         match self {
-            Entry::Join { tick, .. } | Entry::Leave { tick, .. } | Entry::Input { tick, .. } | Entry::ViewLag { tick, .. } | Entry::Impulse { tick, .. } => {
-                *tick
-            }
+            Entry::Join { tick, .. }
+            | Entry::Leave { tick, .. }
+            | Entry::Input { tick, .. }
+            | Entry::ViewLag { tick, .. }
+            | Entry::Impulse { tick, .. }
+            | Entry::Intent { tick, .. } => *tick,
         }
     }
 }
@@ -213,6 +225,7 @@ impl Trace {
                 }
                 Entry::ViewLag { tick, slot, lag } => json!(["v", tick, slot, lag]),
                 Entry::Impulse { tick, prop, dir, at, impulse } => json!(["p", tick, prop, dir, at, impulse]),
+                Entry::Intent { tick, slot, intent: n } => json!(["n", tick, slot, n.name, n.subject, n.value]),
             })
             .collect();
         json!({
@@ -336,6 +349,11 @@ fn parse_entry(e: &Value) -> Option<Entry> {
         }
         "v" => Some(Entry::ViewLag { tick: u(1)?, slot: u(2)? as usize, lag: u(3)? as u8 }),
         "p" => Some(Entry::Impulse { tick: u(1)?, prop: u(2)? as usize, dir: bits3(a.get(3)?)?, at: bits3(a.get(4)?)?, impulse: u(5)? as u32 }),
+        "n" => Some(Entry::Intent {
+            tick: u(1)?,
+            slot: u(2)? as usize,
+            intent: crate::sim::game::Intent { name: a.get(3)?.as_str()?.to_string(), subject: a.get(4)?.as_str().map(str::to_string), value: i(5)? },
+        }),
         _ => None,
     }
 }
@@ -451,6 +469,11 @@ mod tests {
         });
         t.entries.push(Entry::ViewLag { tick: 3, slot: 0, lag: 7 });
         t.entries.push(Entry::Impulse { tick: 4, prop: 2, dir: [1, 2, 3], at: [4, 5, 6], impulse: 7 });
+        t.entries.push(Entry::Intent {
+            tick: 5,
+            slot: 1,
+            intent: crate::sim::game::Intent { name: "story:choose".into(), subject: Some("lend".into()), value: -3 },
+        });
         t.entries.push(Entry::Leave { tick: 9, slot: 0 });
         t.checkpoints.push(Checkpoint { tick: 1, players: u64::MAX, props: 0, rules: 0x1234, coarse: 99 });
         t.events.push(TraceEvent { tick: 5, rule: "take".into(), name: "coin".into(), slot: Some(0) });

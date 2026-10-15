@@ -118,6 +118,10 @@ fn apply(sim: &mut MatchSim, e: &Entry) {
         Entry::Impulse { prop, dir, at, impulse, .. } => {
             sim.apply_impulse(*prop, Vec3::from_array(dir.map(f32::from_bits)), Vec3::from_array(at.map(f32::from_bits)), f32::from_bits(*impulse));
         }
+        // A refusal replays as a refusal: the game decides again from the same state.
+        Entry::Intent { slot, intent, .. } => {
+            let _ = sim.intend(*slot, intent);
+        }
     }
 }
 

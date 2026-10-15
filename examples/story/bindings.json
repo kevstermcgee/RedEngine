@@ -1,0 +1,76 @@
+{
+  "story_bindings": 1,
+  "game": "saltmarket",
+  "about": "An example game's offer to a story, written by hand for the exemplars (a real game generates this file from its systems). Queries are conditions, commands are effects, events are what barks answer.",
+  "catalog": {
+    "queries": [
+      {
+        "id": "m:coins",
+        "ty": "int",
+        "doc": "coins the player carries"
+      },
+      {
+        "id": "m:hour",
+        "ty": "int",
+        "doc": "the hour on the square clock, 6 to 22"
+      },
+      {
+        "id": "m:raining",
+        "ty": "bool",
+        "doc": "it is raining"
+      },
+      {
+        "id": "m:awning_open",
+        "ty": "bool",
+        "doc": "the market awning is out"
+      },
+      {
+        "id": "m:loaves",
+        "ty": "int",
+        "doc": "loaves left on Wynn's stall"
+      },
+      {
+        "id": "m:near_wynn",
+        "ty": "bool",
+        "doc": "the player stands at Wynn's bread stall"
+      },
+      {
+        "id": "m:near_hale",
+        "ty": "bool",
+        "doc": "the player stands at Hale's fish stall"
+      },
+      {
+        "id": "m:near_odo",
+        "ty": "bool",
+        "doc": "the player stands at Odo's flour cart"
+      }
+    ],
+    "commands": [
+      "m:awning",
+      "m:buy_flour",
+      "m:pay_wynn",
+      "m:take_loaf"
+    ],
+    "unattended": [
+      "m:awning"
+    ],
+    "events": [
+      "m:flour_bought",
+      "m:hour_struck",
+      "m:loaf_taken",
+      "m:rain_started",
+      "m:rain_stopped"
+    ]
+  },
+  "notes": {
+    "m:pay_wynn": "value n: the player pays Wynn n coins (refused, changing nothing, if they carry fewer)",
+    "m:take_loaf": "Wynn hands the player a loaf (refused if the stall is empty)",
+    "m:buy_flour": "value n: the player pays Odo n coins for a sack of flour",
+    "m:awning": "the market's awning goes out over the square (unattended: a director may run it; it takes nothing from the player)",
+    "m:hour_struck": "the square clock strikes; value: the hour",
+    "m:loaf_taken": "a loaf left Wynn's stall",
+    "m:flour_bought": "the player bought flour from Odo",
+    "m:rain_started": "rain begins",
+    "m:rain_stopped": "rain stops"
+  }
+}

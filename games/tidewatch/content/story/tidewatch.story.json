@@ -1,0 +1,1561 @@
+{
+  "story_package": 1,
+  "story": "tidewatch",
+  "content_version": 1,
+  "source_hash": "f7a71b473a5af99f",
+  "sources": [
+    "people.story",
+    "tidewatch.story"
+  ],
+  "round": "tw:watch_started",
+  "holders": [
+    "player",
+    "odile",
+    "bram"
+  ],
+  "speakers": [
+    {
+      "id": "odile",
+      "name": "Odile Marr",
+      "holder": 1,
+      "present": 1,
+      "cooldown": 240,
+      "knows": [
+        0
+      ],
+      "at": {
+        "file": 0,
+        "line": 4
+      }
+    },
+    {
+      "id": "bram",
+      "name": "Bram Teller",
+      "holder": 2,
+      "present": 2,
+      "cooldown": 240,
+      "knows": [
+        0
+      ],
+      "at": {
+        "file": 0,
+        "line": 20
+      }
+    }
+  ],
+  "facts": [
+    {
+      "id": "lent_fuel",
+      "ty": "bool",
+      "default": 0.0,
+      "scope": "run",
+      "doc": "the player gave Bram two bricks from the shed for the dock lamp",
+      "at": {
+        "file": 0,
+        "line": 36
+      }
+    },
+    {
+      "id": "promised_bram",
+      "ty": "bool",
+      "default": 0.0,
+      "scope": "run",
+      "doc": "the player told Bram they would help after the watch",
+      "at": {
+        "file": 0,
+        "line": 37
+      }
+    },
+    {
+      "id": "kept_promise",
+      "ty": "bool",
+      "default": 0.0,
+      "scope": "run",
+      "doc": "the player came back after the watch and gave Bram the bricks",
+      "at": {
+        "file": 0,
+        "line": 38
+      }
+    },
+    {
+      "id": "trust_bram",
+      "ty": "int",
+      "default": 0.0,
+      "scope": "run",
+      "doc": "how far Bram trusts the new hand",
+      "at": {
+        "file": 0,
+        "line": 39
+      }
+    }
+  ],
+  "infos": [
+    {
+      "id": "gannet_lost",
+      "doc": "Odile let the light go out the night the Gannet sank",
+      "at": {
+        "file": 0,
+        "line": 41
+      }
+    },
+    {
+      "id": "fuel_lent",
+      "doc": "the new hand gave Bram two bricks from the shed",
+      "truth": 0,
+      "at": {
+        "file": 0,
+        "line": 42
+      }
+    },
+    {
+      "id": "player_heard_gannet",
+      "doc": "the new hand knows about the Gannet",
+      "at": {
+        "file": 0,
+        "line": 44
+      }
+    },
+    {
+      "id": "odile_failing",
+      "doc": "Odile's eyes are going",
+      "truth": 1,
+      "at": {
+        "file": 0,
+        "line": 45
+      }
+    }
+  ],
+  "vars": [
+    {
+      "kind": "fact",
+      "fact": 0
+    },
+    {
+      "kind": "query",
+      "id": "scene:near_odile",
+      "ty": "bool"
+    },
+    {
+      "kind": "query",
+      "id": "scene:near_bram",
+      "ty": "bool"
+    },
+    {
+      "kind": "query",
+      "id": "tw:dock_lit",
+      "ty": "bool"
+    },
+    {
+      "kind": "query",
+      "id": "tw:watch",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:boats_late",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:shed_fuel",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:phase",
+      "ty": "int"
+    },
+    {
+      "kind": "fact",
+      "fact": 1
+    },
+    {
+      "kind": "knows",
+      "holder": 0,
+      "info": 0
+    },
+    {
+      "kind": "fact",
+      "fact": 2
+    },
+    {
+      "kind": "fact",
+      "fact": 3
+    },
+    {
+      "kind": "knows",
+      "holder": 1,
+      "info": 2
+    },
+    {
+      "kind": "knows",
+      "holder": 1,
+      "info": 1
+    },
+    {
+      "kind": "query",
+      "id": "tw:brazier_fuel",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:secs_left",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:last_safe",
+      "ty": "bool"
+    },
+    {
+      "kind": "query",
+      "id": "tw:light_out",
+      "ty": "bool"
+    },
+    {
+      "kind": "query",
+      "id": "tw:dark_secs",
+      "ty": "int"
+    },
+    {
+      "kind": "query",
+      "id": "tw:reserve",
+      "ty": "int"
+    }
+  ],
+  "exprs": [
+    "v0",
+    "false",
+    "v3",
+    "v4 == 0",
+    "v4 >= 1 && v5 == 0",
+    "v5 >= 1",
+    "v6 >= 2",
+    "2",
+    "true",
+    "1",
+    "-1",
+    "v7 == 0 && !v8",
+    "true",
+    "!v9",
+    "v8 && !v10 && v4 >= 1 && v7 != 1",
+    "v6 >= 2",
+    "2",
+    "true",
+    "true",
+    "2",
+    "-1",
+    "false",
+    "v11 >= 2",
+    "v11 < 2",
+    "v7 != 1",
+    "v4 == 0",
+    "v4 >= 1 && v7 == 0",
+    "v7 == 2",
+    "v9 && !v12",
+    "v0 && !v13",
+    "v4 == 1",
+    "v4 == 2 && v5 == 0",
+    "v4 == 2 && v5 >= 1",
+    "v4 == 2 && v13",
+    "v14 >= 4",
+    "v15 > 3",
+    "v15 > 3",
+    "v1",
+    "v2",
+    "v10",
+    "v16",
+    "!v16",
+    "v8 && !v10 && v2",
+    "v17 * 3 + (v14 <= 1) * 2 + (v15 < 15)",
+    "v7 != 1",
+    "v17",
+    "v14 <= 1 && v18 >= 3 && v19 > 0",
+    "v15 > 15"
+  ],
+  "authored": [
+    "lent_fuel",
+    "false",
+    "tw:dock_lit",
+    "tw:watch == 0",
+    "tw:watch >= 1 && tw:boats_late == 0",
+    "tw:boats_late >= 1",
+    "tw:shed_fuel >= 2",
+    "2",
+    "true",
+    "1",
+    "-1",
+    "tw:phase == 0 && !promised_bram",
+    "true",
+    "!knows(player, gannet_lost)",
+    "promised_bram && !kept_promise && tw:watch >= 1 && tw:phase != 1",
+    "tw:shed_fuel >= 2",
+    "2",
+    "true",
+    "true",
+    "2",
+    "-1",
+    "false",
+    "trust_bram >= 2",
+    "trust_bram < 2",
+    "tw:phase != 1",
+    "tw:watch == 0",
+    "tw:watch >= 1 && tw:phase == 0",
+    "tw:phase == 2",
+    "knows(player, gannet_lost) && !knows(odile, player_heard_gannet)",
+    "lent_fuel && !knows(odile, fuel_lent)",
+    "tw:watch == 1",
+    "tw:watch == 2 && tw:boats_late == 0",
+    "tw:watch == 2 && tw:boats_late >= 1",
+    "tw:watch == 2 && knows(odile, fuel_lent)",
+    "tw:brazier_fuel >= 4",
+    "tw:secs_left > 3",
+    "tw:secs_left > 3",
+    "present(odile)",
+    "present(bram)",
+    "kept_promise",
+    "tw:last_safe",
+    "!tw:last_safe",
+    "promised_bram && !kept_promise && present(bram)",
+    "tw:light_out * 3 + (tw:brazier_fuel <= 1) * 2 + (tw:secs_left < 15)",
+    "tw:phase != 1",
+    "tw:light_out",
+    "tw:brazier_fuel <= 1 && tw:dark_secs >= 3 && tw:reserve > 0",
+    "tw:secs_left > 15"
+  ],
+  "lines": [
+    {
+      "id": "talk_bram/hello/l1",
+      "speaker": 1,
+      "text": [
+        "You're the new hand? Odile said you'd be quick. Are you quick?"
+      ],
+      "at": {
+        "file": 1,
+        "line": 14
+      }
+    },
+    {
+      "id": "talk_bram/hello/l2",
+      "speaker": 1,
+      "text": [
+        "The lamp's lit already! Was that you? It doesn't matter. It's lit."
+      ],
+      "cond": 2,
+      "goto": {
+        "line": 13
+      },
+      "at": {
+        "file": 1,
+        "line": 15
+      }
+    },
+    {
+      "id": "talk_bram/hello/l3",
+      "speaker": 1,
+      "text": [
+        "The Wren is out there. My dad's boat. Two lamps on this coast and one of them is ours."
+      ],
+      "cond": 3,
+      "at": {
+        "file": 1,
+        "line": 18
+      }
+    },
+    {
+      "id": "talk_bram/hello/l4",
+      "speaker": 1,
+      "text": [
+        "The light held, didn't it? I watched it from here. It held."
+      ],
+      "cond": 4,
+      "at": {
+        "file": 1,
+        "line": 20
+      }
+    },
+    {
+      "id": "talk_bram/hello/l5",
+      "speaker": 1,
+      "text": [
+        "It went dark out there. I counted. Was it long? It felt long."
+      ],
+      "cond": 5,
+      "goto": {
+        "line": 5
+      },
+      "skip": {
+        "line": 5
+      },
+      "at": {
+        "file": 1,
+        "line": 22
+      }
+    },
+    {
+      "id": "talk_bram/ask/l1",
+      "speaker": 1,
+      "text": [
+        "The dock lamp's empty. Two bricks would light it for the Wren. Just two?"
+      ],
+      "choices": [
+        {
+          "id": "lend",
+          "text": [
+            "Take two. Light it."
+          ],
+          "cond": 6,
+          "effects": [
+            {
+              "do": "run",
+              "command": "tw:lend",
+              "value": 7
+            },
+            {
+              "do": "set",
+              "fact": 0,
+              "expr": 8
+            },
+            {
+              "do": "add",
+              "fact": 3,
+              "expr": 9
+            }
+          ],
+          "goto": {
+            "line": 6
+          },
+          "refused": {
+            "line": 12
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 28
+          }
+        },
+        {
+          "id": "refuse",
+          "text": [
+            "The brazier needs every brick."
+          ],
+          "effects": [
+            {
+              "do": "add",
+              "fact": 3,
+              "expr": 10
+            }
+          ],
+          "goto": {
+            "line": 7
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 34
+          }
+        },
+        {
+          "id": "later",
+          "text": [
+            "After the watch. I promise."
+          ],
+          "cond": 11,
+          "effects": [
+            {
+              "do": "set",
+              "fact": 1,
+              "expr": 12
+            }
+          ],
+          "goto": {
+            "line": 8
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 38
+          }
+        },
+        {
+          "id": "why",
+          "text": [
+            "Why are you scared of Odile?"
+          ],
+          "cond": 13,
+          "goto": {
+            "line": 9
+          },
+          "stakes": "informational",
+          "at": {
+            "file": 1,
+            "line": 43
+          }
+        }
+      ],
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 27
+      }
+    },
+    {
+      "id": "talk_bram/lent/l1",
+      "speaker": 1,
+      "text": [
+        "Two. Two is plenty. Thank you. Really."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 49
+      }
+    },
+    {
+      "id": "talk_bram/refused/l1",
+      "speaker": 1,
+      "text": [
+        "No. No, you're right, of course you are."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 53
+      }
+    },
+    {
+      "id": "talk_bram/later/l1",
+      "speaker": 1,
+      "text": [
+        "After. All right. I'll hold you to it, you know."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 57
+      }
+    },
+    {
+      "id": "talk_bram/gannet_told",
+      "speaker": 1,
+      "text": [
+        "She let it go out once. The night the Gannet sank. Dad was on the sister boat; he watched it go dark."
+      ],
+      "reveals": [
+        0
+      ],
+      "at": {
+        "file": 1,
+        "line": 61
+      }
+    },
+    {
+      "id": "talk_bram/gannet/l2",
+      "speaker": 1,
+      "text": [
+        "Dad says her eyes are going now. Maybe that's why she counts."
+      ],
+      "claims": [
+        3
+      ],
+      "at": {
+        "file": 1,
+        "line": 64
+      }
+    },
+    {
+      "id": "talk_bram/gannet/l3",
+      "speaker": 1,
+      "text": [
+        "Don't tell her I told you?"
+      ],
+      "goto": {
+        "line": 5
+      },
+      "skip": {
+        "line": 5
+      },
+      "at": {
+        "file": 1,
+        "line": 66
+      }
+    },
+    {
+      "id": "talk_bram/shed_thin/l1",
+      "speaker": 1,
+      "text": [
+        "Oh. The shed's thin, isn't it. Never mind. Never mind."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 70
+      }
+    },
+    {
+      "id": "talk_bram/lamp_lit/l1",
+      "speaker": 1,
+      "text": [
+        "Two lamps lit. Dad will see us from the rocks."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 74
+      }
+    },
+    {
+      "id": "bram_after/ask/l1",
+      "speaker": 1,
+      "text": [
+        "You said after. It's after. Is it after?"
+      ],
+      "choices": [
+        {
+          "id": "give",
+          "text": [
+            "It's after. Two bricks, as I said."
+          ],
+          "cond": 15,
+          "effects": [
+            {
+              "do": "run",
+              "command": "tw:lend",
+              "value": 16
+            },
+            {
+              "do": "set",
+              "fact": 0,
+              "expr": 17
+            },
+            {
+              "do": "set",
+              "fact": 2,
+              "expr": 18
+            },
+            {
+              "do": "add",
+              "fact": 3,
+              "expr": 19
+            }
+          ],
+          "goto": {
+            "line": 15
+          },
+          "refused": {
+            "line": 17
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 83
+          }
+        },
+        {
+          "id": "cannot",
+          "text": [
+            "The shed's too thin. I can't. I'm sorry."
+          ],
+          "effects": [
+            {
+              "do": "add",
+              "fact": 3,
+              "expr": 20
+            },
+            {
+              "do": "set",
+              "fact": 1,
+              "expr": 21
+            }
+          ],
+          "goto": {
+            "line": 17
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 88
+          }
+        }
+      ],
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 82
+      }
+    },
+    {
+      "id": "bram_after/kept/l1",
+      "speaker": 1,
+      "text": [
+        "You came back. People don't. Mostly they don't."
+      ],
+      "cond": 22,
+      "at": {
+        "file": 1,
+        "line": 93
+      }
+    },
+    {
+      "id": "bram_after/kept/l2",
+      "speaker": 1,
+      "text": [
+        "You came back."
+      ],
+      "cond": 23,
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 95
+      }
+    },
+    {
+      "id": "bram_after/cannot_reply/l1",
+      "speaker": 1,
+      "text": [
+        "Right. The shed. Of course. No, it's fine."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 100
+      }
+    },
+    {
+      "id": "talk_odile/start/l1",
+      "speaker": 0,
+      "text": [
+        "Bell's there. Ring it when you're ready to work."
+      ],
+      "cond": 25,
+      "at": {
+        "file": 1,
+        "line": 110
+      }
+    },
+    {
+      "id": "talk_odile/start/l2",
+      "speaker": 0,
+      "text": [
+        "Bell's there. Ring it for the next."
+      ],
+      "cond": 26,
+      "at": {
+        "file": 1,
+        "line": 112
+      }
+    },
+    {
+      "id": "talk_odile/start/l3",
+      "speaker": 0,
+      "text": [
+        "That's the night. Go and sleep."
+      ],
+      "cond": 27,
+      "at": {
+        "file": 1,
+        "line": 114
+      }
+    },
+    {
+      "id": "talk_odile/start/l4",
+      "speaker": 0,
+      "text": [
+        "Well?"
+      ],
+      "choices": [
+        {
+          "id": "gannet",
+          "text": [
+            "Bram told me about the Gannet."
+          ],
+          "cond": 28,
+          "effects": [
+            {
+              "do": "learn",
+              "who": {
+                "holder": 1
+              },
+              "info": 2,
+              "knows": true
+            }
+          ],
+          "goto": {
+            "line": 22
+          },
+          "stakes": "informational",
+          "at": {
+            "file": 1,
+            "line": 117
+          }
+        },
+        {
+          "id": "lent",
+          "text": [
+            "I gave Bram two bricks for the dock lamp."
+          ],
+          "cond": 29,
+          "effects": [
+            {
+              "do": "learn",
+              "who": {
+                "holder": 1
+              },
+              "info": 1,
+              "knows": true
+            }
+          ],
+          "goto": {
+            "line": 24
+          },
+          "stakes": "consequential",
+          "at": {
+            "file": 1,
+            "line": 122
+          }
+        },
+        {
+          "id": "ready",
+          "text": [
+            "Nothing. I'm ready."
+          ],
+          "goto": "end",
+          "stakes": "expressive",
+          "at": {
+            "file": 1,
+            "line": 127
+          }
+        }
+      ],
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 116
+      }
+    },
+    {
+      "id": "talk_odile/gannet/l1",
+      "speaker": 0,
+      "text": [
+        "Did he."
+      ],
+      "at": {
+        "file": 1,
+        "line": 131
+      }
+    },
+    {
+      "id": "talk_odile/gannet/l2",
+      "speaker": 0,
+      "text": [
+        "Then you know why I count. Ring the bell."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 132
+      }
+    },
+    {
+      "id": "talk_odile/lent/l1",
+      "speaker": 0,
+      "text": [
+        "Two. From the shed. During my watch."
+      ],
+      "at": {
+        "file": 1,
+        "line": 136
+      }
+    },
+    {
+      "id": "talk_odile/lent/l2",
+      "speaker": 0,
+      "text": [
+        "He'll have his lamp, and you'll have the dark. Count better."
+      ],
+      "goto": "end",
+      "skip": "end",
+      "at": {
+        "file": 1,
+        "line": 137
+      }
+    },
+    {
+      "id": "intro_first",
+      "speaker": 0,
+      "text": [
+        "First watch. Feed it before it asks. The sea won't wait for you to be sorry."
+      ],
+      "at": {
+        "file": 1,
+        "line": 147
+      }
+    },
+    {
+      "id": "intro_second_clean",
+      "speaker": 0,
+      "text": [
+        "One boat in. Do it again and I'll stop counting your steps."
+      ],
+      "at": {
+        "file": 1,
+        "line": 152
+      }
+    },
+    {
+      "id": "intro_second_dark",
+      "speaker": 0,
+      "text": [
+        "It went dark last watch. The Wren sat out there in it. Not again."
+      ],
+      "at": {
+        "file": 1,
+        "line": 157
+      }
+    },
+    {
+      "id": "intro_second_lent",
+      "speaker": 0,
+      "text": [
+        "Second watch, and two bricks short for your kindness. Count better."
+      ],
+      "at": {
+        "file": 1,
+        "line": 162
+      }
+    },
+    {
+      "id": "fed_full",
+      "speaker": 0,
+      "text": [
+        "Full. Don't stand there admiring it."
+      ],
+      "at": {
+        "file": 1,
+        "line": 167
+      }
+    },
+    {
+      "id": "fed_good",
+      "speaker": 0,
+      "text": [
+        "Good. Again."
+      ],
+      "at": {
+        "file": 1,
+        "line": 172
+      }
+    },
+    {
+      "id": "fed_next",
+      "speaker": 0,
+      "text": [
+        "That's one. Now the next one."
+      ],
+      "at": {
+        "file": 1,
+        "line": 176
+      }
+    },
+    {
+      "id": "low",
+      "speaker": 0,
+      "text": [
+        "It's hungry. One brick left in it."
+      ],
+      "at": {
+        "file": 1,
+        "line": 180
+      }
+    },
+    {
+      "id": "low_again",
+      "speaker": 0,
+      "text": [
+        "Last brick. Move."
+      ],
+      "at": {
+        "file": 1,
+        "line": 185
+      }
+    },
+    {
+      "id": "out_odile",
+      "speaker": 0,
+      "text": [
+        "It's out! Peat, now!"
+      ],
+      "at": {
+        "file": 1,
+        "line": 194
+      }
+    },
+    {
+      "id": "out_bram",
+      "speaker": 1,
+      "text": [
+        "The light's gone! Is it gone? It's gone!"
+      ],
+      "at": {
+        "file": 1,
+        "line": 199
+      }
+    },
+    {
+      "id": "out_far",
+      "text": [
+        "Behind you, the signal goes dark."
+      ],
+      "at": {
+        "file": 1,
+        "line": 204
+      }
+    },
+    {
+      "id": "relit",
+      "speaker": 0,
+      "text": [
+        "There. Breathe later."
+      ],
+      "at": {
+        "file": 1,
+        "line": 208
+      }
+    },
+    {
+      "id": "lent_cheer",
+      "speaker": 1,
+      "text": [
+        "Two bricks! Look, Dad. Two!"
+      ],
+      "at": {
+        "file": 1,
+        "line": 213
+      }
+    },
+    {
+      "id": "lent_kept",
+      "speaker": 1,
+      "text": [
+        "There. Lit. See, Dad? People come back."
+      ],
+      "at": {
+        "file": 1,
+        "line": 217
+      }
+    },
+    {
+      "id": "ended_safe",
+      "speaker": 0,
+      "text": [
+        "Boat's in. Don't celebrate. Sweep."
+      ],
+      "at": {
+        "file": 1,
+        "line": 226
+      }
+    },
+    {
+      "id": "ended_late",
+      "speaker": 0,
+      "text": [
+        "Late. The Wren sat in the dark because of us. Remember the feeling."
+      ],
+      "at": {
+        "file": 1,
+        "line": 231
+      }
+    },
+    {
+      "id": "promise_remembered",
+      "speaker": 1,
+      "text": [
+        "That's the watch! You said after. It's after!"
+      ],
+      "at": {
+        "file": 1,
+        "line": 236
+      }
+    },
+    {
+      "id": "helped",
+      "speaker": 0,
+      "text": [
+        "Mine. From my own pile. Don't make me do it twice."
+      ],
+      "at": {
+        "file": 1,
+        "line": 241
+      }
+    },
+    {
+      "id": "radio_news",
+      "text": [
+        "The radio on the dock crackles: the Wren is past the rocks."
+      ],
+      "at": {
+        "file": 1,
+        "line": 245
+      }
+    }
+  ],
+  "conversations": [
+    {
+      "id": "talk_bram",
+      "with": 1,
+      "first": 0,
+      "len": 14,
+      "priority": 0,
+      "interrupt": 5,
+      "repeat": false,
+      "at": {
+        "file": 1,
+        "line": 10
+      }
+    },
+    {
+      "id": "bram_after",
+      "with": 1,
+      "first": 14,
+      "len": 4,
+      "cond": 14,
+      "priority": 1,
+      "repeat": false,
+      "at": {
+        "file": 1,
+        "line": 77
+      }
+    },
+    {
+      "id": "talk_odile",
+      "with": 0,
+      "first": 18,
+      "len": 8,
+      "cond": 24,
+      "priority": 0,
+      "repeat": true,
+      "at": {
+        "file": 1,
+        "line": 105
+      }
+    }
+  ],
+  "barks": [
+    {
+      "id": "intro_first",
+      "on": {
+        "event": "tw:watch_started"
+      },
+      "line": 26,
+      "cond": 30,
+      "priority": 5,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 146
+      }
+    },
+    {
+      "id": "intro_second_clean",
+      "on": {
+        "event": "tw:watch_started"
+      },
+      "line": 27,
+      "cond": 31,
+      "priority": 5,
+      "specificity": 2,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 151
+      }
+    },
+    {
+      "id": "intro_second_dark",
+      "on": {
+        "event": "tw:watch_started"
+      },
+      "line": 28,
+      "cond": 32,
+      "priority": 5,
+      "specificity": 2,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 156
+      }
+    },
+    {
+      "id": "intro_second_lent",
+      "on": {
+        "event": "tw:watch_started"
+      },
+      "line": 29,
+      "cond": 33,
+      "priority": 6,
+      "specificity": 2,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 161
+      }
+    },
+    {
+      "id": "fed_full",
+      "on": {
+        "event": "tw:fed"
+      },
+      "line": 30,
+      "cond": 34,
+      "priority": 0,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "category": 0,
+      "at": {
+        "file": 1,
+        "line": 166
+      }
+    },
+    {
+      "id": "fed_good",
+      "on": {
+        "event": "tw:fed"
+      },
+      "line": 31,
+      "priority": 0,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "category": 0,
+      "at": {
+        "file": 1,
+        "line": 171
+      }
+    },
+    {
+      "id": "fed_next",
+      "on": {
+        "event": "tw:fed"
+      },
+      "line": 32,
+      "priority": 0,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "category": 0,
+      "at": {
+        "file": 1,
+        "line": 175
+      }
+    },
+    {
+      "id": "low",
+      "on": {
+        "event": "tw:low"
+      },
+      "line": 33,
+      "cond": 35,
+      "priority": 3,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 179
+      }
+    },
+    {
+      "id": "low_again",
+      "on": {
+        "event": "tw:low"
+      },
+      "line": 34,
+      "cond": 36,
+      "priority": 3,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 184
+      }
+    },
+    {
+      "id": "low_late",
+      "on": {
+        "event": "tw:low"
+      },
+      "priority": 0,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 190
+      }
+    },
+    {
+      "id": "out_odile",
+      "on": {
+        "event": "tw:out"
+      },
+      "line": 35,
+      "cond": 37,
+      "priority": 6,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 193
+      }
+    },
+    {
+      "id": "out_bram",
+      "on": {
+        "event": "tw:out"
+      },
+      "line": 36,
+      "cond": 38,
+      "priority": 6,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 198
+      }
+    },
+    {
+      "id": "out_far",
+      "on": {
+        "event": "tw:out"
+      },
+      "line": 37,
+      "priority": 6,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 203
+      }
+    },
+    {
+      "id": "relit",
+      "on": {
+        "event": "tw:relit"
+      },
+      "line": 38,
+      "priority": 4,
+      "specificity": 0,
+      "cooldown": 1800,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 207
+      }
+    },
+    {
+      "id": "lent_cheer",
+      "on": {
+        "event": "tw:lent"
+      },
+      "line": 39,
+      "priority": 2,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 212
+      }
+    },
+    {
+      "id": "lent_kept",
+      "on": {
+        "event": "tw:lent"
+      },
+      "line": 40,
+      "cond": 39,
+      "priority": 2,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 216
+      }
+    },
+    {
+      "id": "saw_lending",
+      "on": {
+        "event": "tw:lent"
+      },
+      "priority": 0,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "notice": true,
+      "effects": [
+        {
+          "do": "learn",
+          "who": "present",
+          "info": 1,
+          "knows": true
+        }
+      ],
+      "at": {
+        "file": 1,
+        "line": 222
+      }
+    },
+    {
+      "id": "ended_safe",
+      "on": {
+        "event": "tw:watch_ended"
+      },
+      "line": 41,
+      "cond": 40,
+      "priority": 4,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 225
+      }
+    },
+    {
+      "id": "ended_late",
+      "on": {
+        "event": "tw:watch_ended"
+      },
+      "line": 42,
+      "cond": 41,
+      "priority": 4,
+      "specificity": 1,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 230
+      }
+    },
+    {
+      "id": "promise_remembered",
+      "on": {
+        "event": "tw:watch_ended"
+      },
+      "line": 43,
+      "cond": 42,
+      "priority": 3,
+      "specificity": 3,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 235
+      }
+    },
+    {
+      "id": "helped",
+      "on": {
+        "event": "tw:odile_helped"
+      },
+      "line": 44,
+      "priority": 4,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 240
+      }
+    },
+    {
+      "id": "radio_news",
+      "line": 45,
+      "priority": 0,
+      "specificity": 0,
+      "cooldown": 0,
+      "once": false,
+      "at": {
+        "file": 1,
+        "line": 244
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": "chatter",
+      "cooldown": 720
+    }
+  ],
+  "directors": [
+    {
+      "id": "pacing",
+      "every": 900,
+      "recover": 1200,
+      "budget": 2,
+      "tension": 43,
+      "rest": [
+        44,
+        45
+      ],
+      "interventions": [
+        {
+          "id": "odile_brings_peat",
+          "cond": 46,
+          "group": "help",
+          "once": false,
+          "effects": [
+            {
+              "do": "run",
+              "command": "tw:odile_helps"
+            }
+          ],
+          "at": {
+            "file": 1,
+            "line": 261
+          }
+        },
+        {
+          "id": "radio",
+          "cond": 47,
+          "chance": 40,
+          "group": "color",
+          "once": false,
+          "effects": [
+            {
+              "do": "bark",
+              "bark": 21
+            }
+          ],
+          "at": {
+            "file": 1,
+            "line": 265
+          }
+        }
+      ],
+      "at": {
+        "file": 1,
+        "line": 254
+      }
+    }
+  ]
+}

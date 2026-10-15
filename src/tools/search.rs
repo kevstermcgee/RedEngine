@@ -174,6 +174,9 @@ pub fn corpus_with(own: &Docs, commands: &Value) -> Vec<Doc> {
     chunk_markdown("docs/GLOSSARY.md", "glossary", &own.glossary, &mut docs);
     // The 2D path: a question about a 2D game, a sprite, a scenario or playing it natively must find the 2D material, not scene objects (a fresh author's first `search` did).
     chunk_markdown("docs/PLAY_2D.md", "doc", &own.play_2d, &mut docs);
+    // Narrative: a question that names a story, dialogue, a bark or a character finds the guide and its contract; it is a domain of its own
+    // (kind `story`), so its words ("recipes", "state", "workflow") never take an ordinary answer's place (`query_names_story`).
+    chunk_markdown("docs/STORY.md", "story", &own.story, &mut docs);
     for (k, group) in red2d::reference::REFERENCE.lines().collect::<Vec<_>>().chunks(2).enumerate() {
         docs.push(Doc {
             kind: "doc",
@@ -342,6 +345,36 @@ fn query_domain(query: &str) -> Option<bool> {
     }
 }
 
+/// Whether a query names the narrative domain (a story, dialogue, a bark, a character, a conversation): only then do the story guide's fragments
+/// compete for its answer (ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system).
+fn query_names_story(query: &str) -> bool {
+    const WORDS: &[&str] = &[
+        "story",
+        "stories",
+        "dialogue",
+        "dialogues",
+        "dialog",
+        "bark",
+        "barks",
+        "conversation",
+        "conversations",
+        "character",
+        "characters",
+        "narrative",
+        "speaker",
+        "speakers",
+        "npc",
+        "npcs",
+        "subtitle",
+        "subtitles",
+        "director",
+        "storytelling",
+        "lines",
+        "choices",
+    ];
+    query.to_lowercase().split(|c: char| !c.is_ascii_alphanumeric()).any(|w| WORDS.contains(&w))
+}
+
 /// Ranks the corpus for `query`, optionally only one `kind`, returning at most `limit` hits (diversified per kind), preceded by a lead lane of at most two
 /// complete examples when the query clearly asks for one: verified 2D mechanics and 3D recipes, in the domain the query names (a 3D query gets no 2D
 /// mechanic, a 2D query no 3D recipe; with neither, the best of each). Mechanics never take an ordinary slot; a recipe in the lane is not repeated below.
@@ -355,7 +388,7 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
     // The statistics (how common a word is, how many documents there are) leave the mechanics out, so that having them in the corpus cannot nudge any other result's score.
     let mut df: HashMap<&str, usize> = HashMap::new();
     for (d, (t, b, e)) in docs.iter().zip(&toks) {
-        if d.kind == "mechanic" {
+        if d.kind == "mechanic" || d.kind == "story" {
             continue;
         }
         let set: HashSet<&str> = t.iter().chain(b).chain(e).map(String::as_str).collect();
@@ -363,7 +396,8 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
             *df.entry(w).or_default() += 1;
         }
     }
-    let n = docs.iter().filter(|d| d.kind != "mechanic").count() as f32;
+    let n = docs.iter().filter(|d| d.kind != "mechanic" && d.kind != "story").count() as f32;
+    let story = query_names_story(query);
     let mut hits: Vec<Hit> = Vec::new();
     // Verified 2D mechanics (`recipes::patterns`) are a lane of their own: they are tiny, dense documents that would outrank the real answer to a query from another domain
     // ("player shoots another player damage health" is a 3D multiplayer question), so they never take an ordinary slot; the best one or two are shown first when the query
@@ -389,6 +423,9 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
         if kind.is_some_and(|k| d.kind != k && !(k == "recipe" && d.kind == "mechanic")) {
             continue;
         }
+        if d.kind == "story" && kind.is_none() && !story {
+            continue;
+        }
         let (t, b, e) = &toks[i];
         let mut score = 0.0;
         let mut matched_terms = 0;
@@ -412,7 +449,7 @@ pub fn search<'a>(docs: &'a [Doc], query: &str, kind: Option<&str>, limit: usize
             let distinct = q.iter().filter(|(_, w)| *w >= 1.0).count().max(1) as f32;
             score *= 1.0 + 0.6 * (matched_terms as f32 / distinct);
             let kind_bias = match d.kind {
-                "doc" | "rule" | "recipe" | "adr" | "glossary" => 1.15,
+                "doc" | "rule" | "recipe" | "adr" | "glossary" | "story" => 1.15,
                 "asset" | "lint" | "type" | "command" => 1.05,
                 _ => 0.9,
             };
@@ -545,6 +582,25 @@ mod tests {
             let titles =
                 |docs: &[Doc]| search(docs, q, None, 6).into_iter().filter(|h| h.doc.kind != "mechanic").map(|h| h.doc.title.clone()).collect::<Vec<_>>();
             assert_eq!(titles(&all), titles(&without), "`{q}`: a mechanic changed the ordinary results");
+        }
+    }
+
+    /// The story guide is a domain of its own: it answers questions that name a story, and changes nothing for the rest (it once took two of
+    /// the slots of "reusable machine with its own state, inventory and recipes" and pushed that task past its budget).
+    #[test]
+    fn the_story_guide_answers_story_questions_and_displaces_nothing_else() {
+        let all = corpus(&cmds());
+        let without: Vec<Doc> = corpus(&cmds()).into_iter().filter(|d| d.kind != "story").collect();
+        assert!(all.iter().any(|d| d.kind == "story"));
+        for q in
+            ["reusable machine with its own state, inventory and recipes", "why does my door block the player", "save game progress", "workflow for a new map"]
+        {
+            let titles = |docs: &[Doc]| search(docs, q, None, 6).into_iter().map(|h| h.doc.title.clone()).collect::<Vec<_>>();
+            assert_eq!(titles(&all), titles(&without), "`{q}`: the story guide changed the results");
+        }
+        for q in ["how do I write dialogue for a character", "bark cooldown and priority", "a conversation with choices that change the game"] {
+            let hits = search(&all, q, None, 3);
+            assert!(hits.iter().any(|h| h.doc.kind == "story"), "`{q}` finds the story guide: {:?}", hits.iter().map(|h| &h.doc.title).collect::<Vec<_>>());
         }
     }
 

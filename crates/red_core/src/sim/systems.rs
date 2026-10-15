@@ -10,6 +10,12 @@
 //!   tick: a cascade that does not settle halts the host with [`code::OVERFLOW`] (reported every tick after) instead of dropping work;
 //!   an event a system emits without declaring it, or hears that nobody emits, is [`code::EVENT`];
 //! - **routes commands** (a player's decision) to the system that declares them, checked before anything changes;
+//! - **answers queries**: a system declares typed questions about its own state ([`System::queries`]) and another reads them while it runs
+//!   ([`Cx::query`], each read declared in [`System::reads`]); a read is pure, so a condition never changes what it looks at. `scene:<var>`
+//!   reads are the match's scene variables, answered by the [`Outside`] the game passes ([`Systems::tick_with`]);
+//! - **applies batches**: commands one system issues to others ([`Cx::issue`]) apply after its call, in order, **whole or not at all**
+//!   (every system a batch touches, the ledger, the random stream and the events it emitted are put back on the first refusal), and the
+//!   issuer is told which ([`System::settled`]), so a decision with several effects never half-happens;
 //! - **saves** each system's state with its own version, and on load migrates older state step by step ([`System::migrate`]), refuses newer
 //!   or unknown state with [`code::STATE_VERSION`], and on any failure puts everything back as it was;
 //! - **inspects** an instance: its status, the definition (and the file and pointer) it came from, and the first reason it cannot continue
@@ -20,7 +26,7 @@
 
 use super::defs::{code, Diagnostic, Id, Provenance};
 use super::ledger::{Fnv, Ledger, LedgerState};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -33,6 +39,70 @@ pub const DEFAULT_BUDGET: usize = 4096;
 
 /// Events kept for inspection.
 const RECENT: usize = 32;
+
+/// The namespace of the match's own answers (`scene:<var>`, the scene's declared variables), read through an [`Outside`].
+pub const OUTSIDE_NS: &str = "scene";
+
+/// How a query's answer reads (every answer is an `f64`, as the rules' expressions read numbers).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Ty {
+    /// `1` or `0`.
+    Bool,
+    /// A whole number.
+    Int,
+    /// Any number.
+    Num,
+}
+
+/// A typed question a system answers about its own state (`tw:shed_fuel`, an int): what another system's condition may read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryDecl {
+    /// Its id (in the answering system's namespace).
+    pub id: Id,
+    /// How its answer reads.
+    pub ty: Ty,
+    /// What it means, for discovery and the story toolchain's bindings.
+    pub doc: String,
+}
+
+impl QueryDecl {
+    /// A query declaration.
+    pub fn new(id: Id, ty: Ty, doc: &str) -> QueryDecl {
+        QueryDecl { id, ty, doc: doc.to_string() }
+    }
+}
+
+/// What answers queries from outside the systems: the match (`scene:<var>`; `RulesEngine` answers its declared variables).
+pub trait Outside {
+    /// The answer to `query`, or `None` when it has none by that name.
+    fn query(&self, query: &Id) -> Option<f64>;
+}
+
+impl Outside for () {
+    fn query(&self, _query: &Id) -> Option<f64> {
+        None
+    }
+}
+
+impl Outside for super::rules_run::RulesEngine {
+    fn query(&self, query: &Id) -> Option<f64> {
+        (query.namespace() == OUTSIDE_NS).then(|| self.var(query.name())).flatten()
+    }
+}
+
+/// Commands one system issued at once ([`Cx::issue`]), applied whole or not at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Batch {
+    /// The issuer's index in run order.
+    from: usize,
+    /// The issuer's own tag, handed back with the result.
+    tag: u64,
+    commands: Vec<Command>,
+}
+
+/// No commands may be issued (while a batch applies, or while its issuer is told the result).
+static NO_ISSUES: BTreeSet<Id> = BTreeSet::new();
 
 /// Something that happened, for the systems that hear it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -90,6 +160,34 @@ pub trait System: Any + Send {
         Vec::new()
     }
 
+    /// The typed questions it answers about its own state ([`System::query`]), for other systems' conditions.
+    fn queries(&self) -> Vec<QueryDecl> {
+        Vec::new()
+    }
+
+    /// The answer to one of its [`queries`](System::queries) (`None` for one it does not answer). Pure: it changes nothing.
+    fn query(&self, _query: &Id, _look: &Look) -> Option<f64> {
+        None
+    }
+
+    /// The queries it reads ([`Cx::query`]): each another system's, or the match's (`scene:<var>`).
+    fn reads(&self) -> Vec<Id> {
+        Vec::new()
+    }
+
+    /// The commands of other systems it issues ([`Cx::issue`]).
+    fn issues(&self) -> Vec<Id> {
+        Vec::new()
+    }
+
+    /// The commands among its own that another system may issue unattended (a story director's pacing), not only on a player's decision.
+    fn unattended(&self) -> Vec<Id> {
+        Vec::new()
+    }
+
+    /// A batch it issued ([`Cx::issue`]) applied whole (`Ok`) or not at all (`Err`: the first refusal): commit, or drop, what depended on it.
+    fn settled(&mut self, _tag: u64, _result: Result<(), Diagnostic>, _cx: &mut Cx) {}
+
     /// One tick of its work.
     fn tick(&mut self, cx: &mut Cx);
 
@@ -140,8 +238,16 @@ pub struct Cx<'a> {
     pub ledger: &'a mut Ledger,
     me: &'a Id,
     emits: &'a BTreeSet<Id>,
+    reads: &'a BTreeSet<Id>,
+    issues: &'a BTreeSet<Id>,
     queue: &'a mut VecDeque<Event>,
     rng: &'a mut u64,
+    /// The other systems (before and after this one in run order), read-only.
+    peers: [&'a [Box<dyn System>]; 2],
+    at: usize,
+    answers: &'a BTreeMap<Id, (usize, Ty)>,
+    outside: &'a dyn Outside,
+    batches: &'a mut Vec<Batch>,
 }
 
 impl Cx<'_> {
@@ -151,6 +257,41 @@ impl Cx<'_> {
             return Err(Diagnostic::new(code::EVENT, self.me, format!("emits `{name}`, which it does not declare")).fix("add it to the system's `emits`"));
         }
         self.queue.push_back(Event { name: name.clone(), subject: subject.cloned(), value, from: self.me.clone(), tick: self.tick });
+        Ok(())
+    }
+
+    /// The answer to `query` now: another system's ([`System::queries`]) or the match's (`scene:<var>`). It must be one of this system's
+    /// [`reads`](System::reads); reading changes nothing.
+    pub fn query(&self, query: &Id) -> Result<f64, Diagnostic> {
+        let undeclared = |why: String| Diagnostic::new(code::QUERY, self.me, why);
+        if !self.reads.contains(query) {
+            return Err(undeclared(format!("reads `{query}`, which it does not declare")).fix("add it to the system's `reads`"));
+        }
+        if query.namespace() == OUTSIDE_NS {
+            return self
+                .outside
+                .query(query)
+                .ok_or_else(|| undeclared(format!("reads `{query}`, which the match does not answer here")).fix("declare the variable in the scene's `vars`"));
+        }
+        let Some(&(j, _)) = self.answers.get(query) else { return Err(undeclared(format!("reads `{query}`, which no system answers"))) };
+        let peer = match j.cmp(&self.at) {
+            std::cmp::Ordering::Less => &self.peers[0][j],
+            std::cmp::Ordering::Greater => &self.peers[1][j - self.at - 1],
+            std::cmp::Ordering::Equal => return Err(undeclared(format!("reads its own `{query}`: read its own state instead"))),
+        };
+        peer.query(query, &Look { tick: self.tick, ledger: self.ledger })
+            .ok_or_else(|| undeclared(format!("`{query}` declared but not answered by `{}`", peer.id())))
+    }
+
+    /// Issues `commands` to the systems that take them, as one batch: after this system's call returns they apply in order, whole or not at
+    /// all, and [`System::settled`] hears which with `tag`. Each must be one of this system's [`issues`](System::issues); none may be
+    /// issued while a batch applies or while its result is told.
+    pub fn issue(&mut self, tag: u64, commands: Vec<Command>) -> Result<(), Diagnostic> {
+        if let Some(c) = commands.iter().find(|c| !self.issues.contains(&c.name)) {
+            let why = if self.issues.is_empty() { "now (inside a batch, or while one settles)".to_string() } else { "and does not declare it".to_string() };
+            return Err(Diagnostic::new(code::EVENT, self.me, format!("issues `{}` {why}", c.name)).fix("add it to the system's `issues`"));
+        }
+        self.batches.push(Batch { from: self.at, tag, commands });
         Ok(())
     }
 
@@ -218,6 +359,18 @@ pub struct SystemInfo {
     pub instances: Vec<Id>,
     /// Its state version.
     pub version: u32,
+    /// The queries it answers.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub queries: Vec<QueryDecl>,
+    /// The queries it reads.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub reads: Vec<Id>,
+    /// The other systems' commands it issues.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub issues: Vec<Id>,
+    /// Its commands another system may issue unattended.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unattended: Vec<Id>,
 }
 
 /// What [`Systems::load`] did.
@@ -234,6 +387,8 @@ struct Meta {
     emits: BTreeSet<Id>,
     hears: BTreeSet<Id>,
     commands: BTreeSet<Id>,
+    reads: BTreeSet<Id>,
+    issues: BTreeSet<Id>,
 }
 
 /// Game systems and their ledger, run as one.
@@ -247,6 +402,9 @@ pub struct Systems {
     halted: Option<Diagnostic>,
     queue: VecDeque<Event>,
     recent: VecDeque<Event>,
+    /// Each query's answering system (index in run order) and type.
+    answers: BTreeMap<Id, (usize, Ty)>,
+    batches: Vec<Batch>,
 }
 
 impl std::fmt::Debug for Systems {
@@ -308,20 +466,64 @@ impl Systems {
                 }
             }
         }
+        // Queries: one answering system each; every read answered (or the match's); every issued command another system's.
+        let mut answers: BTreeMap<Id, (Id, Ty)> = BTreeMap::new();
+        for (id, s) in &by_id {
+            for q in s.queries() {
+                if let Some((other, _)) = answers.get(&q.id) {
+                    errs.push(Diagnostic::new(code::DUPLICATE, &q.id, format!("answered by both `{other}` and `{id}`")).fix("declare the query once"));
+                } else {
+                    answers.insert(q.id, (id.clone(), q.ty));
+                }
+            }
+        }
+        let taken: BTreeMap<Id, Id> = by_id.iter().flat_map(|(id, s)| s.commands().into_iter().map(move |c| (c, id.clone()))).collect();
+        for (id, s) in &by_id {
+            for r in s.reads().iter().filter(|r| r.namespace() != OUTSIDE_NS && !answers.contains_key(*r)) {
+                errs.push(
+                    Diagnostic::new(code::QUERY, id, format!("reads `{r}`, which no system answers")).fix("add the system that declares it in `queries`"),
+                );
+            }
+            for c in s.issues() {
+                match taken.get(&c) {
+                    Some(owner) if owner != id => {}
+                    _ => errs.push(Diagnostic::new(code::EVENT, id, format!("issues `{c}`, which no other system takes")).fix("add the system that takes it")),
+                }
+            }
+            let own: BTreeSet<Id> = s.commands().into_iter().collect();
+            for u in s.unattended().iter().filter(|u| !own.contains(*u)) {
+                errs.push(Diagnostic::new(code::EVENT, id, format!("lets `{u}` be issued unattended, but does not take it")).fix("add it to `commands`"));
+            }
+        }
         if !errs.is_empty() {
             return Err(errs);
         }
         let list: Vec<Box<dyn System>> = order.iter().filter_map(|id| by_id.remove(id)).collect();
-        let meta = list
+        let meta: Vec<Meta> = list
             .iter()
             .map(|s| Meta {
                 id: s.id(),
                 emits: s.emits().into_iter().collect(),
                 hears: s.hears().into_iter().collect(),
                 commands: s.commands().into_iter().collect(),
+                reads: s.reads().into_iter().collect(),
+                issues: s.issues().into_iter().collect(),
             })
             .collect();
-        Ok(Systems { list, meta, ledger, tick: 0, rng: seed, budget: DEFAULT_BUDGET, halted: None, queue: VecDeque::new(), recent: VecDeque::new() })
+        let answers = answers.into_iter().filter_map(|(q, (owner, ty))| Some((q, (meta.iter().position(|m| m.id == owner)?, ty)))).collect();
+        Ok(Systems {
+            list,
+            meta,
+            ledger,
+            tick: 0,
+            rng: seed,
+            budget: DEFAULT_BUDGET,
+            halted: None,
+            queue: VecDeque::new(),
+            recent: VecDeque::new(),
+            answers,
+            batches: Vec::new(),
+        })
     }
 
     /// The most events one tick may deliver (a cascade beyond it halts the host).
@@ -377,24 +579,104 @@ impl Systems {
                 commands: s.commands(),
                 instances: s.instances(),
                 version: s.version(),
+                queries: s.queries(),
+                reads: s.reads(),
+                issues: s.issues(),
+                unattended: s.unattended(),
             })
             .collect()
     }
 
-    fn cx<'a>(&'a mut self, i: usize) -> (&'a mut Box<dyn System>, Cx<'a>) {
-        let Systems { list, meta, ledger, tick, rng, queue, .. } = self;
-        (&mut list[i], Cx { tick: *tick, ledger, me: &meta[i].id, emits: &meta[i].emits, queue, rng })
+    /// Every query the systems answer, with its type, in id order.
+    pub fn queries(&self) -> Vec<QueryDecl> {
+        let mut all: Vec<QueryDecl> = self.list.iter().flat_map(|s| s.queries()).collect();
+        all.sort_by(|a, b| a.id.cmp(&b.id));
+        all
+    }
+
+    /// The answer to `query` now (a system's, or `outside`'s for `scene:<var>`), as a tool or a test asks it: `None` when nothing answers.
+    pub fn query(&self, query: &Id, outside: &dyn Outside) -> Option<f64> {
+        if query.namespace() == OUTSIDE_NS {
+            return outside.query(query);
+        }
+        let &(j, _) = self.answers.get(query)?;
+        self.list[j].query(query, &Look { tick: self.tick, ledger: &self.ledger })
+    }
+
+    /// System `i` and what it sees; `settling`: it may issue nothing (a batch is applying, or its result is being told).
+    fn cx<'a>(&'a mut self, i: usize, outside: &'a dyn Outside, settling: bool) -> (&'a mut Box<dyn System>, Cx<'a>) {
+        let Systems { list, meta, ledger, tick, rng, queue, answers, batches, .. } = self;
+        let (before, rest) = list.split_at_mut(i);
+        let (me, after) = rest.split_at_mut(1);
+        let m = &meta[i];
+        let cx = Cx {
+            tick: *tick,
+            ledger,
+            me: &m.id,
+            emits: &m.emits,
+            reads: &m.reads,
+            issues: if settling { &NO_ISSUES } else { &m.issues },
+            queue,
+            rng,
+            peers: [before, after],
+            at: i,
+            answers,
+            outside,
+            batches,
+        };
+        (&mut me[0], cx)
+    }
+
+    /// Applies the batches issued so far, each whole or not at all, and tells each issuer which.
+    fn settle(&mut self, outside: &dyn Outside) {
+        for b in std::mem::take(&mut self.batches) {
+            let result = self.apply(&b, outside);
+            let (s, mut cx) = self.cx(b.from, outside, true);
+            s.settled(b.tag, result, &mut cx);
+        }
+        self.batches.clear();
+    }
+
+    /// One batch: every command in order; on the first refusal every system it touched, the ledger, the random stream and the events it
+    /// emitted are put back.
+    fn apply(&mut self, b: &Batch, outside: &dyn Outside) -> Result<(), Diagnostic> {
+        let mut targets = Vec::new();
+        for c in &b.commands {
+            let t = self.meta.iter().position(|m| m.commands.contains(&c.name));
+            targets.push(t.ok_or_else(|| Diagnostic::new(code::EVENT, &c.name, "no system takes this command"))?);
+        }
+        let saved: BTreeMap<usize, Value> = targets.iter().map(|&t| (t, self.list[t].save())).collect();
+        let (ledger, rng, queued) = (self.ledger.clone(), self.rng, self.queue.len());
+        for (k, (c, &t)) in b.commands.iter().zip(&targets).enumerate() {
+            let (s, mut cx) = self.cx(t, outside, true);
+            if let Err(e) = s.command(c, &mut cx) {
+                for (t, state) in saved {
+                    let _ = self.list[t].load(state);
+                }
+                (self.ledger, self.rng) = (ledger, rng);
+                self.queue.truncate(queued);
+                let message = format!("command {} of {} (`{}`) refused, so none applied: {}", k + 1, b.commands.len(), c.name, e.message);
+                return Err(Diagnostic { message, ..e });
+            }
+        }
+        Ok(())
     }
 
     /// Runs one tick: every system in order, then the events they emitted (and the ones those emit) to the systems that hear them.
     pub fn tick(&mut self) -> Result<(), Diagnostic> {
+        self.tick_with(&())
+    }
+
+    /// [`tick`](Systems::tick) with the match answering `scene:<var>` reads.
+    pub fn tick_with(&mut self, outside: &dyn Outside) -> Result<(), Diagnostic> {
         if let Some(h) = &self.halted {
             return Err(h.clone());
         }
         self.tick += 1;
         for i in 0..self.list.len() {
-            let (s, mut cx) = self.cx(i);
+            let (s, mut cx) = self.cx(i, outside, false);
             s.tick(&mut cx);
+            self.settle(outside);
         }
         let mut delivered = 0usize;
         while let Some(ev) = self.queue.pop_front() {
@@ -412,8 +694,9 @@ impl Systems {
             }
             for i in 0..self.list.len() {
                 if self.meta[i].hears.contains(&ev.name) {
-                    let (s, mut cx) = self.cx(i);
+                    let (s, mut cx) = self.cx(i, outside, false);
                     s.event(&ev, &mut cx);
+                    self.settle(outside);
                 }
             }
             if self.recent.len() == RECENT {
@@ -427,12 +710,24 @@ impl Systems {
     /// Delivers `command` to the system that declares it, now (between ticks, in the order commands arrive). A command no system declares
     /// is [`code::EVENT`]; one the system refuses changes nothing.
     pub fn command(&mut self, command: &Command) -> Result<(), Diagnostic> {
+        self.command_with(command, &())
+    }
+
+    /// [`command`](Systems::command) with the match answering `scene:<var>` reads. The batches the command issues apply after it (a
+    /// refused command issues none).
+    pub fn command_with(&mut self, command: &Command, outside: &dyn Outside) -> Result<(), Diagnostic> {
         let Some(i) = self.meta.iter().position(|m| m.commands.contains(&command.name)) else {
             return Err(Diagnostic::new(code::EVENT, &command.name, "no system takes this command")
                 .fix(format!("one of: {}", self.meta.iter().flat_map(|m| m.commands.iter().map(Id::as_str)).collect::<Vec<_>>().join(", "))));
         };
-        let (s, mut cx) = self.cx(i);
-        s.command(command, &mut cx)
+        let (s, mut cx) = self.cx(i, outside, false);
+        let r = s.command(command, &mut cx);
+        if r.is_err() {
+            self.batches.clear();
+            return r;
+        }
+        self.settle(outside);
+        r
     }
 
     /// Explains `target`: an instance some system owns, or a store.
@@ -579,155 +874,4 @@ pub fn write_atomic(path: &std::path::Path, text: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::sim::ledger::{Reason, Tx};
-
-    fn id(s: &str) -> Id {
-        Id::parse(s).unwrap()
-    }
-
-    /// A counter that emits `t:ping` every tick and hears `t:ping` (re-emitting while `echo` is on: an endless cascade).
-    struct Pinger {
-        me: Id,
-        after: Vec<Id>,
-        count: u64,
-        echo: bool,
-        heard: u64,
-    }
-
-    impl System for Pinger {
-        fn id(&self) -> Id {
-            self.me.clone()
-        }
-        fn after(&self) -> Vec<Id> {
-            self.after.clone()
-        }
-        fn emits(&self) -> Vec<Id> {
-            vec![id("t:ping")]
-        }
-        fn hears(&self) -> Vec<Id> {
-            vec![id("t:ping")]
-        }
-        fn commands(&self) -> Vec<Id> {
-            vec![id("t:echo")]
-        }
-        fn tick(&mut self, cx: &mut Cx) {
-            self.count += 1;
-            cx.emit(&id("t:ping"), None, 1).unwrap();
-        }
-        fn event(&mut self, ev: &Event, cx: &mut Cx) {
-            self.heard += 1;
-            if self.echo && ev.from == self.me {
-                cx.emit(&id("t:ping"), None, ev.value + 1).unwrap();
-            }
-        }
-        fn command(&mut self, c: &Command, _cx: &mut Cx) -> Result<(), Diagnostic> {
-            self.echo = c.value != 0;
-            Ok(())
-        }
-        fn version(&self) -> u32 {
-            2
-        }
-        fn save(&self) -> Value {
-            json!({"count": self.count, "heard": self.heard})
-        }
-        fn load(&mut self, s: Value) -> Result<(), String> {
-            self.count = s["count"].as_u64().ok_or("no count")?;
-            self.heard = s["heard"].as_u64().ok_or("no heard")?;
-            Ok(())
-        }
-        fn migrate(&self, from: u32, s: Value) -> Result<Value, String> {
-            match from {
-                1 => Ok(json!({"count": s["n"], "heard": 0})),
-                _ => Err(format!("unknown version {from}")),
-            }
-        }
-        fn hash(&self) -> u64 {
-            self.count ^ (self.heard << 32)
-        }
-    }
-
-    fn pinger(name: &str, after: &[&str]) -> Box<dyn System> {
-        Box::new(Pinger { me: id(name), after: after.iter().map(|a| id(a)).collect(), count: 0, echo: false, heard: 0 })
-    }
-
-    #[test]
-    fn the_order_follows_dependencies_and_never_the_registration_order() {
-        let a = Systems::new(vec![pinger("t:c", &["t:a"]), pinger("t:b", &[]), pinger("t:a", &[])], Ledger::new(), 1).unwrap();
-        let b = Systems::new(vec![pinger("t:a", &[]), pinger("t:c", &["t:a"]), pinger("t:b", &[])], Ledger::new(), 1).unwrap();
-        assert_eq!(a.order(), b.order());
-        assert_eq!(a.order().iter().map(Id::as_str).collect::<Vec<_>>(), ["t:a", "t:b", "t:c"]);
-    }
-
-    #[test]
-    fn invalid_composition_is_refused_with_stable_codes() {
-        let codes = |systems: Vec<Box<dyn System>>| Systems::new(systems, Ledger::new(), 1).unwrap_err().iter().map(|d| d.code).collect::<Vec<_>>();
-        assert_eq!(codes(vec![pinger("t:a", &[]), pinger("t:a", &[])]), [code::DUPLICATE]);
-        assert_eq!(codes(vec![pinger("t:a", &["t:missing"])]), [code::DEPENDENCY]);
-        assert_eq!(codes(vec![pinger("t:a", &["t:b"]), pinger("t:b", &["t:a"])]), [code::CYCLE]);
-    }
-
-    #[test]
-    fn a_cascade_that_does_not_settle_halts_the_host_visibly() {
-        let mut s = Systems::new(vec![pinger("t:a", &[])], Ledger::new(), 1).unwrap().with_budget(100);
-        s.tick().unwrap();
-        s.command(&Command { name: id("t:echo"), subject: None, value: 1 }).unwrap();
-        let e = s.tick().unwrap_err();
-        assert_eq!(e.code, code::OVERFLOW, "{e}");
-        assert_eq!(s.tick().unwrap_err(), e, "it stays halted and says why every tick");
-        assert_eq!(s.halted(), Some(&e));
-        let e = s.command(&Command { name: id("t:nothing"), subject: None, value: 0 }).unwrap_err();
-        assert_eq!(e.code, code::EVENT);
-    }
-
-    #[test]
-    fn a_save_reloads_exactly_and_older_state_is_migrated() {
-        let mut ledger = Ledger::new();
-        ledger.resource(id("t:ore"));
-        ledger.declare(Reason::Source(id("t:mine")));
-        ledger.add_store(id("t:box"), id("t:a"), 5).unwrap();
-        let mut s = Systems::new(vec![pinger("t:a", &[])], ledger.clone(), 7).unwrap();
-        for _ in 0..3 {
-            s.tick().unwrap();
-        }
-        let saved = s.save();
-        let mut again = Systems::new(vec![pinger("t:a", &[])], ledger.clone(), 99).unwrap();
-        assert_eq!(again.load(&saved).unwrap(), LoadReport { migrated: vec![], fresh: vec![] });
-        assert_eq!(again.hash(), s.hash());
-        // Version 1 kept the count as `n` and no `heard`.
-        let mut v1 = saved.clone();
-        v1["systems"]["t:a"] = json!({"version": 1, "state": {"n": 3}});
-        let mut migrated = Systems::new(vec![pinger("t:a", &[])], ledger.clone(), 1).unwrap();
-        assert_eq!(migrated.load(&v1).unwrap().migrated, vec![(id("t:a"), 1, 2)]);
-        assert_eq!(migrated.get::<Pinger>().unwrap().count, 3);
-        // A newer version, an unknown system, a broken migration: refused, nothing changed.
-        let before = migrated.hash();
-        for (path, value) in [("version", json!(3)), ("state", json!({"count": "x"}))] {
-            let mut bad = saved.clone();
-            bad["systems"]["t:a"][path] = value;
-            assert_eq!(migrated.load(&bad).unwrap_err().code, code::STATE_VERSION);
-            assert_eq!(migrated.hash(), before);
-        }
-        let mut alien = saved;
-        alien["systems"]["t:z"] = json!({"version": 1, "state": null});
-        assert!(migrated.load(&alien).unwrap_err().message.contains("does not run"));
-        let mut v0 = v1;
-        v0["systems"]["t:a"]["version"] = json!(0);
-        assert!(migrated.load(&v0).unwrap_err().message.contains("cannot migrate version 0"));
-        assert_eq!(migrated.hash(), before);
-    }
-
-    #[test]
-    fn an_atomic_write_keeps_the_previous_file_and_never_leaves_half_a_file() {
-        let dir = std::env::temp_dir().join(format!("red-systems-{}", std::process::id()));
-        let path = dir.join("save.json");
-        write_atomic(&path, "one").unwrap();
-        write_atomic(&path, "two").unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "two");
-        assert_eq!(std::fs::read_to_string(path.with_extension("bak")).unwrap(), "one");
-        assert!(!path.with_extension("tmp").exists());
-        let _ = std::fs::remove_dir_all(&dir);
-        let _ = Tx::new();
-    }
-}
+mod tests;

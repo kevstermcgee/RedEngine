@@ -60,6 +60,18 @@ pub struct Kill {
     pub headshot: bool,
 }
 
+/// A player's intention that the game decides on (a dialogue choice, a menu decision): what the player asked for, never the outcome. The
+/// game checks it against its own authoritative state and applies it or refuses it ([`MatchGame::intend`]); a trace records it like an input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Intent {
+    /// What (`story:choose`).
+    pub name: String,
+    /// What about, if anything (a choice's id, a speaker's).
+    pub subject: Option<String>,
+    /// A number that goes with it (the revision of what the player was shown).
+    pub value: i64,
+}
+
 /// A game's own rules inside a running match. Every method has a default that changes nothing.
 pub trait MatchGame: Any + Send {
     /// Its name (`shooter`).
@@ -95,6 +107,11 @@ pub trait MatchGame: Any + Send {
 
     /// The game's world for one tick, after every player has moved.
     fn tick(&mut self, _sim: &mut MatchSim) {}
+
+    /// Player `slot`'s [`Intent`], between ticks: applied by the game's authority, or refused with the reason (and nothing changes).
+    fn intend(&mut self, _sim: &mut MatchSim, _slot: usize, intent: &Intent) -> Result<(), String> {
+        Err(format!("this game takes no intentions (`{}`)", intent.name))
+    }
 
     /// Whether players are held in place this tick (they may look around).
     fn input_locked(&self) -> bool {

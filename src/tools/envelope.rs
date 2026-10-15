@@ -106,6 +106,11 @@ pub const CODES: &[(&str, &str, &str)] = &[
     ("state-version", "saved state this program cannot read: newer, another game's, or a migration that failed", "open it with the version that saved it"),
     ("insufficient", "a transaction needs more of a resource than its store holds", "bring what the fix names"),
     ("store-full", "a transaction would put more into a store than it has room for", "make room, or route the output elsewhere"),
+    (
+        "undeclared-query",
+        "a game system reads a query nothing answers, or one of another type",
+        "declare it in the answering system's `queries`, or read another",
+    ),
     ("invalid", "any other problem with the input", "read the message"),
 ];
 

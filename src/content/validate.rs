@@ -4,7 +4,7 @@
 //! problem printed as `file:line: message`.
 
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -21,11 +21,14 @@ pub enum Kind {
     Project,
     Drivers,
     Trace,
+    StoryPackage,
+    StoryBindings,
+    StorySource,
 }
 
 impl Kind {
     /// Every format, in report order.
-    pub const ALL: [Kind; 10] = [
+    pub const ALL: [Kind; 13] = [
         Kind::Scene,
         Kind::Game2d,
         Kind::PrefabLibrary,
@@ -36,6 +39,9 @@ impl Kind {
         Kind::Project,
         Kind::Drivers,
         Kind::Trace,
+        Kind::StoryPackage,
+        Kind::StoryBindings,
+        Kind::StorySource,
     ];
 
     /// The name a report uses.
@@ -51,6 +57,9 @@ impl Kind {
             Kind::Project => "game.json",
             Kind::Drivers => "kart drivers",
             Kind::Trace => "trace",
+            Kind::StoryPackage => "story package",
+            Kind::StoryBindings => "story bindings",
+            Kind::StorySource => "story",
         }
     }
 }
@@ -66,6 +75,10 @@ pub fn detect(path: &Path, v: &Value) -> Option<Kind> {
     let has = |k: &str| v.get(k).is_some();
     if name.ends_with(".game2d.json") || has("game2d") {
         Some(Kind::Game2d)
+    } else if has("story_package") {
+        Some(Kind::StoryPackage)
+    } else if has("story_bindings") {
+        Some(Kind::StoryBindings)
     } else if name.ends_with(".trace.json") {
         Some(Kind::Trace)
     } else if name.ends_with(".blueprint.json") {
@@ -186,7 +199,59 @@ pub fn check(kind: Kind, v: &Value, text: &str, path: &Path) -> Vec<String> {
         Kind::Project => crate::tools::game::parse(base.unwrap_or(Path::new(".")), text).err().unwrap_or_default(),
         Kind::Drivers => crate::sim::kart::Roster::parse(text).err().into_iter().collect(),
         Kind::Trace => crate::sim::trace::Trace::from_json(v).err().into_iter().collect(),
+        Kind::StoryPackage => story_package_problems(text),
+        Kind::StoryBindings => match v.get("catalog").cloned().map(serde_json::from_value::<crate::sim::story::package::Catalog>) {
+            Some(Ok(_)) => Vec::new(),
+            Some(Err(e)) => vec![format!("catalog: {e}")],
+            None => vec!["catalog: missing".into()],
+        },
+        Kind::StorySource => Vec::new(),
     }
+}
+
+/// A compiled story by itself: its format, every index and goto inside it, every expression compiling (binding to the game needs the game).
+fn story_package_problems(text: &str) -> Vec<String> {
+    match serde_json::from_str::<crate::sim::story::package::Package>(text) {
+        Ok(p) => crate::sim::story::package::check(&p).into_iter().map(|d| d.to_string()).collect(),
+        Err(e) => vec![format!("not a story package this engine reads: {e}")],
+    }
+}
+
+/// Every folder holding `.story` files under `dirs` (a story is a folder), compiled by the toolchain: its problems at `file:line`.
+fn story_folders(dirs: &[PathBuf]) -> Vec<FileReport> {
+    fn walk(dir: &Path, out: &mut BTreeSet<PathBuf>) {
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        for e in rd.flatten() {
+            let p = e.path();
+            let game_crate = dir.file_name().is_some_and(|n| n == "games") && p.join("Cargo.toml").is_file();
+            if p.is_dir() && !game_crate && !p.file_name().and_then(|n| n.to_str()).is_some_and(|n| SKIP_DIRS.contains(&n) || n.starts_with('.')) {
+                walk(&p, out);
+            } else if p.extension().is_some_and(|x| x == "story") {
+                out.insert(dir.to_path_buf());
+            }
+        }
+    }
+    let mut folders = BTreeSet::new();
+    for d in dirs {
+        if d.is_dir() {
+            walk(d, &mut folders);
+        }
+    }
+    folders
+        .into_iter()
+        .map(|dir| match crate::tools::story::build(&dir) {
+            Ok(b) => {
+                let problems = b
+                    .diags
+                    .iter()
+                    .filter(|d| d.severity != crate::tools::story::Severity::Allowed)
+                    .map(|d| Problem { line: None, message: d.render(&b.ast.files) })
+                    .collect();
+                FileReport { path: dir, kind: Some(Kind::StorySource), problems }
+            }
+            Err(e) => FileReport { path: dir, kind: Some(Kind::StorySource), problems: vec![Problem { line: None, message: e }] },
+        })
+        .collect()
 }
 
 /// A prefab library: its definitions load, and each one expands into a valid scene (where its objects and the prefabs it uses are checked).
@@ -276,6 +341,7 @@ pub fn run(paths: &[PathBuf], root: &Path) -> Run {
         let handles: Vec<_> = files.chunks(chunk).map(|part| s.spawn(|| part.iter().map(|p| check_file(p, named.contains(p))).collect::<Vec<_>>())).collect();
         handles.into_iter().flat_map(|h| h.join().unwrap_or_default()).collect()
     });
+    reports.extend(story_folders(&dirs));
     // A missing path the user named is a problem too (a folder walk only lists what exists).
     for p in paths.iter().filter(|p| !p.exists()) {
         reports.push(FileReport { path: p.clone(), kind: None, problems: vec![Problem { line: None, message: "no such file or folder".into() }] });

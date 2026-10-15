@@ -20,6 +20,7 @@ pub mod prefab;
 pub mod project;
 pub mod scene;
 pub mod score;
+pub mod story;
 pub mod trace;
 pub mod validate;
 pub mod voice;

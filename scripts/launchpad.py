@@ -123,6 +123,9 @@ def glob_re(pattern):
 
 
 # ----------------------------------------------------------------------------------------------- routing
+# A story is content (`.story` text, `describe story`): editing one is a game change, not an engine change, unless the task names Rust.
+STORY_CUE = r"\b(story|stories|barks?|conversations?|characters? sheets?|narrative|speakers?|\.story)\b"
+
 CUES = {
     "upgrade": [(r"\bupgrad\w*", 4), (r"\bmigrat\w*", 4), (r"\bengine (version|revision|commit|pin)", 4), (r"\bbump\b.*\bengine\b", 3), (r"\brepin\b", 4)],
     "diagnose": [(r"\bwhy\b", 2), (r"\b(fail|fails|failed|failing)\b", 3), (r"\bbroken\b", 3), (r"\bcrash\w*", 3), (r"\berrors?\b", 2), (r"\bnot working\b", 3),
@@ -132,7 +135,8 @@ CUES = {
                       (r"\bimplement\b.*\b(in|for) the engine\b", 3), (r"\bnew (cli )?command\b", 3), (r"\bpublic api\b", 3)],
     "game-create": [(r"\b(make|create|build|write|prototype|start)\b.*\bgame\b", 4), (r"\bnew game\b", 4), (r"\bnew\b(?:\s+[\w-]+){1,3}\s+game\b", 4), (r"\b[23]d game\b", 3), (r"\ba game (where|about|that|with|in which)\b", 3),
                     (r"\b(platformer|shooter|kart|racer|racing|puzzle|arcade|runner|roguelike|sokoban|tower defen[cs]e|top.?down|metroidvania|maze)\b", 2)],
-    "game-change": [(r"\b(add|change|fix|tweak|update|improve|remove|rename|balance|make the)\b", 2), (r"\b(level|map|blueprint|enemy|enemies|score|rule|rules|room|door|spawn)s?\b", 2), (r"\bscenes?\b", 2)],
+    "game-change": [(r"\b(add|change|fix|tweak|update|improve|remove|rename|balance|make the)\b", 2), (r"\b(level|map|blueprint|enemy|enemies|score|rule|rules|room|door|spawn)s?\b", 2), (r"\bscenes?\b", 2),
+                    (STORY_CUE, 4)],
 }
 
 
@@ -552,6 +556,8 @@ def plan_delegated(ctx, workflow):
     root = res["engine"]["root"]
     uncertainty = ["this route only delegates: it names the established tool and does not plan the work"]
     missing = [] if exe else ["engine CLI: no fresh executable"]
+    if workflow == "game-change" and re.search(STORY_CUE, ctx["task"].lower()):
+        return plan_story(ctx)
     if workflow == "game-change" and not proj:
         return plan_scene(ctx)
     if workflow == "game-change":
@@ -613,6 +619,43 @@ def plan_scene(ctx):
              {"claim": "behavior (the scene's own checks: reach, walks, sim)", "argv": ctx["red"] + ["verify", scene], "required": True}]
     return {"plan": {"scene": scene}, "capabilities": {"source": "not applicable", "checked": False, "supported": None}, "context": {"pointers": pointers}, "next_action": nxt,
             "blockers": [], "uncertainty": [] if exe else ["executable: missing"], "missing": [] if exe else ["engine CLI: no fresh executable"],
+            "iteration_checks": checks, "final_requirements": final}
+
+
+def story_dirs(root):
+    """Folders of `.story` files under `root` (a story is a folder), skipping build output."""
+    out = []
+    for d, subdirs, files in os.walk(root):
+        subdirs[:] = [x for x in subdirs if x not in ("target", ".git", "out", "node_modules") and not x.startswith(".")]
+        if any(f.endswith(".story") for f in files):
+            out.append(os.path.relpath(d, root))
+    return sorted(out)
+
+
+def plan_story(ctx):
+    """A story change: the content loop (`describe story`, `story check|build`, the game's scenarios, `story walk`), never a Rust build."""
+    res, task = ctx["resolution"], ctx["task"]
+    root = res["engine"]["root"]
+    dirs = story_dirs(root)
+    named = next((d for d in dirs if d in task or os.path.basename(d) in task.lower() or d.split(os.sep)[1:2] == [w for w in re.findall(r"[\w-]+", task.lower()) if w in d][:1]), None)
+    named = named or next((d for d in dirs if any(w in d for w in re.findall(r"[a-z_]{4,}", task.lower()) if w not in ("story", "stories", "add", "change"))), None)
+    story = named or (dirs[0] if len(dirs) == 1 else "<story folder>")
+    pointers = [{"what": "the format, the commands and the contract on one screen", "argv": ctx["red"] + ["describe", "story"]},
+                {"what": "the workflow, craft, lint and proof levels", "file": "docs/STORY.md"}]
+    if dirs:
+        pointers.append({"what": "the stories in this checkout", "file": ", ".join(dirs)})
+    nxt = action("Check the story as it is before changing it (parse, bind, type-check, lint; no game binary, no Rust)", root, ctx["red"] + ["story", "check", story],
+                 "exit 0 with a summary line; every problem is `file:line: error|warning[code]: message -> fix`",
+                 after={"argv": ctx["red"] + ["story", "refs", story, "<id>"], "cwd": root})
+    checks = [{"when": "after every edit", "claim": "the story compiles and lints", "argv": ctx["red"] + ["story", "check", story]},
+              {"when": "before running it", "claim": "the package the game loads", "argv": ctx["red"] + ["story", "build", story]}]
+    final = [{"claim": "the package is rebuilt", "argv": ctx["red"] + ["story", "build", story, "--check"], "required": True},
+             {"claim": "behaviour on the tested paths: the game's own scenarios under its program", "argv": ["<game>_server", "cli", "sim", "<scene.json>", "--inspect", "story"], "required": True,
+              "note": "a game's blocks need its own program (games/<game>/README.md names it); add a `checks.sim` scenario with story steps for what you changed"},
+             {"claim": "the branches", "argv": ["<game>_server", "cli", "story", "walk", "<scene.json>", "<walks.json>"], "required": False},
+             {"claim": "editorial review (a reader's questions, not a score)", "argv": ctx["red"] + ["story", "review", story], "required": False}]
+    return {"plan": {"story": story}, "capabilities": {"source": "docs/STORY.md", "checked": True, "supported": True}, "context": {"pointers": pointers}, "next_action": nxt,
+            "blockers": [], "uncertainty": [] if named or len(dirs) == 1 else ["which story: name its folder in the task"], "missing": [] if ctx["exe"] else ["engine CLI: no fresh executable"],
             "iteration_checks": checks, "final_requirements": final}
 
 

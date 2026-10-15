@@ -336,6 +336,28 @@ class Routing(Sandbox):
         self.assertEqual(out["next_action"]["argv"], ["scripts/red", "game", "upgrade", "plan"])
 
 
+class StoryRoutes(Sandbox):
+    """A story is content: a task that names one gets the story loop (ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system), never a Rust build."""
+
+    @NEEDS_SH
+    def test_a_story_change_checks_the_named_story_and_never_compiles(self):
+        fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"))
+        write(os.path.join(self.engine, "games", "lighthouse", "content", "story", "keeper.story"), "story keeper version 1\n")
+        write(os.path.join(self.engine, "examples", "story", "market", "m.story"), "story m version 1\n")
+        out, _ = self.lp("start", "add a bark and a conversation to the lighthouse story", "--no-save")
+        self.assertEqual(out["workflow"]["id"], "game-change")
+        self.assertEqual(out["next_action"]["argv"][-3:], ["story", "check", os.path.join("games", "lighthouse", "content", "story")])
+        self.assertFalse(out["next_action"].get("compiles"))
+        claims = [c["claim"] for c in out["final_requirements"]]
+        self.assertTrue(any("scenarios" in c for c in claims), claims)
+
+    @NEEDS_SH
+    def test_a_rust_change_to_the_story_runtime_is_still_an_engine_change(self):
+        fake_exe(os.path.join(self.engine, "target", "debug", "red_engine2"))
+        out, _ = self.lp("start", "refactor the story runtime in crates/red_core/src/sim/story/runtime.rs", "--no-save")
+        self.assertEqual(out["workflow"]["id"], "engine-change")
+
+
 class TraceRoutes(Sandbox):
     """The three tasks of the agent-loop trace (docs/analysis/agent-loop-trace.md), each of which `start` routed badly (ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names)."""
 

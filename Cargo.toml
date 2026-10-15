@@ -14,7 +14,7 @@ description = "AI-first Rust game engine: JSON scenes, self-verifying maps, auth
 # directory) but NOT default members: each is a game on the engine's public API with graphics dependencies of its own, so the engine's plain builds and the
 # headless server build never compile them (`scripts/ci.sh game-crates` does).
 [workspace]
-members = ["crates/red_core", "crates/red2d", "games/killchain", "games/frameless", "games/workshop", "games/workshop/server"]
+members = ["crates/red_core", "crates/red2d", "games/killchain", "games/frameless", "games/workshop", "games/workshop/server", "games/tidewatch", "games/tidewatch/server"]
 default-members = [".", "crates/red_core", "crates/red2d"]
 
 # One version and one feature set per dependency the crates share, so a crate built alone (`cargo test -p red_core`) compiles them exactly as the engine does

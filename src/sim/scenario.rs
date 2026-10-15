@@ -29,9 +29,12 @@ use crate::strict::check_keys;
 use glam::{Vec2, Vec3};
 use serde_json::{json, Map, Value};
 
+pub mod story;
+
 const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "max_seconds", "settle_seconds", "expect", "inspect"];
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
-const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event"];
+const STEP_KEYS: &[&str] =
+    &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event", "story", "to", "choice", "revision"];
 const HOLD_KEYS: &[&str] =
     &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "reload", "switch", "seconds"];
 const EXPECT_KEYS: &[&str] = &[
@@ -165,6 +168,8 @@ pub enum Action {
         /// Aim at this world point every tick (yaw and pitch from the player's eye), instead of `yaw_deg` / `pitch_deg`.
         look_at: Option<Vec3>,
     },
+    /// Talk, move on or choose in the game's story ([`story`]).
+    Story(story::Step),
 }
 
 /// A simulated player.
@@ -611,7 +616,7 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
             continue;
         };
         let until = so.get("until_event").and_then(Value::as_str).map(str::to_string);
-        const ACTIONS: [&str; 6] = ["walk", "wait", "hold", "approach", "look_at", "interact"];
+        const ACTIONS: [&str; 7] = ["walk", "wait", "hold", "approach", "look_at", "interact", "story"];
         let actions: Vec<&str> = ACTIONS.into_iter().filter(|k| so.contains_key(*k)).collect();
         if actions.len() != 1 {
             errs.push(format!(
@@ -679,6 +684,10 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 script.push((pi, Action::Walk(wps), until));
             }
             "wait" => script.push((pi, Action::Wait(ticks_of(&so["wait"], &format!("{sp}.wait"), &mut errs)), until)),
+            "story" => match story::parse(so, &sp) {
+                Ok(step) => script.push((pi, Action::Story(step), until)),
+                Err(e) => errs.push(e),
+            },
             _ => {
                 let hp = format!("{sp}.hold");
                 let Some(h) = so["hold"].as_object() else {
@@ -1056,6 +1065,17 @@ struct Cursor {
 
 /// Runs `scenario` on `scene`, returning the checked result (and a [`Trace`] when `record` is given).
 pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], record: Option<RecordOptions>) -> Result<ScenarioResult, String> {
+    run_with(scenario, scene, spawns, record, &mut story::Scripted)
+}
+
+/// [`run`], with `policy` picking at every `"choice": "*"` story step (`story walk`).
+pub fn run_with(
+    scenario: &Scenario,
+    scene: &crate::schema::Scene,
+    spawns: &[Spawn],
+    record: Option<RecordOptions>,
+    policy: &mut dyn story::Policy,
+) -> Result<ScenarioResult, String> {
     let mut group_spawns: Vec<Spawn> = spawns.to_vec();
     if !scenario.spawn_group.is_empty() {
         group_spawns.retain(|s| s.group == scenario.spawn_group);
@@ -1267,6 +1287,14 @@ pub fn run(scenario: &Scenario, scene: &crate::schema::Scene, spawns: &[Spawn], 
                                 }
                             }
                         }
+                        Action::Story(step) => match story::run(&mut sim, slots[pi], step, policy) {
+                            Ok(true) => {
+                                cur.step += 1;
+                                continue;
+                            }
+                            Ok(false) => {}
+                            Err(m) => cur.stuck = Some(("story", m)),
+                        },
                         Action::Walk(wps) => {
                             let Some(target) = wps.get(cur.leg) else {
                                 (cur.step, cur.leg, cur.best, cur.since_progress) = (cur.step + 1, 0, f32::INFINITY, 0);

@@ -199,7 +199,7 @@ stage_external_client() {
 # ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): workspace members that are not default members, so the engine's own stages never compile
 # them and the headless build never sees their graphics crates. If an engine API change breaks a game, this stage says so. `killchain` runs Killchain's alone.
 stage_game_crates() {
-  for game in killchain frameless workshop_server workshop; do
+  for game in killchain frameless workshop_server workshop tidewatch_server tidewatch; do
     echo "== $game (games/$game) builds, lints and tests against the engine's public API =="
     cargo clippy --locked -p "$game" --all-targets -- -D warnings
     cargo test --locked -p "$game"

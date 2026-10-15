@@ -16,7 +16,7 @@
       "tests": ["games2d", "lib:tools::game2d", "gate_meadow", "fresh_agent_bench"],
       "commands": ["red_engine2 verify examples/2d/coin-dash.game2d.json", "red_engine2 play2d examples/2d/coin-dash.game2d.json --max-ticks 60", "red_engine2 capabilities"],
       "docs": ["docs/PLAY_2D.md", "docs/adr/2026-10-05-hybrid-games-draw-3d-parts-with-a-small-portable.md"],
-      "depends_on": ["scene_format", "audio", "game_rules"]
+      "depends_on": ["scene_format", "audio", "game_rules", "narrative"]
     },
     "offline_renderer": {
       "summary": "GPU rendering to PNG/MP4: meshes, lighting, shaders, character rigs, props, procedural firearms, and the offline `frame`/`render` commands.",
@@ -126,11 +126,19 @@
     },
     "game_systems": {
       "summary": "Game-owned state beyond rules: namespaced definitions with provenance (`sim::defs`), a transactional resource ledger (`sim::ledger`) and the host that composes a game's systems under the match's one authority (`sim::systems`); Workshop (`games/workshop`) is the reference.",
-      "files": ["crates/red_core/src/sim/defs.rs", "crates/red_core/src/sim/ledger.rs", "crates/red_core/src/sim/systems.rs"],
+      "files": ["crates/red_core/src/sim/defs.rs", "crates/red_core/src/sim/ledger.rs", "crates/red_core/src/sim/systems.rs", "crates/red_core/src/sim/systems/tests.rs"],
       "tests": ["lib:sim", "systems_abilities"],
       "commands": ["red_engine2 describe systems", "cargo test -p workshop_server", "cargo test -p workshop_server --release --test scale -- --ignored --nocapture"],
       "docs": ["docs/adr/2026-10-14-game-systems-compose-under-one-match-authority.md", "games/workshop/README.md"],
       "depends_on": ["sim_core"]
+    },
+    "narrative": {
+      "summary": "Narrative content under the match's one authority: the `.story` toolchain (parse, bind, type-check, lint, compile, refs, ledger, review, walk; `tools::story`, `red_engine2 story`), the compiled package and the story system (`sim::story`: conversations on the shared talk core the 2D widget uses too, barks, notices, directors, knowledge, saves by id), scenario story steps; Tidewatch (`games/tidewatch`) is the reference.",
+      "files": ["crates/red_core/src/sim/story/**", "src/tools/story/**", "src/cli/story.rs", "src/sim/scenario/story.rs", "tests/story_runtime.rs", "examples/story/**", "docs/STORY.md"],
+      "tests": ["lib:sim", "lib:tools::story", "lib:app::dialogue", "story_runtime"],
+      "commands": ["red_engine2 describe story", "red_engine2 story check examples/story/the_debt", "cargo test -p tidewatch_server", "cargo test -p tidewatch", "target/debug/tidewatch_server cli story walk games/tidewatch/content/tidewatch.json games/tidewatch/content/story/walks.json"],
+      "docs": ["docs/adr/2026-10-15-narrative-is-compiled-content-run-by-one-story-system.md", "docs/STORY.md", "games/tidewatch/README.md"],
+      "depends_on": ["game_systems", "game_rules", "sim_core"]
     },
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",

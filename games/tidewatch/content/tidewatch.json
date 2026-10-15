@@ -1,0 +1,1056 @@
+{
+ "notes": "Tidewatch: the reference game for narrative content (games/tidewatch/README.md). The story is content/story/*.story, compiled to content/story/tidewatch.story.json by `red_engine2 story build content/story`.",
+ "camera": {
+  "fov": 55,
+  "position": [
+   0,
+   6,
+   12
+  ],
+  "target": [
+   0,
+   1,
+   -2
+  ]
+ },
+ "background": {
+  "sky_top": "#060a16",
+  "sky_bottom": "#1a2238"
+ },
+ "ambient": {
+  "color": "#8090c0",
+  "intensity": 0.35
+ },
+ "lights": [
+  {
+   "id": "moon",
+   "type": "directional",
+   "direction": [
+    0.3,
+    -1,
+    0.4
+   ],
+   "color": "#a8b8ff",
+   "intensity": 0.8,
+   "cast_shadows": true,
+   "shadow_radius": 20,
+   "shadow_center": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "brazier_glow",
+   "type": "point",
+   "position": [
+    0,
+    2.2,
+    -6
+   ],
+   "color": "#ff9a40",
+   "intensity": 6,
+   "range": 12
+  }
+ ],
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    0,
+    0,
+    4
+   ],
+   "yaw_deg": 180
+  }
+ ],
+ "zones": [
+  {
+   "id": "shed",
+   "rect": [
+    -9.6,
+    1.4,
+    -7.8,
+    4.6
+   ],
+   "y": 0
+  },
+  {
+   "id": "brazier",
+   "rect": [
+    -1.4,
+    -7.4,
+    1.4,
+    -4.6
+   ],
+   "y": 0
+  },
+  {
+   "id": "bell",
+   "rect": [
+    3.6,
+    -7.2,
+    5.4,
+    -5.4
+   ],
+   "y": 0
+  },
+  {
+   "id": "odile_area",
+   "rect": [
+    -5,
+    -10.5,
+    6.5,
+    -3
+   ],
+   "y": 0
+  },
+  {
+   "id": "dock_area",
+   "rect": [
+    10.5,
+    4.2,
+    17.8,
+    6.8
+   ],
+   "y": 0.2
+  },
+  {
+   "id": "lamp",
+   "rect": [
+    16.6,
+    5.8,
+    17.8,
+    6.8
+   ],
+   "y": 0.2
+  }
+ ],
+ "vars": {
+  "at_shed": false,
+  "at_brazier": false,
+  "at_bell": false,
+  "near_odile": false,
+  "near_bram": false,
+  "fuel": 0,
+  "shed": 0,
+  "carrying": false,
+  "watch": 0,
+  "secs_left": 0,
+  "phase": 0,
+  "boats_in": 0,
+  "boats_late": 0,
+  "dock_lit": false,
+  "trust": 0,
+  "at_lamp": false
+ },
+ "tidewatch": {
+  "story": "story/tidewatch.story.json",
+  "seed": 11,
+  "watch_secs": 60,
+  "burn_secs": 10,
+  "late_secs": 6,
+  "show": {
+   "fuel": "tw:brazier_fuel",
+   "shed": "tw:shed_fuel",
+   "carrying": "tw:carrying",
+   "watch": "tw:watch",
+   "secs_left": "tw:secs_left",
+   "phase": "tw:phase",
+   "boats_in": "tw:boats_in",
+   "boats_late": "tw:boats_late",
+   "dock_lit": "tw:dock_lit",
+   "trust": "tidewatch:trust_bram"
+  }
+ },
+ "rules": [
+  {
+   "id": "at_shed_in",
+   "when": {
+    "enter": {
+     "zone": "shed"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_shed",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_shed_out",
+   "when": {
+    "exit": {
+     "zone": "shed"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_shed",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_brazier_in",
+   "when": {
+    "enter": {
+     "zone": "brazier"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_brazier",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_brazier_out",
+   "when": {
+    "exit": {
+     "zone": "brazier"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_brazier",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_bell_in",
+   "when": {
+    "enter": {
+     "zone": "bell"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_bell",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_bell_out",
+   "when": {
+    "exit": {
+     "zone": "bell"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_bell",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near_odile_in",
+   "when": {
+    "enter": {
+     "zone": "odile_area"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "near_odile",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near_odile_out",
+   "when": {
+    "exit": {
+     "zone": "odile_area"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "near_odile",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near_bram_in",
+   "when": {
+    "enter": {
+     "zone": "dock_area"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "near_bram",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "near_bram_out",
+   "when": {
+    "exit": {
+     "zone": "dock_area"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "near_bram",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_lamp_in",
+   "when": {
+    "enter": {
+     "zone": "lamp"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_lamp",
+      true
+     ]
+    }
+   ]
+  },
+  {
+   "id": "at_lamp_out",
+   "when": {
+    "exit": {
+     "zone": "lamp"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at_lamp",
+      false
+     ]
+    }
+   ]
+  },
+  {
+   "id": "fire_on",
+   "when": {
+    "every": 0.25
+   },
+   "if": "fuel > 0",
+   "do": [
+    {
+     "show": "fire"
+    }
+   ]
+  },
+  {
+   "id": "fire_off",
+   "when": {
+    "every": 0.25
+   },
+   "if": "fuel == 0",
+   "do": [
+    {
+     "hide": "fire"
+    }
+   ]
+  },
+  {
+   "id": "dock_on",
+   "when": {
+    "every": 0.25
+   },
+   "if": "dock_lit",
+   "do": [
+    {
+     "show": "dock_light"
+    }
+   ]
+  },
+  {
+   "id": "dock_off",
+   "when": {
+    "every": 0.25
+   },
+   "if": "!dock_lit",
+   "do": [
+    {
+     "hide": "dock_light"
+    }
+   ]
+  }
+ ],
+ "ui": {
+  "title": "Tidewatch",
+  "labels": {
+   "fuel": "Brazier",
+   "shed": "Shed",
+   "secs_left": "Watch"
+  },
+  "counters": [
+   {
+    "var": "fuel",
+    "of": 4,
+    "label": "Brazier"
+   },
+   {
+    "var": "shed",
+    "label": "Shed"
+   },
+   {
+    "var": "secs_left",
+    "label": "Watch",
+    "format": "clock"
+   }
+  ],
+  "objective": [
+   {
+    "if": "phase == 2",
+    "text": "Dawn. Boats in: {boats_in}. Late: {boats_late}."
+   },
+   {
+    "if": "phase == 1 && fuel == 0",
+    "text": "The light is out: peat from the shed, now"
+   },
+   {
+    "if": "phase == 1",
+    "text": "Keep the brazier fed: shed to brazier, one brick at a time"
+   },
+   {
+    "if": "watch == 0",
+    "text": "Odile keeps the brazier; Bram waits on the dock. Ring the bell to begin"
+   },
+   {
+    "text": "Ring the bell for the next watch"
+   }
+  ]
+ },
+ "objects": [
+  {
+   "id": "sea",
+   "type": "box",
+   "size": [
+    90,
+    0.2,
+    70
+   ],
+   "position": [
+    0,
+    -0.6,
+    0
+   ],
+   "material": {
+    "color": "#14304a"
+   },
+   "collide": false
+  },
+  {
+   "id": "island",
+   "type": "box",
+   "size": [
+    26,
+    0.4,
+    22
+   ],
+   "position": [
+    -3,
+    -0.2,
+    0
+   ],
+   "material": {
+    "color": "#7d7458"
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "box",
+   "size": [
+    26,
+    0.9,
+    0.5
+   ],
+   "position": [
+    -3,
+    0.45,
+    -11
+   ],
+   "material": {
+    "color": "#55554f"
+   }
+  },
+  {
+   "id": "wall_s",
+   "type": "box",
+   "size": [
+    26,
+    0.9,
+    0.5
+   ],
+   "position": [
+    -3,
+    0.45,
+    11
+   ],
+   "material": {
+    "color": "#55554f"
+   }
+  },
+  {
+   "id": "wall_w",
+   "type": "box",
+   "size": [
+    0.5,
+    0.9,
+    22
+   ],
+   "position": [
+    -16,
+    0.45,
+    0
+   ],
+   "material": {
+    "color": "#55554f"
+   }
+  },
+  {
+   "id": "wall_e_north",
+   "type": "box",
+   "size": [
+    0.5,
+    0.9,
+    15
+   ],
+   "position": [
+    10,
+    0.45,
+    -3.5
+   ],
+   "material": {
+    "color": "#55554f"
+   }
+  },
+  {
+   "id": "wall_e_south",
+   "type": "box",
+   "size": [
+    0.5,
+    0.9,
+    4
+   ],
+   "position": [
+    10,
+    0.45,
+    9
+   ],
+   "material": {
+    "color": "#55554f"
+   }
+  },
+  {
+   "id": "dock",
+   "type": "box",
+   "size": [
+    8,
+    0.3,
+    3
+   ],
+   "position": [
+    14,
+    0.05,
+    5.5
+   ],
+   "material": {
+    "color": "#6b4a2b"
+   }
+  },
+  {
+   "id": "dock_rail_n",
+   "type": "box",
+   "size": [
+    8,
+    0.6,
+    0.15
+   ],
+   "position": [
+    14,
+    0.5,
+    4.0
+   ],
+   "material": {
+    "color": "#4a3420"
+   }
+  },
+  {
+   "id": "dock_rail_s",
+   "type": "box",
+   "size": [
+    8,
+    0.6,
+    0.15
+   ],
+   "position": [
+    14,
+    0.5,
+    7.0
+   ],
+   "material": {
+    "color": "#4a3420"
+   }
+  },
+  {
+   "id": "dock_end",
+   "type": "box",
+   "size": [
+    0.15,
+    0.6,
+    3
+   ],
+   "position": [
+    18,
+    0.5,
+    5.5
+   ],
+   "material": {
+    "color": "#4a3420"
+   }
+  },
+  {
+   "id": "dock_post",
+   "type": "box",
+   "size": [
+    0.2,
+    2.4,
+    0.2
+   ],
+   "position": [
+    17.4,
+    1.4,
+    6.6
+   ],
+   "material": {
+    "color": "#3a2a1a"
+   }
+  },
+  {
+   "id": "dock_light",
+   "type": "sphere",
+   "radius": 0.22,
+   "position": [
+    17.4,
+    2.7,
+    6.6
+   ],
+   "collide": false,
+   "material": {
+    "color": "#ffd27a",
+    "emissive": "#ffb030"
+   }
+  },
+  {
+   "id": "shed",
+   "type": "box",
+   "size": [
+    3,
+    2.2,
+    2.6
+   ],
+   "position": [
+    -11,
+    1.1,
+    3
+   ],
+   "material": {
+    "color": "#5a4632"
+   }
+  },
+  {
+   "id": "shed_roof",
+   "type": "box",
+   "size": [
+    3.4,
+    0.25,
+    3
+   ],
+   "position": [
+    -11,
+    2.3,
+    3
+   ],
+   "material": {
+    "color": "#3b2f24"
+   }
+  },
+  {
+   "id": "peat_stack",
+   "type": "box",
+   "size": [
+    0.9,
+    0.5,
+    0.7
+   ],
+   "position": [
+    -9.2,
+    0.25,
+    2.0
+   ],
+   "material": {
+    "color": "#3a2a1c"
+   }
+  },
+  {
+   "id": "brazier",
+   "type": "cylinder",
+   "radius": 0.6,
+   "height": 1.0,
+   "position": [
+    0,
+    0.5,
+    -6
+   ],
+   "material": {
+    "color": "#4a4a4a",
+    "metallic": 0.6
+   }
+  },
+  {
+   "id": "fire",
+   "type": "sphere",
+   "radius": 0.45,
+   "position": [
+    0,
+    1.25,
+    -6
+   ],
+   "collide": false,
+   "material": {
+    "color": "#ff8a2a",
+    "emissive": "#ff5a10"
+   }
+  },
+  {
+   "id": "bell_post",
+   "type": "box",
+   "size": [
+    0.2,
+    2.2,
+    0.2
+   ],
+   "position": [
+    4.5,
+    1.1,
+    -6.5
+   ],
+   "material": {
+    "color": "#3a2a1a"
+   }
+  },
+  {
+   "id": "bell",
+   "type": "cylinder",
+   "radius": 0.25,
+   "height": 0.35,
+   "position": [
+    4.5,
+    1.9,
+    -6.2
+   ],
+   "collide": false,
+   "material": {
+    "color": "#b08a3a",
+    "metallic": 0.8,
+    "roughness": 0.3
+   }
+  },
+  {
+   "id": "odile",
+   "type": "humanoid",
+   "height": 1.7,
+   "position": [
+    -2.2,
+    0,
+    -7.4
+   ],
+   "rotation": [
+    0,
+    20,
+    0
+   ],
+   "material": {
+    "color": "#4a5a6a"
+   },
+   "hair": "#c8c8c8"
+  },
+  {
+   "id": "bram",
+   "type": "humanoid",
+   "height": 1.75,
+   "position": [
+    16.2,
+    0.2,
+    5.5
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "material": {
+    "color": "#8a3a2a"
+   },
+   "hair": "#3a281c"
+  },
+  {
+   "id": "player",
+   "type": "humanoid",
+   "height": 1.75,
+   "position": [
+    0,
+    0,
+    4
+   ],
+   "collide": false,
+   "material": {
+    "color": "#2f6a4a"
+   },
+   "hair": "#6a4a2a"
+  }
+ ],
+ "checks": {
+  "sim": [
+   {
+    "name": "lend two bricks to Bram before the first watch: real peat moves, Bram saw it, Odile did not",
+    "players": [
+     {
+      "id": "p1",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "13,5.5"
+     },
+     {
+      "player": "p1",
+      "story": "talk",
+      "to": "bram"
+     },
+     {
+      "player": "p1",
+      "story": "until_choice"
+     },
+     {
+      "player": "p1",
+      "story": "choose",
+      "choice": "lend"
+     },
+     {
+      "player": "p1",
+      "story": "until_choice"
+     },
+     {
+      "player": "p1",
+      "wait": 4
+     }
+    ],
+    "max_seconds": 30,
+    "expect": [
+     {
+      "var": "shed",
+      "eq": 3
+     },
+     {
+      "var": "dock_lit",
+      "eq": true
+     },
+     {
+      "game": "story",
+      "path": "facts.lent_fuel",
+      "eq": 1
+     },
+     {
+      "game": "tidewatch:fuel_lent",
+      "path": "known_by.0.who",
+      "eq": "bram"
+     },
+     {
+      "game": "story",
+      "path": "heard.lent_cheer",
+      "eq": 1
+     }
+    ]
+   },
+   {
+    "name": "keep the light through the first watch and the boat comes in",
+    "players": [
+     {
+      "id": "p1",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "4.5,-5.8"
+     },
+     {
+      "player": "p1",
+      "walk": "3,-4.3"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.6,3"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-4.9"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.6,3"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-4.9"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.6,3"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-4.9"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.6,3"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-4.9"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.6,3"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-4.9"
+     },
+     {
+      "player": "p1",
+      "wait": 40
+     }
+    ],
+    "max_seconds": 80,
+    "inspect": [
+     "tw:night"
+    ],
+    "expect": [
+     {
+      "var": "boats_in",
+      "eq": 1
+     },
+     {
+      "var": "phase",
+      "eq": 0
+     },
+     {
+      "game": "story",
+      "path": "heard.intro_first",
+      "eq": 1
+     },
+     {
+      "game": "story",
+      "path": "chosen.ended_safe",
+      "eq": 1
+     }
+    ]
+   },
+   {
+    "name": "a dark first watch is remembered when the second begins",
+    "players": [
+     {
+      "id": "p1",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "4.5,-5.8"
+     },
+     {
+      "player": "p1",
+      "walk": "3,-4.3"
+     },
+     {
+      "player": "p1",
+      "wait": 62
+     },
+     {
+      "player": "p1",
+      "walk": "4.5,-5.8"
+     },
+     {
+      "player": "p1",
+      "walk": "3,-4.3"
+     },
+     {
+      "player": "p1",
+      "wait": 3
+     }
+    ],
+    "max_seconds": 80,
+    "expect": [
+     {
+      "var": "boats_late",
+      "eq": 1
+     },
+     {
+      "var": "watch",
+      "eq": 2
+     },
+     {
+      "game": "story",
+      "path": "chosen.intro_second_dark",
+      "eq": 1
+     },
+     {
+      "game": "story",
+      "path": "chosen.ended_late",
+      "eq": 1
+     }
+    ]
+   }
+  ]
+ },
+ "hud": {
+  "show_rules_vars": false
+ }
+}

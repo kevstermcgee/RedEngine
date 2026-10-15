@@ -770,6 +770,15 @@ impl MatchSim {
         self.game.as_ref()?.inspect(self, target)
     }
 
+    /// Player `slot`'s intention for the match's game ([`MatchGame::intend`]), recorded in the trace; the game's refusal, or that the match
+    /// has no game, is the error.
+    pub fn intend(&mut self, slot: usize, intent: &crate::sim::game::Intent) -> Result<(), String> {
+        if let Some(r) = &mut self.recorder {
+            r.entries.push(Entry::Intent { tick: self.tick, slot, intent: intent.clone() });
+        }
+        self.with_game(|g, s| g.intend(s, slot, intent)).unwrap_or_else(|| Err(format!("this match has no game to take `{}`", intent.name)))
+    }
+
     /// Sets the scene variable `name` (declared in its `vars`): how a match game shows the scene's rules, HUD, objective and scenarios what
     /// its own state says. `false` (and nothing changes) when the scene does not declare it.
     pub fn set_var(&mut self, name: &str, value: f64) -> bool {
