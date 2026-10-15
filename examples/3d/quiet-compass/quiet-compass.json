@@ -1,0 +1,3165 @@
+{
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "primary": "#7fd6c2",
+   "secondary": "#e8a0bf",
+   "accent": "#ffd27a",
+   "stone": "#6a6584",
+   "floor": "#2a2740",
+   "wall": "#3b3556",
+   "trim": "#cdbfe0",
+   "lamp": "#ffcf8a",
+   "wood": "#4b3a52"
+  },
+  "materials": {
+   "tile_out": {
+    "color": "#4a3d63",
+    "roughness": 0.9
+   },
+   "tile_mid": {
+    "color": "#3a3358",
+    "roughness": 0.9
+   },
+   "tile_core": {
+    "color": "#2d2848",
+    "roughness": 0.8
+   },
+   "stone": {
+    "color": "@stone",
+    "roughness": 0.9
+   },
+   "cloth": {
+    "color": "@secondary",
+    "roughness": 1.0
+   }
+  },
+  "light": {
+   "ambient": {
+    "color": "#5b4f86",
+    "intensity": 0.45
+   },
+   "lamp": {
+    "color": "#ffcf8a",
+    "intensity": 11
+   }
+  },
+  "sky": {
+   "top": "#120d26",
+   "bottom": "#5a3a6a"
+  },
+  "fog": {
+   "color": "#2a1f45",
+   "density": 0.012
+  },
+  "post": {
+   "ao": 0.8,
+   "outline": 0.4
+  }
+ },
+ "camera": {
+  "fov": 75,
+  "position": [
+   0,
+   4.7,
+   4
+  ],
+  "target": [
+   0,
+   4.2,
+   0
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 4,
+  "jump_speed": 4,
+  "mode": "peaceful"
+ },
+ "hud": {
+  "show_rules_vars": false
+ },
+ "music": false,
+ "audio": {
+  "music": {
+   "night": "audio/lullaby.json",
+   "dusk": "audio/lullaby.json",
+   "dawn": "audio/lullaby.json",
+   "day": "audio/lullaby.json"
+  },
+  "music_volume": 0.7
+ },
+ "lights": [
+  {
+   "id": "lamp_core",
+   "type": "point",
+   "position": [
+    0,
+    6.5,
+    0
+   ],
+   "color": "@lamp",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "lamp_n",
+   "type": "point",
+   "position": [
+    0,
+    6.0,
+    10
+   ],
+   "color": "#9f8cff",
+   "intensity": 8,
+   "range": 12
+  },
+  {
+   "id": "lamp_s",
+   "type": "point",
+   "position": [
+    0,
+    6.0,
+    -10
+   ],
+   "color": "#9f8cff",
+   "intensity": 8,
+   "range": 12
+  },
+  {
+   "id": "lamp_e",
+   "type": "point",
+   "position": [
+    10,
+    6.0,
+    0
+   ],
+   "color": "#9f8cff",
+   "intensity": 8,
+   "range": 12
+  },
+  {
+   "id": "lamp_w",
+   "type": "point",
+   "position": [
+    -10,
+    6.0,
+    0
+   ],
+   "color": "#9f8cff",
+   "intensity": 8,
+   "range": 12
+  }
+ ],
+ "zones": [
+  {
+   "id": "z_soft",
+   "rect": [
+    -4.8,
+    -4.2,
+    -3.2,
+    -2.2
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "z_forget",
+   "rect": [
+    -2.8,
+    -4.2,
+    -1.2,
+    -2.2
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "z_hush",
+   "rect": [
+    -0.8,
+    -4.2,
+    0.8,
+    -2.2
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "z_anchor",
+   "rect": [
+    1.2,
+    -4.2,
+    2.8,
+    -2.2
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "z_compass",
+   "rect": [
+    3.2,
+    -4.2,
+    4.8,
+    -2.2
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "exit_n",
+   "rect": [
+    -1.4,
+    6.6,
+    1.4,
+    9.0
+   ],
+   "y": 3.0,
+   "kind": "goal"
+  },
+  {
+   "id": "exit_e",
+   "rect": [
+    6.6,
+    -1.4,
+    9.0,
+    1.4
+   ],
+   "y": 3.0,
+   "kind": "goal"
+  },
+  {
+   "id": "exit_s",
+   "rect": [
+    -1.4,
+    -9.0,
+    1.4,
+    -6.6
+   ],
+   "y": 3.0,
+   "kind": "goal"
+  },
+  {
+   "id": "exit_w",
+   "rect": [
+    -9.0,
+    -1.4,
+    -6.6,
+    1.4
+   ],
+   "y": 3.0,
+   "kind": "goal"
+  },
+  {
+   "id": "field_n",
+   "rect": [
+    -5,
+    10,
+    5,
+    15
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "field_e",
+   "rect": [
+    10,
+    -5,
+    15,
+    5
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "field_s",
+   "rect": [
+    -5,
+    -15,
+    5,
+    -10
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "field_w",
+   "rect": [
+    -15,
+    -5,
+    -10,
+    5
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "core",
+   "rect": [
+    -5,
+    -5,
+    5,
+    5
+   ],
+   "y": 3.0,
+   "kind": "room"
+  },
+  {
+   "id": "abyss",
+   "rect": [
+    -40,
+    -40,
+    40,
+    40
+   ],
+   "y": 0,
+   "kind": "hazard"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    0,
+    3.0,
+    0
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  }
+ ],
+ "prefabs": {
+  "sleeper": {
+   "mount": "floor",
+   "desc": "a sleeping friend wrapped in a blanket",
+   "params": {
+    "blanket": {
+     "default": "#e8a0bf",
+     "palette": "secondary"
+    },
+    "skin": {
+     "default": "#cdbfe0",
+     "palette": "trim"
+    }
+   },
+   "objects": [
+    {
+     "id": "body",
+     "type": "box",
+     "size": [
+      0.9,
+      0.35,
+      0.5
+     ],
+     "position": [
+      0,
+      0.18,
+      0
+     ],
+     "material": {
+      "color": "$blanket",
+      "preset": "cloth"
+     }
+    },
+    {
+     "id": "head",
+     "type": "sphere",
+     "radius": 0.2,
+     "position": [
+      -0.5,
+      0.22,
+      0
+     ],
+     "material": {
+      "color": "$skin",
+      "emissive": "@primary"
+     }
+    },
+    {
+     "id": "zz",
+     "type": "sphere",
+     "radius": 0.06,
+     "position": [
+      -0.5,
+      0.5,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "@primary",
+      "emissive": "@primary",
+      "opacity": 0.7
+     }
+    }
+   ]
+  },
+  "memory": {
+   "desc": "a drifting memory: a gold bead in a halo",
+   "params": {
+    "c": {
+     "default": "#ffd27a",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "bead",
+     "type": "sphere",
+     "radius": 0.18,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c"
+     }
+    },
+    {
+     "id": "halo",
+     "type": "cylinder",
+     "radius": 0.34,
+     "height": 0.02,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      70,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c",
+      "opacity": 0.5
+     }
+    }
+   ]
+  },
+  "rune_plinth": {
+   "desc": "a stone plinth for a skill rune",
+   "params": {
+    "c": {
+     "default": "#6a6584",
+     "palette": "stone"
+    },
+    "rune": {
+     "default": "#7fd6c2",
+     "palette": "primary"
+    }
+   },
+   "objects": [
+    {
+     "id": "base",
+     "type": "box",
+     "size": [
+      1.1,
+      0.7,
+      1.1
+     ],
+     "position": [
+      0,
+      0.35,
+      0
+     ],
+     "material": {
+      "color": "$c",
+      "preset": "stone"
+     }
+    },
+    {
+     "id": "cap",
+     "type": "box",
+     "size": [
+      0.8,
+      0.06,
+      0.8
+     ],
+     "position": [
+      0,
+      0.73,
+      0
+     ],
+     "material": {
+      "color": "$rune",
+      "emissive": "$rune",
+      "opacity": 0.6
+     }
+    },
+    {
+     "id": "post",
+     "type": "cylinder",
+     "radius": 0.06,
+     "height": 1.1,
+     "position": [
+      0,
+      1.3,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$rune"
+     }
+    }
+   ]
+  },
+  "rune_glow": {
+   "desc": "the lit rune above a plinth",
+   "params": {
+    "rune": {
+     "default": "#ffd27a",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "orb",
+     "type": "sphere",
+     "radius": 0.28,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$rune",
+      "emissive": "$rune"
+     }
+    }
+   ]
+  },
+  "door_arch": {
+   "desc": "a doorway of the house; any of four could be the way out",
+   "params": {
+    "c": {
+     "default": "#cdbfe0",
+     "palette": "trim"
+    }
+   },
+   "objects": [
+    {
+     "id": "l",
+     "type": "box",
+     "size": [
+      0.3,
+      2.6,
+      0.4
+     ],
+     "position": [
+      -1.7,
+      1.3,
+      0
+     ],
+     "material": {
+      "color": "$c",
+      "preset": "stone"
+     }
+    },
+    {
+     "id": "r",
+     "type": "box",
+     "size": [
+      0.3,
+      2.6,
+      0.4
+     ],
+     "position": [
+      1.7,
+      1.3,
+      0
+     ],
+     "material": {
+      "color": "$c",
+      "preset": "stone"
+     }
+    },
+    {
+     "id": "top",
+     "type": "box",
+     "size": [
+      3.7,
+      0.3,
+      0.4
+     ],
+     "position": [
+      0,
+      2.75,
+      0
+     ],
+     "material": {
+      "color": "$c",
+      "preset": "stone"
+     }
+    }
+   ]
+  },
+  "beacon": {
+   "desc": "a pillar of light",
+   "params": {
+    "c": {
+     "default": "#7fd6c2",
+     "palette": "primary"
+    }
+   },
+   "objects": [
+    {
+     "id": "beam",
+     "type": "cylinder",
+     "radius": 0.5,
+     "height": 9,
+     "position": [
+      0,
+      4.5,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c",
+      "opacity": 0.35
+     }
+    }
+   ]
+  }
+ },
+ "vars": {
+  "left": 82,
+  "wake": 0,
+  "mem": 0,
+  "slots": 0,
+  "rooms": 0,
+  "_sk_soft": 0,
+  "_sk_forget": 0,
+  "_sk_hush": 0,
+  "_sk_anchor": 0,
+  "_sk_compass": 0,
+  "_ig_n": 0,
+  "_ig_e": 0,
+  "_ig_s": 0,
+  "_ig_w": 0,
+  "carry": 0,
+  "at": 0,
+  "exit_at": 1,
+  "t": 0,
+  "stage": 0,
+  "room": 1
+ },
+ "rules": [
+  {
+   "id": "sell_soft",
+   "when": {
+    "enter": {
+     "zone": "z_soft"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_soft",
+      0
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      -1
+     ]
+    },
+    {
+     "hide": "glow_soft"
+    },
+    {
+     "emit": "sold"
+    }
+   ],
+   "if": "_sk_soft == 1"
+  },
+  {
+   "id": "buy_soft",
+   "when": {
+    "enter": {
+     "zone": "z_soft"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_soft",
+      1
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      -1
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      1
+     ]
+    },
+    {
+     "show": "glow_soft"
+    },
+    {
+     "emit": "bought"
+    }
+   ],
+   "if": "_sk_soft == 0 && slots < 3 && mem >= 1"
+  },
+  {
+   "id": "refuse_soft",
+   "when": {
+    "enter": {
+     "zone": "z_soft"
+    }
+   },
+   "do": [
+    {
+     "emit": "refused"
+    }
+   ],
+   "if": "_sk_soft == 0 && (slots >= 3 || mem < 1)"
+  },
+  {
+   "id": "sell_forget",
+   "when": {
+    "enter": {
+     "zone": "z_forget"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_forget",
+      0
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      -1
+     ]
+    },
+    {
+     "hide": "glow_forget"
+    },
+    {
+     "emit": "sold"
+    }
+   ],
+   "if": "_sk_forget == 1"
+  },
+  {
+   "id": "buy_forget",
+   "when": {
+    "enter": {
+     "zone": "z_forget"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_forget",
+      1
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      -1
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      1
+     ]
+    },
+    {
+     "show": "glow_forget"
+    },
+    {
+     "emit": "bought"
+    }
+   ],
+   "if": "_sk_forget == 0 && slots < 3 && mem >= 1"
+  },
+  {
+   "id": "refuse_forget",
+   "when": {
+    "enter": {
+     "zone": "z_forget"
+    }
+   },
+   "do": [
+    {
+     "emit": "refused"
+    }
+   ],
+   "if": "_sk_forget == 0 && (slots >= 3 || mem < 1)"
+  },
+  {
+   "id": "sell_hush",
+   "when": {
+    "enter": {
+     "zone": "z_hush"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_hush",
+      0
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      -1
+     ]
+    },
+    {
+     "hide": "glow_hush"
+    },
+    {
+     "emit": "sold"
+    }
+   ],
+   "if": "_sk_hush == 1"
+  },
+  {
+   "id": "buy_hush",
+   "when": {
+    "enter": {
+     "zone": "z_hush"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_hush",
+      1
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      -2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      1
+     ]
+    },
+    {
+     "show": "glow_hush"
+    },
+    {
+     "emit": "bought"
+    }
+   ],
+   "if": "_sk_hush == 0 && slots < 3 && mem >= 2"
+  },
+  {
+   "id": "refuse_hush",
+   "when": {
+    "enter": {
+     "zone": "z_hush"
+    }
+   },
+   "do": [
+    {
+     "emit": "refused"
+    }
+   ],
+   "if": "_sk_hush == 0 && (slots >= 3 || mem < 2)"
+  },
+  {
+   "id": "sell_anchor",
+   "when": {
+    "enter": {
+     "zone": "z_anchor"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_anchor",
+      0
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      -1
+     ]
+    },
+    {
+     "hide": "glow_anchor"
+    },
+    {
+     "emit": "sold"
+    }
+   ],
+   "if": "_sk_anchor == 1"
+  },
+  {
+   "id": "buy_anchor",
+   "when": {
+    "enter": {
+     "zone": "z_anchor"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_anchor",
+      1
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      -2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      1
+     ]
+    },
+    {
+     "show": "glow_anchor"
+    },
+    {
+     "emit": "bought"
+    }
+   ],
+   "if": "_sk_anchor == 0 && slots < 3 && mem >= 2"
+  },
+  {
+   "id": "refuse_anchor",
+   "when": {
+    "enter": {
+     "zone": "z_anchor"
+    }
+   },
+   "do": [
+    {
+     "emit": "refused"
+    }
+   ],
+   "if": "_sk_anchor == 0 && (slots >= 3 || mem < 2)"
+  },
+  {
+   "id": "sell_compass",
+   "when": {
+    "enter": {
+     "zone": "z_compass"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_compass",
+      0
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      -1
+     ]
+    },
+    {
+     "hide": "glow_compass"
+    },
+    {
+     "emit": "sold"
+    }
+   ],
+   "if": "_sk_compass == 1"
+  },
+  {
+   "id": "buy_compass",
+   "when": {
+    "enter": {
+     "zone": "z_compass"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_sk_compass",
+      1
+     ]
+    },
+    {
+     "add": [
+      "mem",
+      -2
+     ]
+    },
+    {
+     "add": [
+      "slots",
+      1
+     ]
+    },
+    {
+     "show": "glow_compass"
+    },
+    {
+     "emit": "bought"
+    }
+   ],
+   "if": "_sk_compass == 0 && slots < 3 && mem >= 2"
+  },
+  {
+   "id": "refuse_compass",
+   "when": {
+    "enter": {
+     "zone": "z_compass"
+    }
+   },
+   "do": [
+    {
+     "emit": "refused"
+    }
+   ],
+   "if": "_sk_compass == 0 && (slots >= 3 || mem < 2)"
+  },
+  {
+   "id": "hide_glows",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "hide": "glow_soft"
+    },
+    {
+     "hide": "glow_forget"
+    },
+    {
+     "hide": "glow_hush"
+    },
+    {
+     "hide": "glow_anchor"
+    },
+    {
+     "hide": "glow_compass"
+    },
+    {
+     "hide": "beacon_n"
+    },
+    {
+     "hide": "beacon_e"
+    },
+    {
+     "hide": "beacon_s"
+    },
+    {
+     "hide": "beacon_w"
+    }
+   ]
+  },
+  {
+   "id": "take_mem_n1",
+   "when": {
+    "enter": {
+     "object": "mem_n1",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_n1"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_n2",
+   "when": {
+    "enter": {
+     "object": "mem_n2",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_n2"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_n3",
+   "when": {
+    "enter": {
+     "object": "mem_n3",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_n3"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_n4",
+   "when": {
+    "enter": {
+     "object": "mem_n4",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_n4"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_e1",
+   "when": {
+    "enter": {
+     "object": "mem_e1",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_e1"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_e2",
+   "when": {
+    "enter": {
+     "object": "mem_e2",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_e2"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_e3",
+   "when": {
+    "enter": {
+     "object": "mem_e3",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_e3"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_e4",
+   "when": {
+    "enter": {
+     "object": "mem_e4",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_e4"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_s1",
+   "when": {
+    "enter": {
+     "object": "mem_s1",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_s1"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_s2",
+   "when": {
+    "enter": {
+     "object": "mem_s2",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_s2"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_s3",
+   "when": {
+    "enter": {
+     "object": "mem_s3",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_s3"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_s4",
+   "when": {
+    "enter": {
+     "object": "mem_s4",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_s4"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_w1",
+   "when": {
+    "enter": {
+     "object": "mem_w1",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_w1"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_w2",
+   "when": {
+    "enter": {
+     "object": "mem_w2",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_w2"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_w3",
+   "when": {
+    "enter": {
+     "object": "mem_w3",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_w3"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "take_mem_w4",
+   "when": {
+    "enter": {
+     "object": "mem_w4",
+     "pad": 0.5
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "mem",
+      1
+     ]
+    },
+    {
+     "hide": "mem_w4"
+    },
+    {
+     "emit": "memory"
+    }
+   ],
+   "if": "held(friend) == 0"
+  },
+  {
+   "id": "in_n",
+   "when": {
+    "enter": {
+     "zone": "field_n"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_ig_n",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "out_n",
+   "when": {
+    "exit": {
+     "zone": "field_n"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      0
+     ]
+    }
+   ],
+   "if": "at == 1"
+  },
+  {
+   "id": "in_e",
+   "when": {
+    "enter": {
+     "zone": "field_e"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_ig_e",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "out_e",
+   "when": {
+    "exit": {
+     "zone": "field_e"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      0
+     ]
+    }
+   ],
+   "if": "at == 2"
+  },
+  {
+   "id": "in_s",
+   "when": {
+    "enter": {
+     "zone": "field_s"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_ig_s",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "out_s",
+   "when": {
+    "exit": {
+     "zone": "field_s"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      0
+     ]
+    }
+   ],
+   "if": "at == 3"
+  },
+  {
+   "id": "in_w",
+   "when": {
+    "enter": {
+     "zone": "field_w"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      4
+     ]
+    },
+    {
+     "set": [
+      "_ig_w",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "out_w",
+   "when": {
+    "exit": {
+     "zone": "field_w"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "at",
+      0
+     ]
+    }
+   ],
+   "if": "at == 4"
+  },
+  {
+   "id": "age_n",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "_ig_n",
+      "1 - 0.5 * _sk_forget"
+     ]
+    }
+   ],
+   "if": "at != 1"
+  },
+  {
+   "id": "age_e",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "_ig_e",
+      "1 - 0.5 * _sk_forget"
+     ]
+    }
+   ],
+   "if": "at != 2"
+  },
+  {
+   "id": "age_s",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "_ig_s",
+      "1 - 0.5 * _sk_forget"
+     ]
+    }
+   ],
+   "if": "at != 3"
+  },
+  {
+   "id": "age_w",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "_ig_w",
+      "1 - 0.5 * _sk_forget"
+     ]
+    }
+   ],
+   "if": "at != 4"
+  },
+  {
+   "id": "pick_exit",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "set": [
+      "exit_at",
+      "(_ig_n >= _ig_e && _ig_n >= _ig_s && _ig_n >= _ig_w) * 1 + (_ig_e > _ig_n && _ig_e >= _ig_s && _ig_e >= _ig_w) * 2 + (_ig_s > _ig_n && _ig_s > _ig_e && _ig_s >= _ig_w) * 3 + (_ig_w > _ig_n && _ig_w > _ig_e && _ig_w > _ig_s) * 4"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "beam_on_n",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "show": "beacon_n"
+    }
+   ],
+   "if": "exit_at == 1 && _sk_compass == 1"
+  },
+  {
+   "id": "beam_off_n",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "hide": "beacon_n"
+    }
+   ],
+   "if": "exit_at != 1 || _sk_compass == 0"
+  },
+  {
+   "id": "beam_on_e",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "show": "beacon_e"
+    }
+   ],
+   "if": "exit_at == 2 && _sk_compass == 1"
+  },
+  {
+   "id": "beam_off_e",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "hide": "beacon_e"
+    }
+   ],
+   "if": "exit_at != 2 || _sk_compass == 0"
+  },
+  {
+   "id": "beam_on_s",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "show": "beacon_s"
+    }
+   ],
+   "if": "exit_at == 3 && _sk_compass == 1"
+  },
+  {
+   "id": "beam_off_s",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "hide": "beacon_s"
+    }
+   ],
+   "if": "exit_at != 3 || _sk_compass == 0"
+  },
+  {
+   "id": "beam_on_w",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "show": "beacon_w"
+    }
+   ],
+   "if": "exit_at == 4 && _sk_compass == 1"
+  },
+  {
+   "id": "beam_off_w",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "hide": "beacon_w"
+    }
+   ],
+   "if": "exit_at != 4 || _sk_compass == 0"
+  },
+  {
+   "id": "lull",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "wake",
+      "(1.5 - held(friend)) * (1 - 0.5 * _sk_hush)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pickup_f",
+   "when": {
+    "event": "pickup",
+    "prop": "friend"
+   },
+   "do": [
+    {
+     "set": [
+      "carry",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "jolt",
+   "when": {
+    "event": "drop",
+    "prop": "friend"
+   },
+   "do": [
+    {
+     "set": [
+      "carry",
+      0
+     ]
+    },
+    {
+     "add": [
+      "wake",
+      "10 * (1 - _sk_soft)"
+     ]
+    },
+    {
+     "emit": "jolted"
+    }
+   ]
+  },
+  {
+   "id": "woke",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "emit": "defeat_woke"
+    },
+    {
+     "end": "woke"
+    }
+   ],
+   "if": "wake >= 100"
+  },
+  {
+   "id": "tick",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "t",
+      "1 - 0.4 * _sk_anchor"
+     ]
+    },
+    {
+     "set": [
+      "left",
+      "82 - t"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "crumble1",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "deactivate": "tile_out_n"
+    },
+    {
+     "deactivate": "tile_out_s"
+    },
+    {
+     "deactivate": "tile_out_e"
+    },
+    {
+     "deactivate": "tile_out_w"
+    },
+    {
+     "set": [
+      "stage",
+      1
+     ]
+    },
+    {
+     "emit": "crumble"
+    }
+   ],
+   "if": "t >= 40 && stage == 0"
+  },
+  {
+   "id": "crumble2",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "deactivate": "tile_mid_n"
+    },
+    {
+     "deactivate": "tile_mid_s"
+    },
+    {
+     "deactivate": "tile_mid_e"
+    },
+    {
+     "deactivate": "tile_mid_w"
+    },
+    {
+     "set": [
+      "stage",
+      2
+     ]
+    },
+    {
+     "emit": "crumble"
+    }
+   ],
+   "if": "t >= 62 && stage == 1"
+  },
+  {
+   "id": "crumble3",
+   "when": {
+    "every": 0.5
+   },
+   "do": [
+    {
+     "deactivate": "tile_core"
+    },
+    {
+     "set": [
+      "stage",
+      3
+     ]
+    },
+    {
+     "emit": "crumble"
+    }
+   ],
+   "if": "t >= 82 && stage == 2"
+  },
+  {
+   "id": "fall",
+   "when": {
+    "enter": {
+     "zone": "abyss",
+     "height": 2
+    }
+   },
+   "do": [
+    {
+     "emit": "fell"
+    },
+    {
+     "end": "fell"
+    }
+   ]
+  },
+  {
+   "id": "deliver_n",
+   "when": {
+    "enter": {
+     "zone": "exit_n"
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "rooms",
+      1
+     ]
+    },
+    {
+     "emit": "room_done"
+    }
+   ],
+   "if": "exit_at == 1 && held(friend) == 1"
+  },
+  {
+   "id": "deliver_e",
+   "when": {
+    "enter": {
+     "zone": "exit_e"
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "rooms",
+      1
+     ]
+    },
+    {
+     "emit": "room_done"
+    }
+   ],
+   "if": "exit_at == 2 && held(friend) == 1"
+  },
+  {
+   "id": "deliver_s",
+   "when": {
+    "enter": {
+     "zone": "exit_s"
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "rooms",
+      1
+     ]
+    },
+    {
+     "emit": "room_done"
+    }
+   ],
+   "if": "exit_at == 3 && held(friend) == 1"
+  },
+  {
+   "id": "deliver_w",
+   "when": {
+    "enter": {
+     "zone": "exit_w"
+    }
+   },
+   "do": [
+    {
+     "add": [
+      "rooms",
+      1
+     ]
+    },
+    {
+     "emit": "room_done"
+    }
+   ],
+   "if": "exit_at == 4 && held(friend) == 1"
+  },
+  {
+   "id": "win",
+   "when": {
+    "event": "room_done"
+   },
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ],
+   "if": "rooms >= 3"
+  },
+  {
+   "id": "next_room",
+   "when": {
+    "event": "room_done"
+   },
+   "do": [
+    {
+     "activate": "tile_out_n"
+    },
+    {
+     "activate": "tile_out_s"
+    },
+    {
+     "activate": "tile_out_e"
+    },
+    {
+     "activate": "tile_out_w"
+    },
+    {
+     "activate": "tile_mid_n"
+    },
+    {
+     "activate": "tile_mid_s"
+    },
+    {
+     "activate": "tile_mid_e"
+    },
+    {
+     "activate": "tile_mid_w"
+    },
+    {
+     "activate": "tile_core"
+    },
+    {
+     "show": "mem_n1"
+    },
+    {
+     "show": "mem_n2"
+    },
+    {
+     "show": "mem_n3"
+    },
+    {
+     "show": "mem_n4"
+    },
+    {
+     "show": "mem_e1"
+    },
+    {
+     "show": "mem_e2"
+    },
+    {
+     "show": "mem_e3"
+    },
+    {
+     "show": "mem_e4"
+    },
+    {
+     "show": "mem_s1"
+    },
+    {
+     "show": "mem_s2"
+    },
+    {
+     "show": "mem_s3"
+    },
+    {
+     "show": "mem_s4"
+    },
+    {
+     "show": "mem_w1"
+    },
+    {
+     "show": "mem_w2"
+    },
+    {
+     "show": "mem_w3"
+    },
+    {
+     "show": "mem_w4"
+    },
+    {
+     "set": [
+      "stage",
+      0
+     ]
+    },
+    {
+     "set": [
+      "t",
+      "rooms * 12"
+     ]
+    },
+    {
+     "set": [
+      "left",
+      "82 - t"
+     ]
+    },
+    {
+     "set": [
+      "wake",
+      "max(0, wake - 20)"
+     ]
+    },
+    {
+     "add": [
+      "room",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_ig_n",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_ig_e",
+      "4 * (rooms == 1)"
+     ]
+    },
+    {
+     "set": [
+      "_ig_s",
+      "8 * (rooms == 2)"
+     ]
+    },
+    {
+     "set": [
+      "_ig_w",
+      0
+     ]
+    },
+    {
+     "set": [
+      "exit_at",
+      1
+     ]
+    },
+    {
+     "place": [
+      "friend",
+      [
+       0,
+       3.6,
+       2.5
+      ]
+     ]
+    },
+    {
+     "teleport": "start"
+    }
+   ],
+   "if": "rooms < 3"
+  }
+ ],
+ "ui": {
+  "title": "Quiet Compass",
+  "labels": {
+   "mem": "Memories",
+   "slots": "Skills held",
+   "wake": "Friend stirring",
+   "left": "House crumbles",
+   "rooms": "Rooms done",
+   "exit_at": "Exit"
+  },
+  "counters": [
+   {
+    "var": "left",
+    "label": "House crumbles",
+    "format": "clock"
+   },
+   {
+    "var": "wake",
+    "of": 100,
+    "label": "Friend stirring"
+   },
+   {
+    "var": "mem",
+    "label": "Memories"
+   },
+   {
+    "var": "slots",
+    "of": 3,
+    "label": "Skills held"
+   },
+   {
+    "var": "rooms",
+    "of": 3,
+    "label": "Rooms done"
+   }
+  ],
+  "objective": [
+   {
+    "if": "carry == 1",
+    "text": "Carry them to the exit. It is the door you have ignored longest."
+   },
+   {
+    "text": "Gather memories from the four far rooms (hands free), spend them on runes, then lift your friend (E)."
+   }
+  ],
+  "start": {
+   "title": "Quiet Compass",
+   "text": "A ghost must carry a sleeping friend through three rooms before the house is sold. Memories buy skills, but you hold only three, and the exit drifts toward whatever you ignore the longest. The house crumbles from its edges.",
+   "button": "Begin"
+  },
+  "end": {
+   "victory": {
+    "title": "Home, quietly",
+    "text": "Rooms done: {rooms}. They never stirred.",
+    "button": "Again"
+   },
+   "woke": {
+    "title": "They woke",
+    "text": "The chore stays unfinished.",
+    "button": "Try again"
+   },
+   "fell": {
+    "title": "The floor is gone",
+    "text": "The house took the edges, then the middle.",
+    "button": "Try again"
+   },
+   "default": {
+    "title": "The end",
+    "button": "Again"
+   }
+  }
+ },
+ "objects": [
+  {
+   "id": "tile_out_n",
+   "type": "box",
+   "size": [
+    30,
+    0.5,
+    5
+   ],
+   "position": [
+    0,
+    2.75,
+    12.5
+   ],
+   "material": {
+    "preset": "tile_out"
+   }
+  },
+  {
+   "id": "tile_out_s",
+   "type": "box",
+   "size": [
+    30,
+    0.5,
+    5
+   ],
+   "position": [
+    0,
+    2.75,
+    -12.5
+   ],
+   "material": {
+    "preset": "tile_out"
+   }
+  },
+  {
+   "id": "tile_out_e",
+   "type": "box",
+   "size": [
+    5,
+    0.5,
+    20
+   ],
+   "position": [
+    12.5,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "tile_out"
+   }
+  },
+  {
+   "id": "tile_out_w",
+   "type": "box",
+   "size": [
+    5,
+    0.5,
+    20
+   ],
+   "position": [
+    -12.5,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "tile_out"
+   }
+  },
+  {
+   "id": "tile_mid_n",
+   "type": "box",
+   "size": [
+    20,
+    0.5,
+    5
+   ],
+   "position": [
+    0,
+    2.75,
+    7.5
+   ],
+   "material": {
+    "preset": "tile_mid"
+   }
+  },
+  {
+   "id": "tile_mid_s",
+   "type": "box",
+   "size": [
+    20,
+    0.5,
+    5
+   ],
+   "position": [
+    0,
+    2.75,
+    -7.5
+   ],
+   "material": {
+    "preset": "tile_mid"
+   }
+  },
+  {
+   "id": "tile_mid_e",
+   "type": "box",
+   "size": [
+    5,
+    0.5,
+    10
+   ],
+   "position": [
+    7.5,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "tile_mid"
+   }
+  },
+  {
+   "id": "tile_mid_w",
+   "type": "box",
+   "size": [
+    5,
+    0.5,
+    10
+   ],
+   "position": [
+    -7.5,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "tile_mid"
+   }
+  },
+  {
+   "id": "tile_core",
+   "type": "box",
+   "size": [
+    10,
+    0.5,
+    10
+   ],
+   "position": [
+    0,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "tile_core"
+   }
+  },
+  {
+   "id": "friend",
+   "type": "prefab",
+   "prefab": "sleeper",
+   "position": [
+    0,
+    3.0,
+    2.5
+   ],
+   "movable": true
+  },
+  {
+   "id": "altar_soft",
+   "type": "prefab",
+   "prefab": "rune_plinth",
+   "position": [
+    -4,
+    3.0,
+    -3.2
+   ]
+  },
+  {
+   "id": "glow_soft",
+   "type": "prefab",
+   "prefab": "rune_glow",
+   "position": [
+    -4,
+    4.15,
+    -3.2
+   ],
+   "collide": false
+  },
+  {
+   "id": "altar_forget",
+   "type": "prefab",
+   "prefab": "rune_plinth",
+   "position": [
+    -2,
+    3.0,
+    -3.2
+   ]
+  },
+  {
+   "id": "glow_forget",
+   "type": "prefab",
+   "prefab": "rune_glow",
+   "position": [
+    -2,
+    4.15,
+    -3.2
+   ],
+   "collide": false
+  },
+  {
+   "id": "altar_hush",
+   "type": "prefab",
+   "prefab": "rune_plinth",
+   "position": [
+    0,
+    3.0,
+    -3.2
+   ]
+  },
+  {
+   "id": "glow_hush",
+   "type": "prefab",
+   "prefab": "rune_glow",
+   "position": [
+    0,
+    4.15,
+    -3.2
+   ],
+   "collide": false
+  },
+  {
+   "id": "altar_anchor",
+   "type": "prefab",
+   "prefab": "rune_plinth",
+   "position": [
+    2,
+    3.0,
+    -3.2
+   ]
+  },
+  {
+   "id": "glow_anchor",
+   "type": "prefab",
+   "prefab": "rune_glow",
+   "position": [
+    2,
+    4.15,
+    -3.2
+   ],
+   "collide": false
+  },
+  {
+   "id": "altar_compass",
+   "type": "prefab",
+   "prefab": "rune_plinth",
+   "position": [
+    4,
+    3.0,
+    -3.2
+   ]
+  },
+  {
+   "id": "glow_compass",
+   "type": "prefab",
+   "prefab": "rune_glow",
+   "position": [
+    4,
+    4.15,
+    -3.2
+   ],
+   "collide": false
+  },
+  {
+   "id": "door_n",
+   "type": "prefab",
+   "prefab": "door_arch",
+   "position": [
+    0,
+    3.0,
+    7.8
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "beacon_n",
+   "type": "prefab",
+   "prefab": "beacon",
+   "position": [
+    0,
+    3.0,
+    7.8
+   ],
+   "collide": false
+  },
+  {
+   "id": "door_e",
+   "type": "prefab",
+   "prefab": "door_arch",
+   "position": [
+    7.8,
+    3.0,
+    0
+   ],
+   "rotation": [
+    0,
+    90,
+    0
+   ]
+  },
+  {
+   "id": "beacon_e",
+   "type": "prefab",
+   "prefab": "beacon",
+   "position": [
+    7.8,
+    3.0,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "door_s",
+   "type": "prefab",
+   "prefab": "door_arch",
+   "position": [
+    0,
+    3.0,
+    -7.8
+   ],
+   "rotation": [
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "id": "beacon_s",
+   "type": "prefab",
+   "prefab": "beacon",
+   "position": [
+    0,
+    3.0,
+    -7.8
+   ],
+   "collide": false
+  },
+  {
+   "id": "door_w",
+   "type": "prefab",
+   "prefab": "door_arch",
+   "position": [
+    -7.8,
+    3.0,
+    0
+   ],
+   "rotation": [
+    0,
+    90,
+    0
+   ]
+  },
+  {
+   "id": "beacon_w",
+   "type": "prefab",
+   "prefab": "beacon",
+   "position": [
+    -7.8,
+    3.0,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "mem_n1",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -3.0,
+    4.1,
+    12.5
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_n2",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -1.0,
+    4.1,
+    13.7
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_n3",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    1.0,
+    4.1,
+    13.7
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_n4",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    3.0,
+    4.1,
+    12.5
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_e1",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    12.5,
+    4.1,
+    -3.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_e2",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    13.7,
+    4.1,
+    -1.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_e3",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    13.7,
+    4.1,
+    1.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_e4",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    12.5,
+    4.1,
+    3.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_s1",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -3.0,
+    4.1,
+    -12.5
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_s2",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -1.0,
+    4.1,
+    -13.7
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_s3",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    1.0,
+    4.1,
+    -13.7
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_s4",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    3.0,
+    4.1,
+    -12.5
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_w1",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -12.5,
+    4.1,
+    -3.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_w2",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -13.7,
+    4.1,
+    -1.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_w3",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -13.7,
+    4.1,
+    1.0
+   ],
+   "collide": false,
+   "movable": false
+  },
+  {
+   "id": "mem_w4",
+   "type": "prefab",
+   "prefab": "memory",
+   "position": [
+    -12.5,
+    4.1,
+    3.0
+   ],
+   "collide": false,
+   "movable": false
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "floating",
+    "interest",
+    "leak",
+    "drop"
+   ]
+  },
+  "reach": [
+   {
+    "to": [
+     0.0,
+     12.5
+    ]
+   },
+   {
+    "to": [
+     12.5,
+     0.0
+    ]
+   },
+   {
+    "to": [
+     0.0,
+     -12.5
+    ]
+   },
+   {
+    "to": [
+     -12.5,
+     0.0
+    ]
+   },
+   {
+    "to": [
+     0,
+     7.8
+    ]
+   },
+   {
+    "to": [
+     7.8,
+     0
+    ]
+   },
+   {
+    "to": [
+     0,
+     -7.8
+    ]
+   },
+   {
+    "to": [
+     -7.8,
+     0
+    ]
+   }
+  ],
+  "sim": [
+   {
+    "name": "mechanic: memories buy skills, three slots only",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "max_seconds": 60,
+    "script": [
+     {
+      "player": "p1",
+      "walk": "0,6; -3,12.4; -1,13.6; 1,13.6; 3,12.4; 0,6; 0,0; 6,0; 12.4,-3; 13.6,-1; 13.6,1; 12.4,3; 6,0; 0,-1; -4,-1; -4,-2.4; -4,-1; -2,-1; -2,-2.4; -2,-1; 0,-1; 0,-2.4; 0,-1; 2,-1; 2,-2.4"
+     }
+    ],
+    "expect": [
+     {
+      "var": "mem",
+      "eq": 4
+     },
+     {
+      "var": "_sk_soft",
+      "eq": 1
+     },
+     {
+      "var": "_sk_forget",
+      "eq": 1
+     },
+     {
+      "var": "_sk_hush",
+      "eq": 1
+     },
+     {
+      "var": "_sk_anchor",
+      "eq": 0
+     },
+     {
+      "var": "slots",
+      "eq": 3
+     },
+     {
+      "event": "bought",
+      "count": 3
+     },
+     {
+      "event": "refused",
+      "min": 1
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "drift: visiting a field resets its neglect, the exit moves on",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "max_seconds": 60,
+    "script": [
+     {
+      "player": "p1",
+      "walk": "0,6; 0,11"
+     },
+     {
+      "player": "p1",
+      "wait": 3
+     },
+     {
+      "player": "p1",
+      "walk": "0,6"
+     },
+     {
+      "player": "p1",
+      "wait": 3
+     }
+    ],
+    "expect": [
+     {
+      "var": "_ig_n",
+      "lt": 7
+     },
+     {
+      "var": "_ig_e",
+      "gt": 8
+     },
+     {
+      "var": "exit_at",
+      "eq": 2
+     }
+    ]
+   },
+   {
+    "name": "win: carry the friend through three rooms",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "max_seconds": 80,
+    "script": [
+     {
+      "player": "p1",
+      "interact": "friend"
+     },
+     {
+      "player": "p1",
+      "walk": "0,5; 0,7.8"
+     },
+     {
+      "player": "p1",
+      "interact": "friend"
+     },
+     {
+      "player": "p1",
+      "walk": "6,0; 7.8,0"
+     },
+     {
+      "player": "p1",
+      "interact": "friend"
+     },
+     {
+      "player": "p1",
+      "walk": "3,-1; 3,-5; 0,-5; 0,-7.8"
+     }
+    ],
+    "expect": [
+     {
+      "ended": "victory"
+     },
+     {
+      "var": "rooms",
+      "eq": 3
+     }
+    ]
+   },
+   {
+    "name": "lose: the friend wakes if left lying",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "max_seconds": 90,
+    "script": [
+     {
+      "player": "p1",
+      "wait": 75
+     }
+    ],
+    "expect": [
+     {
+      "ended": "woke"
+     }
+    ]
+   },
+   {
+    "name": "lose: the edge crumbles and you fall",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "max_seconds": 80,
+    "script": [
+     {
+      "player": "p1",
+      "walk": "0,6; 0,13"
+     },
+     {
+      "player": "p1",
+      "wait": 60
+     }
+    ],
+    "expect": [
+     {
+      "ended": "fell"
+     },
+     {
+      "event": "crumble",
+      "min": 1
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,19 @@
+{
+  "bpm": 44, "beats": 4, "bars": 8, "key": "A", "scale": "dorian", "seed": 7, "lufs": -27,
+  "reverb": { "decay": 9, "size": 1.5, "damp": 0.55, "predelay": 0.04, "mix": 0.6 },
+  "delay": { "time": 1.36, "feedback": 0.4, "damp": 0.6, "mix": 0.25 },
+  "instruments": {
+    "pad": { "seconds": 14, "level": 0.5, "layers": [
+      { "sine": 1, "attack": 3, "release": 4 },
+      { "sine": 1.003, "attack": 3.5, "release": 4, "gain": 0.7 },
+      { "sine": 0.5, "attack": 5, "release": 4, "gain": 0.4 } ] },
+    "musicbox": { "seconds": 5, "level": 0.4, "layers": [
+      { "sine": 1, "decay": 1.8 },
+      { "sine": 4.01, "decay": 3.2, "gain": 0.18 },
+      { "sine": 6.9, "decay": 5, "gain": 0.06 } ] }
+  },
+  "tracks": [
+    { "inst": "pad", "play": "chords", "chords": "i IV VII i | i VI IV V", "every": "2 bars", "octave": 3, "gain": 0.8, "send": 0.6 },
+    { "inst": "musicbox", "play": "walk", "every": "1 beat", "density": 0.35, "range": [1, 6], "octave": 5, "pan": "spread", "gain": 0.55, "vel": [0.4, 0.8] }
+  ]
+}

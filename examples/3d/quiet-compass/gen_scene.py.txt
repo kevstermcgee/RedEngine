@@ -1,0 +1,166 @@
+import json
+Y=3.0  # floor top
+T1,T2,T3=40,62,82
+GOAL=3
+skills=[("soft",-4,1,"Soft Hands: setting your friend down no longer jolts them"),
+        ("forget",-2,1,"Forgetting: the exit drifts toward neglect at half speed"),
+        ("hush",0,2,"Hush: your friend stirs half as fast"),
+        ("anchor",2,2,"Anchor: the house crumbles 40% slower"),
+        ("compass",4,2,"Compass: a pillar of light marks the exit")]
+fields={"n":(0,1),"e":(1,0),"s":(0,-1),"w":(-1,0)}
+objs=[];zones=[];rules=[];vars_={};prefabs={}
+def box(id,x,z,w,d,role="floor"):
+    objs.append({"id":id,"type":"box","size":[w,0.5,d],"position":[x,Y-0.25,z],"material":{"preset":"tile_"+role}})
+# floor tiles: ring outer/mid + centre
+tiles={"out":[],"mid":[],"core":[]}
+for nm,(x,z,w,d) in {"n":(0,12.5,30,5),"s":(0,-12.5,30,5),"e":(12.5,0,5,20),"w":(-12.5,0,5,20)}.items():
+    box("tile_out_"+nm,x,z,w,d,"out");tiles["out"].append("tile_out_"+nm)
+for nm,(x,z,w,d) in {"n":(0,7.5,20,5),"s":(0,-7.5,20,5),"e":(7.5,0,5,10),"w":(-7.5,0,5,10)}.items():
+    box("tile_mid_"+nm,x,z,w,d,"mid");tiles["mid"].append("tile_mid_"+nm)
+box("tile_core",0,0,10,10,"core");tiles["core"].append("tile_core")
+
+prefabs["sleeper"]={"mount":"floor","desc":"a sleeping friend wrapped in a blanket","params":{"blanket":{"default":"#e8a0bf","palette":"secondary"},"skin":{"default":"#cdbfe0","palette":"trim"}},
+ "objects":[{"id":"body","type":"box","size":[0.9,0.35,0.5],"position":[0,0.18,0],"material":{"color":"$blanket","preset":"cloth"}},
+            {"id":"head","type":"sphere","radius":0.2,"position":[-0.5,0.22,0],"material":{"color":"$skin","emissive":"@primary"}},
+            {"id":"zz","type":"sphere","radius":0.06,"position":[-0.5,0.5,0],"collide":False,"material":{"color":"@primary","emissive":"@primary","opacity":0.7}}]}
+prefabs["memory"]={"desc":"a drifting memory: a gold bead in a halo","params":{"c":{"default":"#ffd27a","palette":"accent"}},
+ "objects":[{"id":"bead","type":"sphere","radius":0.18,"position":[0,0,0],"collide":False,"material":{"color":"$c","emissive":"$c"}},
+            {"id":"halo","type":"cylinder","radius":0.34,"height":0.02,"position":[0,0,0],"rotation":[70,0,0],"collide":False,"material":{"color":"$c","emissive":"$c","opacity":0.5}}]}
+prefabs["rune_plinth"]={"desc":"a stone plinth for a skill rune","params":{"c":{"default":"#6a6584","palette":"stone"},"rune":{"default":"#7fd6c2","palette":"primary"}},
+ "objects":[{"id":"base","type":"box","size":[1.1,0.7,1.1],"position":[0,0.35,0],"material":{"color":"$c","preset":"stone"}},
+            {"id":"cap","type":"box","size":[0.8,0.06,0.8],"position":[0,0.73,0],"material":{"color":"$rune","emissive":"$rune","opacity":0.6}},
+            {"id":"post","type":"cylinder","radius":0.06,"height":1.1,"position":[0,1.3,0],"collide":False,"material":{"color":"$rune"}}]}
+prefabs["rune_glow"]={"desc":"the lit rune above a plinth","params":{"rune":{"default":"#ffd27a","palette":"accent"}},
+ "objects":[{"id":"orb","type":"sphere","radius":0.28,"position":[0,0,0],"collide":False,"material":{"color":"$rune","emissive":"$rune"}}]}
+prefabs["door_arch"]={"desc":"a doorway of the house; any of four could be the way out","params":{"c":{"default":"#cdbfe0","palette":"trim"}},
+ "objects":[{"id":"l","type":"box","size":[0.3,2.6,0.4],"position":[-1.7,1.3,0],"material":{"color":"$c","preset":"stone"}},
+            {"id":"r","type":"box","size":[0.3,2.6,0.4],"position":[1.7,1.3,0],"material":{"color":"$c","preset":"stone"}},
+            {"id":"top","type":"box","size":[3.7,0.3,0.4],"position":[0,2.75,0],"material":{"color":"$c","preset":"stone"}}]}
+prefabs["beacon"]={"desc":"a pillar of light","params":{"c":{"default":"#7fd6c2","palette":"primary"}},
+ "objects":[{"id":"beam","type":"cylinder","radius":0.5,"height":9,"position":[0,4.5,0],"collide":False,"material":{"color":"$c","emissive":"$c","opacity":0.35}}]}
+
+objs.append({"id":"friend","type":"prefab","prefab":"sleeper","position":[0,Y,2.5],"movable":True})
+# altars
+for k,x,c,d in skills:
+    objs.append({"id":"altar_"+k,"type":"prefab","prefab":"rune_plinth","position":[x,Y,-3.2]})
+    objs.append({"id":"glow_"+k,"type":"prefab","prefab":"rune_glow","position":[x,Y+1.15,-3.2],"collide":False})
+    zones.append({"id":"z_"+k,"rect":[x-0.8,-4.2,x+0.8,-2.2],"y":Y,"kind":"room"})
+    vars_["_sk_"+k]=0
+# doors
+dpos={"n":(0,7.8,0),"e":(7.8,0,90),"s":(0,-7.8,0),"w":(-7.8,0,90)}
+for f,(x,z,r) in dpos.items():
+    objs.append({"id":"door_"+f,"type":"prefab","prefab":"door_arch","position":[x,Y,z],"rotation":[0,r,0]})
+    objs.append({"id":"beacon_"+f,"type":"prefab","prefab":"beacon","position":[x*0.9,Y,z*0.9] if False else [x,Y,z],"collide":False})
+    zones.append({"id":"exit_"+f,"rect":[x-1.4 if f in "ns" else x-1.2,z-1.2 if f in "ns" else z-1.4,x+1.4 if f in "ns" else x+1.2,z+1.2 if f in "ns" else z+1.4],"y":Y,"kind":"goal"})
+# fields + orbs
+orbs=[]
+for f,(dx,dz) in fields.items():
+    cx,cz=dx*12.5,dz*12.5
+    if dx==0: rect=[-5,dz*10 if dz>0 else -15,5,15 if dz>0 else -10]
+    else: rect=[10 if dx>0 else -15,-5,15 if dx>0 else -10,5]
+    zones.append({"id":"field_"+f,"rect":rect,"y":Y,"kind":"room"})
+    for i,o in enumerate([-3,-1,1,3]):
+        px,pz=(cx+o*abs(dz),cz+o*abs(dx))
+        # push the middle ones outward
+        off=1.2 if abs(o)==1 else 0
+        px+=dx*off;pz+=dz*off
+        oid=f"mem_{f}{i+1}";orbs.append(oid)
+        objs.append({"id":oid,"type":"prefab","prefab":"memory","position":[px,Y+1.1,pz],"collide":False,"movable":False})
+zones.append({"id":"core","rect":[-5,-5,5,5],"y":Y,"kind":"room"})
+zones.append({"id":"abyss","rect":[-40,-40,40,40],"y":0,"kind":"hazard"})
+for f in fields: vars_["_ig_"+f]=0
+vars_.update({"carry":0,"mem":0,"slots":0,"at":0,"exit_at":1,"t":0,"stage":0,"wake":0,"rooms":0,"left":T3,"room":1})
+exitnum={"n":1,"e":2,"s":3,"w":4}
+R=lambda id,when,do,**kw:rules.append({"id":id,"when":when,"do":do,**kw})
+# altars
+for k,x,c,d in skills:
+    R("sell_"+k,{"enter":{"zone":"z_"+k}},[{"set":["_sk_"+k,0]},{"add":["mem",c]},{"add":["slots",-1]},{"hide":"glow_"+k},{"emit":"sold"}],**{"if":f"_sk_{k} == 1"})
+    R("buy_"+k,{"enter":{"zone":"z_"+k}},[{"set":["_sk_"+k,1]},{"add":["mem",-c]},{"add":["slots",1]},{"show":"glow_"+k},{"emit":"bought"}],**{"if":f"_sk_{k} == 0 && slots < 3 && mem >= {c}"})
+    R("refuse_"+k,{"enter":{"zone":"z_"+k}},[{"emit":"refused"}],**{"if":f"_sk_{k} == 0 && (slots >= 3 || mem < {c})"})
+R("hide_glows",{"start":True},[{"hide":"glow_"+k} for k,_,_,_ in skills]+[{"hide":"beacon_"+f} for f in fields])
+# memories
+for o in orbs:
+    R("take_"+o,{"enter":{"object":o,"pad":0.5}},[{"add":["mem",1]},{"hide":o},{"emit":"memory"}],**{"if":"held(friend) == 0"})
+# fields attention
+for f in fields:
+    R("in_"+f,{"enter":{"zone":"field_"+f}},[{"set":["at",exitnum[f]]},{"set":["_ig_"+f,0]}])
+    R("out_"+f,{"exit":{"zone":"field_"+f}},[{"set":["at",0]}],**{"if":f"at == {exitnum[f]}"})
+# tick: drift
+for f in fields:
+    R("age_"+f,{"every":1},[{"add":["_ig_"+f,"1 - 0.5 * _sk_forget"]}],**{"if":f"at != {exitnum[f]}"})
+g=lambda a:f"_ig_{a}"
+R("pick_exit",{"every":1},[{"set":["exit_at","(_ig_n >= _ig_e && _ig_n >= _ig_s && _ig_n >= _ig_w) * 1 + (_ig_e > _ig_n && _ig_e >= _ig_s && _ig_e >= _ig_w) * 2 + (_ig_s > _ig_n && _ig_s > _ig_e && _ig_s >= _ig_w) * 3 + (_ig_w > _ig_n && _ig_w > _ig_e && _ig_w > _ig_s) * 4"]}])
+for f in fields:
+    R("beam_on_"+f,{"every":1},[{"show":"beacon_"+f}],**{"if":f"exit_at == {exitnum[f]} && _sk_compass == 1"})
+    R("beam_off_"+f,{"every":1},[{"hide":"beacon_"+f}],**{"if":f"exit_at != {exitnum[f]} || _sk_compass == 0"})
+# wake
+R("lull",{"every":1},[{"add":["wake","(1.5 - held(friend)) * (1 - 0.5 * _sk_hush)"]}])
+R("pickup_f",{"event":"pickup","prop":"friend"},[{"set":["carry",1]}])
+R("jolt",{"event":"drop","prop":"friend"},[{"set":["carry",0]},{"add":["wake","10 * (1 - _sk_soft)"]},{"emit":"jolted"}])
+R("woke",{"every":0.5},[{"emit":"defeat_woke"},{"end":"woke"}],**{"if":"wake >= 100"})
+# crumble
+R("tick",{"every":1},[{"add":["t","1 - 0.4 * _sk_anchor"]},{"set":["left",f"{T3} - t"]}])
+R("crumble1",{"every":0.5},[{"deactivate":x} for x in tiles["out"]]+[{"set":["stage",1]},{"emit":"crumble"}],**{"if":f"t >= {T1} && stage == 0"})
+R("crumble2",{"every":0.5},[{"deactivate":x} for x in tiles["mid"]]+[{"set":["stage",2]},{"emit":"crumble"}],**{"if":f"t >= {T2} && stage == 1"})
+R("crumble3",{"every":0.5},[{"deactivate":x} for x in tiles["core"]]+[{"set":["stage",3]},{"emit":"crumble"}],**{"if":f"t >= {T3} && stage == 2"})
+R("fall",{"enter":{"zone":"abyss","height":2}},[{"emit":"fell"},{"end":"fell"}])
+# deliver
+for f in fields:
+    R("deliver_"+f,{"enter":{"zone":"exit_"+f}},[{"add":["rooms",1]},{"emit":"room_done"}],**{"if":f"exit_at == {exitnum[f]} && held(friend) == 1"})
+R("win",{"event":"room_done"},[{"emit":"victory"},{"end":"victory"}],**{"if":f"rooms >= {GOAL}"})
+nxt=[{"activate":x} for x in tiles["out"]+tiles["mid"]+tiles["core"]]+[{"show":o} for o in orbs]+[
+ {"set":["stage",0]},{"set":["t","rooms * 12"]},{"set":["left",f"{T3} - t"]},{"set":["wake","max(0, wake - 20)"]},{"add":["room",1]},
+ {"set":["_ig_n",0]},{"set":["_ig_e","4 * (rooms == 1)"]},{"set":["_ig_s","8 * (rooms == 2)"]},{"set":["_ig_w",0]},{"set":["exit_at",1]},
+ {"place":["friend",[0,Y+0.6,2.5]]},{"teleport":"start"}]
+R("next_room",{"event":"room_done"},nxt,**{"if":f"rooms < {GOAL}"})
+
+def walk(*pts): return "; ".join(f"{x},{z}" for x,z in pts)
+P=[{"id":"p1","character":"human","spawn":"start"}]
+def fieldrun(f):
+    dx,dz=fields[f];cx,cz=dx*12.5,dz*12.5
+    pts=[(cx+(-3 if dx==0 else 0)*1+0*dz, cz)]
+    return pts
+sim=[]
+sim.append({"name":"mechanic: memories buy skills, three slots only","players":P,"max_seconds":60,
+ "script":[{"player":"p1","walk":"0,6; -3,12.4; -1,13.6; 1,13.6; 3,12.4; 0,6; 0,0; 6,0; 12.4,-3; 13.6,-1; 13.6,1; 12.4,3; 6,0; 0,-1; -4,-1; -4,-2.4; -4,-1; -2,-1; -2,-2.4; -2,-1; 0,-1; 0,-2.4; 0,-1; 2,-1; 2,-2.4"}],
+ "expect":[{"var":"mem","eq":4},{"var":"_sk_soft","eq":1},{"var":"_sk_forget","eq":1},{"var":"_sk_hush","eq":1},{"var":"_sk_anchor","eq":0},{"var":"slots","eq":3},{"event":"bought","count":3},{"event":"refused","min":1},{"not_ended":True}]})
+sim.append({"name":"drift: visiting a field resets its neglect, the exit moves on","players":P,"max_seconds":60,
+ "script":[{"player":"p1","walk":"0,6; 0,11"},{"player":"p1","wait":3},{"player":"p1","walk":"0,6"},{"player":"p1","wait":3}],
+ "expect":[{"var":"_ig_n","lt":7},{"var":"_ig_e","gt":8},{"var":"exit_at","eq":2}]})
+doorrun=lambda d:[{"player":"p1","interact":"friend"},{"player":"p1","walk":d}]
+sim.append({"name":"win: carry the friend through three rooms","players":P,"max_seconds":80,
+ "script":[{"player":"p1","interact":"friend"},{"player":"p1","walk":"0,5; 0,7.8"},
+           {"player":"p1","interact":"friend"},{"player":"p1","walk":"6,0; 7.8,0"},
+           {"player":"p1","interact":"friend"},{"player":"p1","walk":"3,-1; 3,-5; 0,-5; 0,-7.8"}],
+ "expect":[{"ended":"victory"},{"var":"rooms","eq":3}]})
+sim.append({"name":"lose: the friend wakes if left lying","players":P,"max_seconds":90,
+ "script":[{"player":"p1","wait":75}],"expect":[{"ended":"woke"}]})
+sim.append({"name":"lose: the edge crumbles and you fall","players":P,"max_seconds":80,
+ "script":[{"player":"p1","walk":"0,6; 0,13"},{"player":"p1","wait":60}],"expect":[{"ended":"fell"},{"event":"crumble","min":1}]})
+
+scene={
+ "meta":{"fps":30,"duration":6,"resolution":[1280,720]},
+ "style":{"palette":{"primary":"#7fd6c2","secondary":"#e8a0bf","accent":"#ffd27a","stone":"#6a6584","floor":"#2a2740","wall":"#3b3556","trim":"#cdbfe0","lamp":"#ffcf8a","wood":"#4b3a52"},
+  "materials":{"tile_out":{"color":"#4a3d63","roughness":0.9},"tile_mid":{"color":"#3a3358","roughness":0.9},"tile_core":{"color":"#2d2848","roughness":0.8},
+               "stone":{"color":"@stone","roughness":0.9},"cloth":{"color":"@secondary","roughness":1.0}},
+  "light":{"ambient":{"color":"#5b4f86","intensity":0.45},"lamp":{"color":"#ffcf8a","intensity":11}},
+  "sky":{"top":"#120d26","bottom":"#5a3a6a"},"fog":{"color":"#2a1f45","density":0.012},"post":{"ao":0.8,"outline":0.4}},
+ "camera":{"fov":75,"position":[0,Y+1.7,4],"target":[0,Y+1.2,0]},
+ "player":{"character":"human","walk_speed":4,"jump_speed":4,"mode":"peaceful"},"hud":{"show_rules_vars":False},
+ "music":False,
+ "audio":{"music":{"night":"audio/lullaby.json","dusk":"audio/lullaby.json","dawn":"audio/lullaby.json","day":"audio/lullaby.json"},"music_volume":0.7},
+ "lights":[{"id":"lamp_core","type":"point","position":[0,Y+3.5,0],"color":"@lamp","intensity":14,"range":14},
+           {"id":"lamp_n","type":"point","position":[0,Y+3,10],"color":"#9f8cff","intensity":8,"range":12},
+           {"id":"lamp_s","type":"point","position":[0,Y+3,-10],"color":"#9f8cff","intensity":8,"range":12},
+           {"id":"lamp_e","type":"point","position":[10,Y+3,0],"color":"#9f8cff","intensity":8,"range":12},
+           {"id":"lamp_w","type":"point","position":[-10,Y+3,0],"color":"#9f8cff","intensity":8,"range":12}],
+ "zones":zones,"spawns":[{"id":"start","position":[0,Y,0],"yaw_deg":0,"group":"solo"}],
+ "prefabs":prefabs,"vars":{**{k:vars_[k] for k in ("left","wake","mem","slots","rooms")},**vars_},"rules":rules,
+ "ui":{"title":"Quiet Compass","labels":{"mem":"Memories","slots":"Skills held","wake":"Friend stirring","left":"House crumbles","rooms":"Rooms done","exit_at":"Exit"},
+  "counters":[{"var":"left","label":"House crumbles","format":"clock"},{"var":"wake","of":100,"label":"Friend stirring"},{"var":"mem","label":"Memories"},{"var":"slots","of":3,"label":"Skills held"},{"var":"rooms","of":GOAL,"label":"Rooms done"}],
+  "objective":[{"if":"carry == 1","text":"Carry them to the exit. It is the door you have ignored longest."},{"text":"Gather memories from the four far rooms (hands free), spend them on runes, then lift your friend (E)."}],
+  "start":{"title":"Quiet Compass","text":"A ghost must carry a sleeping friend through three rooms before the house is sold. Memories buy skills, but you hold only three, and the exit drifts toward whatever you ignore the longest. The house crumbles from its edges.","button":"Begin"},
+  "end":{"victory":{"title":"Home, quietly","text":"Rooms done: {rooms}. They never stirred.","button":"Again"},"woke":{"title":"They woke","text":"The chore stays unfinished.","button":"Try again"},"fell":{"title":"The floor is gone","text":"The house took the edges, then the middle.","button":"Try again"},"default":{"title":"The end","button":"Again"}}},
+ "objects":objs,
+ "checks":{"lint":{"max_errors":0,"max_warnings":0,"ignore":["floating","interest","leak","drop"]},"reach":[{"to":[fields[f][0]*12.5,fields[f][1]*12.5]} for f in "nesw"]+[{"to":[dpos[f][0],dpos[f][1]]} for f in "nesw"],"sim":sim}}
+json.dump(scene,open('/home/kevin/workspace/RedEngine-factory-idea-3d-quiet-compass/examples/3d/quiet-compass/quiet-compass.json','w'),indent=1)
