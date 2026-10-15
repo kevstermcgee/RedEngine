@@ -92,6 +92,8 @@ pub mod sim {
     pub mod kart;
     pub mod kit;
     pub mod ledger;
+    #[cfg(test)]
+    mod ledger_props;
     pub mod match_sim;
     pub mod objective;
     pub mod objective_run;

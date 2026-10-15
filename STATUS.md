@@ -67,6 +67,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: game systems milestone (ADR game-systems-compose-under-one-match-authority): sim::defs/ledger/systems, Workshop reference game (games/workshop), ability reuse fixture, sim game expectations + --inspect, describe systems; fresh-agent trial passed (69.5K tokens, 19 calls, 325 s, 1 tool-caused error)
 - 2026-10-14: game systems milestone: evidence ledger, update-path audit and dependency-ordered roadmap in docs/analysis/2026-10-14-game-systems-milestone.md (PR); #165 merged
 - 2026-10-15: Review follow-up item 1 (branch dismantle-atomic): a refused ws:dismantle with room for the input but not the output changed the hash (tick 2160); fixed with Ledger::remove_stores (one transaction) and Systems::command restoring ledger, system state, rng and queue on Err; probe_dismantle.rs + partial-room case + host unit test
+- 2026-10-15: Review follow-up item 2 (branch ledger-props): ledger property tests, 60k seeded steps vs a model, 0.47 s, two mutations caught; docs/analysis/2026-10-14-ledger-properties.md
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
