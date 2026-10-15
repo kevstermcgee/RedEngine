@@ -1,0 +1,74 @@
+{
+  "game2d": 1, "id": "final-staircase", "title": "Final Staircase",
+  "description": "You pour yourself into liquid, gas or ice to slip through the right gate while friend and foe swap sides at the midline and the gates swap rules every ten seconds, until a door appears once you stand still.",
+  "capabilities": {"presentation": "2d", "platforms": ["windows", "linux"], "networking": "offline", "input": ["keyboard"], "persistence": ["progress"]},
+  "view": {"width": 320, "height": 180, "background": "#1a1f2e"},
+  "vars": {"form": 0, "done": 0, "lives": 3, "charge": 0, "need": 4, "still": 0, "doorvis": 0, "swaps": 0, "swap_in": 10, "side": 0, "escapes": 0},
+  "persist": ["escapes"],
+  "sounds": {
+    "form": {"seconds": 0.15, "layers": [{"sine": 520, "decay": 14}]},
+    "swap": {"seconds": 0.4, "layers": [{"sine": 220, "decay": 6}, {"sine": 330, "decay": 8}]},
+    "hurt": {"seconds": 0.25, "layers": [{"sine": 110, "decay": 10}]},
+    "warm": {"seconds": 0.2, "layers": [{"sine": 880, "decay": 16}]},
+    "door": {"seconds": 0.6, "layers": [{"sine": 660, "decay": 4}, {"sine": 990, "decay": 5}]}
+  },
+  "prefabs": {
+    "liquid": {"tag": "player", "shape": {"rect": [8, 8], "color": "#3d8bff"}, "layer": 3, "clamp": true, "body": {"type": "dynamic"}, "collide": ["lid", "thin"], "move": {"keys": {"mode": "topdown", "speed": 80}}},
+    "gas": {"tag": "player", "shape": {"rect": [12, 12], "color": "#c9d6ea"}, "layer": 3, "clamp": true, "body": {"type": "dynamic"}, "collide": ["grille", "thin"], "move": {"keys": {"mode": "topdown", "speed": 55}}},
+    "ice": {"tag": "player", "shape": {"rect": [10, 10], "color": "#aef3ff"}, "layer": 3, "clamp": true, "body": {"type": "dynamic"}, "collide": ["grille", "lid"], "move": {"keys": {"mode": "topdown", "speed": 40}}},
+    "grille": {"tag": "grille", "shape": {"rect": [6, 180], "color": "#8a6d3b"}, "body": {"type": "static"}},
+    "lid": {"tag": "lid", "shape": {"rect": [6, 180], "color": "#7a4aa8"}, "body": {"type": "static"}},
+    "thin": {"tag": "thin", "shape": {"rect": [6, 180], "color": "#4aa88a"}, "body": {"type": "static"}},
+    "tmp": {"tag": "tmp", "shape": {"rect": [6, 180], "color": "#fff"}, "body": {"type": "static"}},
+    "red": {"tag": "red", "shape": {"circle": 6, "color": "#ff4d6d"}, "layer": 2, "move": {"patrol": {"axis": "y", "range": 35, "speed": 30}}},
+    "blue": {"tag": "blue", "shape": {"circle": 6, "color": "#4dd2ff"}, "layer": 2, "move": {"patrol": {"axis": "y", "range": 35, "speed": 25}}},
+    "redh": {"tag": "red", "shape": {"circle": 6, "color": "#ff4d6d"}, "layer": 2, "move": {"patrol": {"axis": "x", "range": 30, "speed": 30}}},
+    "blueh": {"tag": "blue", "shape": {"circle": 6, "color": "#4dd2ff"}, "layer": 2, "move": {"patrol": {"axis": "x", "range": 30, "speed": 25}}},
+    "door": {"tag": "door", "shape": {"rect": [12, 18], "color": "#ffe27a"}, "layer": 1}
+  },
+  "scene": [
+    {"prefab": "liquid", "at": [20, 90], "id": "p"},
+    {"prefab": "grille", "at": [100, 90]},
+    {"prefab": "lid", "at": [220, 90]},
+    {"prefab": "red", "at": [50, 50]},
+    {"prefab": "blue", "at": [60, 130]},
+    {"prefab": "blueh", "at": [145, 90]},
+    {"prefab": "redh", "at": [185, 50]},
+    {"prefab": "red", "at": [270, 90]}
+  ],
+  "ui": [
+    {"text": "FORM {form}  LIVES {lives}  WARM {charge}/{need}", "at": [4, 3], "color": "#fff"},
+    {"text": "SWAP IN {swap_in}", "at": [316, 168], "color": "#ffd166", "align": "right"},
+    {"text": "HOLD STILL...", "at": [160, 150], "color": "#ffe27a", "align": "center", "show": "charge >= need && doorvis == 0 && ended == 0"},
+    {"text": "ESCAPES {escapes}", "at": [4, 168], "color": "#8cff9b"},
+    {"text": "YOU POURED OUT", "at": [160, 80], "color": "#8cff9b", "scale": 2, "align": "center", "show": "ended == 1"},
+    {"text": "EVAPORATED", "at": [160, 80], "color": "#ff7a8c", "scale": 2, "align": "center", "show": "ended == 2"}
+  ],
+  "rules": [
+    {"id": "no double switch", "when": {"every": 0.02}, "do": [{"set": ["done", 0]}]},
+    {"id": "ice to water", "when": {"press": "action"}, "if": "form == 2 && done == 0", "do": [{"become": {"target": "self", "prefab": "liquid"}}, {"set": ["form", 0]}, {"set": ["done", 1]}, {"play": "form"}]},
+    {"id": "gas to ice", "when": {"press": "action"}, "if": "form == 1 && done == 0", "do": [{"become": {"target": "self", "prefab": "ice"}}, {"set": ["form", 2]}, {"set": ["done", 1]}, {"play": "form"}]},
+    {"id": "water to gas", "when": {"press": "action"}, "if": "form == 0 && done == 0", "do": [{"become": {"target": "self", "prefab": "gas"}}, {"set": ["form", 1]}, {"set": ["done", 1]}, {"play": "form"}]},
+    {"id": "side of the midline", "when": {"every": 0.05}, "do": [{"set": ["side", "p_x >= 160"]}]},
+    {"id": "foe left red", "when": {"touching": ["player", "red"]}, "if": "side == 0 && form != 2", "cooldown": 1.2, "do": [{"add": ["lives", -1]}, {"play": "hurt"}, {"shake": 3}]},
+    {"id": "foe right blue", "when": {"touching": ["player", "blue"]}, "if": "side == 1 && form != 2", "cooldown": 1.2, "do": [{"add": ["lives", -1]}, {"play": "hurt"}, {"shake": 3}]},
+    {"id": "friend left blue", "when": {"touching": ["player", "blue"]}, "if": "side == 0", "cooldown": 1, "do": [{"add": ["charge", 1]}, {"play": "warm"}]},
+    {"id": "friend right red", "when": {"touching": ["player", "red"]}, "if": "side == 1", "cooldown": 1, "do": [{"add": ["charge", 1]}, {"play": "warm"}]},
+    {"id": "stillness", "when": {"every": 0.1}, "do": [{"set": ["still", "(held_left + held_right + held_up + held_down == 0) * (still + 0.1)"]}]},
+    {"id": "the door", "when": {"every": 0.1}, "if": "still >= 3 && charge >= need && doorvis == 0", "do": [{"spawn": {"prefab": "door", "at": ["p_x", "p_y"]}}, {"set": ["doorvis", 1]}, {"play": "door"}]},
+    {"id": "walk through", "when": {"touch": ["player", "door"]}, "do": [{"add": ["escapes", 1]}, {"end": "win"}]},
+    {"id": "countdown", "when": {"every": 1}, "do": [{"add": ["swap_in", -1]}]},
+    {"id": "swap thin", "when": {"every": 10}, "do": [{"become": {"target": "tag:thin", "prefab": "tmp"}}, {"become": {"target": "tag:lid", "prefab": "thin"}}, {"become": {"target": "tag:grille", "prefab": "lid"}}, {"become": {"target": "tag:tmp", "prefab": "grille"}}, {"add": ["swaps", 1]}, {"set": ["swap_in", 10]}, {"play": "swap"}]},
+    {"id": "dead", "when": {"every": 0.05}, "if": "lives <= 0 && ended == 0", "do": [{"end": "lose"}]}
+  ],
+  "checks": {"scenarios": [
+    {"name": "rooms swap rules every ten seconds", "seed": 1, "max_seconds": 14, "script": [{"wait": 10.5}], "expect": [{"var": "swaps", "eq": 1}, {"count": "lid", "eq": 1}, {"count": "thin", "eq": 1}, {"count": "grille", "eq": 0}, {"count": "tmp", "eq": 0}]},
+    {"name": "form key pours you into gas then ice", "seed": 1, "max_seconds": 5, "script": [{"press": "action"}, {"wait": 0.2}, {"press": "action"}, {"wait": 0.2}], "expect": [{"var": "form", "eq": 2}, {"count": "player", "eq": 1}]},
+    {"name": "water slips through the grille, gas does not", "seed": 1, "max_seconds": 10, "script": [{"hold": ["right"], "seconds": 3}], "expect": [{"var": "p_x", "gt": 120}]},
+    {"name": "gas is stopped by the grille", "seed": 1, "max_seconds": 10, "script": [{"press": "action"}, {"hold": ["right"], "seconds": 4}], "expect": [{"var": "p_x", "lt": 100}]},
+    {"name": "crossing the midline turns the blue friend into a foe", "seed": 1, "max_seconds": 12, "script": [{"hold": ["right"], "seconds": 2.2}, {"hold": ["up"], "seconds": 0.9}, {"wait": 2}], "expect": [{"var": "side", "eq": 1}, {"var": "lives", "eq": 2}, {"var": "charge", "eq": 1}]},
+    {"name": "left red foe hurts, ice is immune", "seed": 1, "max_seconds": 12, "smoke": true, "script": [{"approach": "red", "seconds": 6}], "expect": [{"var": "lives", "lt": 3}]},
+    {"name": "lose", "seed": 1, "max_seconds": 40, "script": [{"approach": "red", "seconds": 30}], "expect": [{"ended": "lose"}]},
+    {"name": "win by warmth and stillness", "seed": 1, "max_seconds": 60, "script": [{"approach": "blue", "seconds": 14}, {"wait_until": {"var": "charge", "gte": 4}, "timeout": 20}, {"wait_until": {"var": "doorvis", "eq": 1}, "timeout": 6}, {"approach": "door", "seconds": 5}], "expect": [{"ended": "win"}]}
+  ]}
+}
