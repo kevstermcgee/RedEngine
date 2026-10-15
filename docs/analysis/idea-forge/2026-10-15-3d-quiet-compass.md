@@ -143,5 +143,67 @@ Prebuilt fetch (3 s), `verify` in 0.2 s, `sim` with approach/interact steps and 
 ## Automatic measurements
 
 <!-- automatic-measurements:begin -->
-(the CLI fills this in after the run: command trace, failures, repair cycles, documentation read, engine source read)
+Friction report (`scripts/agent_bench.py summary`):
+
+```json
+{
+ "commands": 54,
+ "failed": 13,
+ "documentation_topics_read": [
+  "overview",
+  "rules",
+  "scene",
+  "ui",
+  "style",
+  "audio",
+  "objects",
+  "sim",
+  "diagnostics"
+ ],
+ "searches": [
+  "carry a prop pick up loose physics prop",
+  "scene-local prefab definition params objects example",
+  "movable prefab loose group made liftable",
+  "hud counters vars bounded state how many variables the client HUD receives",
+  "checks.reach entry syntax"
+ ],
+ "cli_source_exploration": 1,
+ "retries_of_a_failed_command_without_a_success_between": 8,
+ "repair_cycles": 3,
+ "first_failures": [
+  {
+   "command": "validate examples/3d/quiet-compass/quiet-compass.json",
+   "error": "5 error(s)"
+  },
+  {
+   "command": "validate examples/3d/quiet-compass/quiet-compass.json",
+   "error": "1 error(s)"
+  },
+  {
+   "command": "lint examples/3d/quiet-compass/quiet-compass.json",
+   "error": "examples/3d/quiet-compass/quiet-compass.json: scene is invalid:"
+  },
+  {
+   "command": "validate examples/3d/quiet-compass/quiet-compass.json",
+   "error": "1 error(s)"
+  },
+  {
+   "command": "lint examples/3d/quiet-compass/quiet-compass.json",
+   "error": "examples/3d/quiet-compass/quiet-compass.json: scene is invalid:"
+  }
+ ],
+ "used_verify": true,
+ "minutes": 9.5,
+ "transcript": {
+  "engine_files_read_with_tools": 0,
+  "engine_files_read_with_the_shell": 0,
+  "examples": [],
+  "edits": 0
+ }
+}
+```
+
+Agent session: 70 assistant turns; tools {"Bash": 32, "Read": 5}; cost $1.36; wall 9.8 min.
+
+Notes logged during the run: 9 (33 minutes claimed lost). Measured wall time 9.8 min. **The claimed minutes exceed the measured wall time: read `cost_min` as a relative weight, not as minutes.**
 <!-- automatic-measurements:end -->
