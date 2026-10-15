@@ -1054,6 +1054,11 @@ pub(crate) enum Command {
         #[arg(long, value_name = "WxH")]
         size: Option<String>,
     },
+    /// Stories (`describe story`).
+    Story {
+        #[command(subcommand)]
+        cmd: super::story::StoryCmd,
+    },
     /// Architecture decision records: `adr new "Title"` (a dated file, the index refreshed), `adr list`, `adr index --check|--write`.
     Adr {
         #[command(subcommand)]

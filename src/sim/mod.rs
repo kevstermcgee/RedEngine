@@ -64,6 +64,7 @@ pub use red_core::sim::shooter_snap;
 pub use red_core::sim::snapshot;
 pub use red_core::sim::spawns;
 pub use red_core::sim::statics;
+pub use red_core::sim::story;
 pub use red_core::sim::systems;
 pub use red_core::sim::trace;
 

@@ -34,6 +34,8 @@ pub mod code {
     pub const MISSING: &str = "insufficient";
     /// A transaction that would put more into a store than it has room for.
     pub const FULL: &str = "store-full";
+    /// A query a system reads that nothing answers, or answers with another type.
+    pub const QUERY: &str = "undeclared-query";
 }
 
 /// A stable, namespaced id: `namespace:name`, each part 1 to 40 lowercase letters, digits, `_` or `-`, starting with a letter (`ws:furnace`); the

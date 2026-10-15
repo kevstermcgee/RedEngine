@@ -1,0 +1,22 @@
+# Tidewatch's client: the player's window (`red_engine2::app`, a custom third-person client) with the engine's optional dialogue presenter
+# (`app::dialogue`), on Tidewatch's server-side library for its game. A workspace member, not a default one: `cargo run -p tidewatch`.
+[package]
+name = "tidewatch"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Tidewatch: the reference game for narrative content on Red Engine 2 (the player's client)"
+
+[[bin]]
+name = "tidewatch"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../.." }
+tidewatch_server = { path = "server" }
+serde_json = { workspace = true }
+
+# A reference game for the engine's tests and agents, not a download: the release package leaves it out (`tools::package::game_binaries`).
+[package.metadata.red]
+release = false

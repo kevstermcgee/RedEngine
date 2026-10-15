@@ -28,6 +28,8 @@ pub struct Docs {
     pub agent_reference: String,
     /// `docs/PLAY_2D.md`.
     pub play_2d: String,
+    /// `docs/STORY.md`: writing a story, its format and how it runs.
+    pub story: String,
     /// `docs/GLOSSARY.md` (`describe glossary`, `search --kind glossary`).
     pub glossary: String,
     /// `docs/adr/README.md`: the generated index table (`describe decisions`).
@@ -84,6 +86,7 @@ pub fn read_from(root: &Path) -> Docs {
         engine_work: text("docs/ENGINE_WORK.md"),
         agent_reference: text("docs/AGENT_REFERENCE.md"),
         play_2d: text("docs/PLAY_2D.md"),
+        story: text("docs/STORY.md"),
         glossary: text("docs/GLOSSARY.md"),
         adr_index: text("docs/adr/README.md"),
         adrs: md_files(&root.join("docs/adr")),
@@ -121,6 +124,7 @@ pub fn embedded() -> Option<Docs> {
             engine_work: copies::ENGINE_WORK.to_string(),
             agent_reference: copies::AGENT_REFERENCE.to_string(),
             play_2d: copies::PLAY_2D.to_string(),
+            story: copies::STORY.to_string(),
             glossary: copies::GLOSSARY.to_string(),
             adr_index: copies::ADR_INDEX.to_string(),
             adrs: own(copies::ADR_FILES),
@@ -143,6 +147,7 @@ mod copies {
     pub const ENGINE_WORK: &str = include_str!("../../docs/ENGINE_WORK.md");
     pub const AGENT_REFERENCE: &str = include_str!("../../docs/AGENT_REFERENCE.md");
     pub const PLAY_2D: &str = include_str!("../../docs/PLAY_2D.md");
+    pub const STORY: &str = include_str!("../../docs/STORY.md");
     pub const GLOSSARY: &str = include_str!("../../docs/GLOSSARY.md");
     pub const ADR_INDEX: &str = include_str!("../../docs/adr/README.md");
     pub const FEATURES: &str = include_str!("../../docs/features.json");

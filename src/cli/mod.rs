@@ -43,6 +43,7 @@ mod propose;
 mod render_cmds;
 mod repo;
 mod servers;
+mod story;
 mod util;
 
 use analyze::*;
@@ -214,6 +215,7 @@ fn run(command: Command) -> Result<(), String> {
             size: size.as_deref(),
         }),
         Command::Adr { cmd, root } => run_adr(cmd, root.as_deref()),
+        Command::Story { cmd } => story::run(cmd),
         Command::Servers { cmd } => run_servers(cmd),
         Command::Analysis { cmd, root } => run_analysis(cmd, root.as_deref()),
         Command::Features { query, check } => run_features(&query, check),

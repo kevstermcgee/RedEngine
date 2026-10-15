@@ -358,6 +358,38 @@ const GAME_CRATES: &[GameCrate] = &[
         engine_files: WORKSHOP_ENGINE_FILES,
         tests: "Workshop's client: the same authority as the headless match, the lever and the order through the real input path, saves, offscreen pictures",
     },
+    GameCrate {
+        name: "tidewatch_server",
+        dir: "tidewatch/server",
+        title: "Tidewatch (server side)",
+        engine_dirs: TIDEWATCH_ENGINE_DIRS,
+        engine_files: TIDEWATCH_ENGINE_FILES,
+        tests: "Tidewatch's story through the real match: voices, a decision moving real peat, callbacks, knowledge, stale and repeated input, interruption, saves, replay, the director, packages and bindings fresh",
+    },
+    GameCrate {
+        name: "tidewatch",
+        dir: "tidewatch",
+        title: "Tidewatch (client)",
+        engine_dirs: TIDEWATCH_ENGINE_DIRS,
+        engine_files: TIDEWATCH_ENGINE_FILES,
+        tests: "Tidewatch's client: the presenter's reveal and advance, no input leaking while talking, a save resuming the talk, offscreen pictures",
+    },
+];
+
+/// What Tidewatch (`games/tidewatch`, ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system) is built on: Workshop's ground (the
+/// systems host, the match, the client layer, scenarios), the story toolchain whose package and bindings its tests hold fresh, and the UI kit.
+const TIDEWATCH_ENGINE_DIRS: &[&str] = &["crates/red_core/src/sim/", "src/app/", "src/sim/", "src/tools/story/", "src/ui/"];
+
+/// See [`TIDEWATCH_ENGINE_DIRS`].
+const TIDEWATCH_ENGINE_FILES: &[&str] = &[
+    "src/server_app.rs",
+    "src/scene_blocks.rs",
+    "src/tools/simrun.rs",
+    "src/settings.rs",
+    "src/cli/story.rs",
+    "src/controller.rs",
+    "Cargo.toml",
+    "Cargo.lock",
 ];
 
 /// What Workshop (`games/workshop`, ADR 2026-10-14-game-systems-compose-under-one-match-authority) is built on: the game-system primitive, the

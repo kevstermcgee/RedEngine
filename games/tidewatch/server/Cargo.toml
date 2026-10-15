@@ -1,0 +1,19 @@
+# Tidewatch's server side: content, the watch, the match game composing it with the engine's story runtime (a headless library) and the
+# `tidewatch_server` program. A workspace member, not a default one: `cargo test -p tidewatch_server`. Without graphics (`red_engine2` without its
+# default features), so a server or CI build never compiles a window.
+[package]
+name = "tidewatch_server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "Tidewatch: the reference game for narrative content on Red Engine 2 (server side)"
+
+[[bin]]
+name = "tidewatch_server"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../../..", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }

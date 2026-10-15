@@ -393,6 +393,42 @@ fn the_pack_registry_and_the_traces_load_typed() {
 }
 
 #[test]
+fn story_packages_and_bindings_load_typed() {
+    // Written by the story toolchain and by games, read back by their own checkers: both definitions accept every one in the repository (keys are
+    // not probed, as for traces). Their `.story` sources are text, compiled by `validate` with the toolchain.
+    let story = |name: &'static str| -> Keep {
+        if name == "package" {
+            &|p: &Path| p.to_string_lossy().ends_with(".story.json")
+        } else {
+            &|p: &Path| p.file_name().is_some_and(|n| n == "bindings.json")
+        }
+    };
+    assert_agree(Format {
+        name: "story package",
+        files: items(files(&[("games/tidewatch/content/story", story("package"))])),
+        checker: &|_, p| {
+            let text = std::fs::read_to_string(p).map_err(|e| vec![e.to_string()])?;
+            let pkg: red_engine2::sim::story::package::Package = serde_json::from_str(&text).map_err(|e| vec![e.to_string()])?;
+            let errs = red_engine2::sim::story::package::check(&pkg);
+            if errs.is_empty() {
+                Ok(())
+            } else {
+                Err(errs.iter().map(|d| d.to_string()).collect())
+            }
+        },
+        typed: &|v| content::typed::<content::story::StoryPackage>(v).map(|_| ()),
+        probe_keys: false,
+    });
+    assert_agree(Format {
+        name: "story bindings",
+        files: items(files(&[("games/tidewatch/content/story", story("bindings")), ("examples/story", story("bindings"))])),
+        checker: &|v, _| serde_json::from_value::<red_engine2::sim::story::package::Catalog>(v["catalog"].clone()).map(|_| ()).map_err(|e| vec![e.to_string()]),
+        typed: &|v| content::typed::<content::story::StoryBindings>(v).map(|_| ()),
+        probe_keys: false,
+    });
+}
+
+#[test]
 fn the_guard_catches_a_key_one_definition_lacks() {
     // A typed definition that forgot a key the checker knows (here: refuses any scene with a `zones` block) must fail the guard, with the path.
     let f = Format {

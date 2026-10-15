@@ -108,6 +108,13 @@ pub mod sim {
     pub mod snapshot;
     pub mod spawns;
     pub mod statics;
+    /// Narrative content run under the match's one authority (ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system).
+    pub mod story {
+        pub mod package;
+        pub mod runtime;
+        pub mod state;
+        pub mod talk;
+    }
     pub mod systems;
     pub mod trace;
 }

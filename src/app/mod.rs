@@ -6,6 +6,7 @@
 //! | Load validated content, run gameplay | [`session::LocalSession`] (one player in the authoritative `MatchSim`: movement, props, rules) | headless |
 //! | Choose a camera, map the pointer to the world | [`camera::ViewCamera`] (`top_down`, `look_at`, `screen_ray`, `pick_ground`); [`camera::FpsCamera`] is the first-person policy | headless |
 //! | HUD and outcome | [`hud::HudState`] (rule variables, recent event, outcome) laid out by the audited `ui` kit | headless |
+//! | Subtitles and choices for a story | [`dialogue::Presenter`] (optional: reveal/advance, focus, pad, a layout into the HUD) | headless |
 //! | Window, GPU, input | [`gpu::WindowGpu`], [`input::InputState`] | `gfx` |
 //! | Draw the world | `viewer::LiveRenderer::world` + `render_view` (any camera; weapons and crosshair are `re2`'s optional layers) | `gfx` |
 //! | A whole window loop | [`shell::run`] with a [`shell::ClientGame`] | `gfx` |
@@ -16,6 +17,7 @@
 //! outside the engine crate that uses only this module.
 
 pub mod camera;
+pub mod dialogue;
 pub mod hud;
 pub mod session;
 

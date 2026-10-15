@@ -26,3 +26,4 @@ pub mod script;
 pub mod sim;
 pub mod solve;
 pub mod sound;
+mod talk;

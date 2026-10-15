@@ -1,5 +1,10 @@
 # 2026-10-10. Story is rules and tables, not a story system
-Status: accepted
+
+> **Superseded 2026-10-15** for games with a game crate: narrative is now compiled `.story` content run by one story system inside the game's
+> systems host (ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system), which also gives the 2D `dialogue` widget's progression
+> to a shared core. What still stands: string tables and `pick`, `random` and the math functions, the 2D widget itself and its recipes.
+
+Status: superseded by 2026-10-15-narrative-is-compiled-content-run-by-one-story-system
 Summary: Games carry story with four small primitives (string tables + pick, random/floor/round/min/max/abs, a dialogue widget, recipes) on the existing rules; no character, quest or arc schema.
 
 ## Context

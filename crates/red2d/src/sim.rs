@@ -557,9 +557,10 @@ impl Sim {
     }
 
     /// The open dialogue takes its keys: up/down (or 1-9, or a click on a row) choose, the advance action confirms or moves on, a click in a box with no
-    /// choices moves on. Returns true when it used the click. A choice's `emit` fires on top of its line's; closing emits `done`.
+    /// choices moves on. Returns true when it used the click. What moving on does is the shared conversation core's (`talk::answer`): a choice's
+    /// `emit` fires on top of its line's; closing emits `done`.
     fn dialogue_input(&mut self, d: &crate::game::Dialogue, pressed: &mut [bool; 7], codes: &[String], click: Option<[f32; 2]>) -> bool {
-        use crate::game::Goto;
+        use red_core::sim::story::talk::{answer, Answer};
         let Some(li) = self.dialogue_line(d) else { return false };
         let line = &d.lines[li];
         let n = line.choices.len();
@@ -598,27 +599,17 @@ impl Sim {
             confirm = Some(None);
         }
         pressed[d.advance] = false;
-        if let Some(choice) = confirm {
+        let moved = confirm.and_then(|c| answer(d, li, c.map_or(Answer::MoveOn, Answer::Choose)).ok());
+        if let Some(m) = moved {
             if let Some(e) = &line.emit {
                 self.emit_event(e);
             }
-            let goto = match choice {
-                Some(i) => {
-                    if let Some(e) = &line.choices[i].emit {
-                        self.emit_event(e);
-                    }
-                    line.choices[i].goto.or(line.goto)
-                }
-                None => line.goto,
-            };
-            let next = match goto {
-                Some(Goto::Line(i)) => i,
-                Some(Goto::End) => d.lines.len(),
-                None => li + 1,
-            };
-            self.vars[d.line_var] = next as f64;
+            if let Some(e) = m.choice.and_then(|i| line.choices[i].emit.as_ref()) {
+                self.emit_event(e);
+            }
+            self.vars[d.line_var] = m.next as f64;
             self.vars[d.choice_var] = 0.0;
-            if next >= d.lines.len() {
+            if m.closed {
                 if let Some(e) = &d.done {
                     self.emit_event(e);
                 }

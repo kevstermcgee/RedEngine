@@ -34,6 +34,31 @@
         "game_file_size": "-81%",
         "correctness": "one sub-requirement short (not equal)"
       }
+    },
+    {
+      "schema": "red-agent-tasks/1",
+      "date": "2026-10-15T02:19:04Z",
+      "about": "Fresh agent (Sonnet 5.5), one run (n=1): no baseline side exists for narrative (the format is new), so this is a first measurement, not a comparison. Graded independently by re-running its checks.",
+      "task": "Gauntlet narrative-01 on Tidewatch (.gauntlet/tasks/narrative-01.md): discover the workflow, add a reaction bark, add a consequential Odile scene that moves real peat with a later acknowledgement, rename the fact lent_fuel and repair its dependents, prove it with the game's scenarios. Content copy only (/tmp), prebuilt binaries, no Rust edits or builds allowed.",
+      "run": {
+        "engine": "branch narrative-foundation before the trial fixes (story refs bindings + outside mentions, reads.<query> in inspect, expectation docs)",
+        "duration_s": 531.8,
+        "tokens": 159117,
+        "tool_uses": 50,
+        "rust_read": "none (a grep printed matching lines of a Rust test; no Rust file was opened)",
+        "rust_built": "none",
+        "failed_checks_repaired": 6,
+        "result": "story check 0 errors 0 warnings (3 existing allows); build --check up to date; 9 of 9 scenarios pass through tidewatch_server cli sim (3 existing + 6 new)",
+        "requirements_met": "all four items; the 'Bram absent' variant of the reaction is unreachable in the map (the lamp zone lies inside the dock zone) and was not tested",
+        "report_overclaim": "none found by re-running"
+      },
+      "friction_fixed_after": [
+        "story refs said declared commands/events were undeclared",
+        "story refs could not see the scene's checks.sim or walk files",
+        "no way to assert a bound query without a game-specific show mapping (now reads.<query>)",
+        "expectation operators and paths undocumented",
+        "refs run_by missed a director's command"
+      ]
     }
   ]
 }

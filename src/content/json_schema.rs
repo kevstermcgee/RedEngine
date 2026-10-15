@@ -26,6 +26,18 @@ pub fn all() -> Vec<(&'static str, &'static str, &'static str, Value)> {
         ("project", "Red Engine 2 game project", "A game project's `game.json`.", s::<project::Project>()),
         ("drivers", "Red Engine 2 kart driver roster", "`assets/data/drivers.json`.", s::<drivers::DriverRoster>()),
         ("trace", "Red Engine 2 match trace", "A `*.trace.json` written by `--record`.", s::<trace::Trace>()),
+        (
+            "story-package",
+            "Red Engine 2 compiled story",
+            "A `<story>.story.json` written by `story build`: `red_engine2 describe story`.",
+            s::<story::StoryPackage>(),
+        ),
+        (
+            "story-bindings",
+            "Red Engine 2 story bindings",
+            "What a game offers a story (`<game>_server story-bindings`): `describe story`.",
+            s::<story::StoryBindings>(),
+        ),
     ]
 }
 

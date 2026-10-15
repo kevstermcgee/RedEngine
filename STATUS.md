@@ -66,6 +66,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: CLI is a library (ADR a-game-runs-the-engine-s-commands, step 1) (PR); step 6b merged (#161)
 - 2026-10-14: game systems milestone (ADR game-systems-compose-under-one-match-authority): sim::defs/ledger/systems, Workshop reference game (games/workshop), ability reuse fixture, sim game expectations + --inspect, describe systems; fresh-agent trial passed (69.5K tokens, 19 calls, 325 s, 1 tool-caused error)
 - 2026-10-14: game systems milestone: evidence ledger, update-path audit and dependency-ordered roadmap in docs/analysis/2026-10-14-game-systems-milestone.md (PR); #165 merged
+- 2026-10-15: Narrative foundation (branch narrative-foundation): .story text compiled by `red_engine2 story build` into a package run by the story system inside a game's systems host (queries in, atomic command batches out; ADR 2026-10-15-narrative-is-compiled-content-run-by-one-story-system); shared talk core with the 2D widget; scenario story steps + `story walk`; optional presenter app::dialogue; Tidewatch (games/tidewatch) reference game; docs/STORY.md + 3 exemplars; fresh-agent trial passed (531 s, 159k tokens). Evidence and limits: docs/analysis/2026-10-15-narrative-foundation.md
 
 ## Next
 - 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
@@ -89,6 +90,7 @@ _Handoff file for whoever (human or AI) resumes this work. Keep it short and cur
 - 2026-10-14: friction (fresh agent): `sim --only` matches a substring, so 'lever' also picked 'without the lever'
 - 2026-10-14: next (measured bottleneck): compile game content into indexed runtime data: string-keyed lookups and per-tick allocation are about half of Workshop's tick at 1000 machines (perf)
 - 2026-10-14: next (measured bottleneck): replication relevance/deltas for a game's part: a whole-state part is 8 bytes per machine and is left out of snapshots above about 170 machines
+- 2026-10-15: Narrative next: independent editorial review and a human playtest of Tidewatch; a real window + real gamepad check (offscreen pictures only so far); a scene-only story host only if agents keep asking for dialogue in rule-only scenes
 
 ## Failing / blocked
 - Main was green at 30bb4e5 (CI run of 2026-10-09 13:41). Not failing on main, but `scripts/test_idea_forge.py` failed on any machine with under 20 GB free (fixed in hardening item 3).

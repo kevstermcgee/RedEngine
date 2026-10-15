@@ -154,7 +154,8 @@ pub fn validate_scene_text(text: &str, base: Option<&Path>, label: &str) -> Resu
         }
         // The scripted playthroughs (`checks.sim`) are parsed, not played: their steps, expectations and references are checked as `verify` would.
         if let (true, Some(sims)) = (errs.is_empty(), checks.get("sim").and_then(serde_json::Value::as_array)) {
-            match tools::simrun::load_text(text, label) {
+            // With the scene's folder, as the first parse: a game block's files (its definitions, its compiled story) are relative to it.
+            match tools::simrun::load_text_in(text, label, base) {
                 Ok(loaded) => {
                     if let Err(e) = tools::simrun::parse_scenarios(&loaded, sims, "checks.sim") {
                         errs.extend(e);

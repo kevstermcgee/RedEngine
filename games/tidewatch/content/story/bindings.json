@@ -1,0 +1,113 @@
+{
+  "story_bindings": 1,
+  "game": "tidewatch",
+  "about": "what this game offers a story: queries it answers (conditions read them), commands it takes (effects run them; `unattended` ones a director may), events it emits (barks answer them). Generated from the game's code; a test keeps it fresh.",
+  "catalog": {
+    "queries": [
+      {
+        "id": "tw:boats_in",
+        "ty": "int",
+        "doc": "boats that came in safely"
+      },
+      {
+        "id": "tw:boats_late",
+        "ty": "int",
+        "doc": "boats that were late because the light was out too long"
+      },
+      {
+        "id": "tw:brazier_fuel",
+        "ty": "int",
+        "doc": "bricks in the signal brazier (0: the light is out)"
+      },
+      {
+        "id": "tw:carrying",
+        "ty": "bool",
+        "doc": "the player carries a brick"
+      },
+      {
+        "id": "tw:dark_secs",
+        "ty": "int",
+        "doc": "seconds the light was out in this watch"
+      },
+      {
+        "id": "tw:dock_lit",
+        "ty": "bool",
+        "doc": "the dock lamp has peat"
+      },
+      {
+        "id": "tw:last_safe",
+        "ty": "bool",
+        "doc": "the last watch that ended brought its boat in (false before any has ended)"
+      },
+      {
+        "id": "tw:light_out",
+        "ty": "bool",
+        "doc": "a watch is running and the brazier is empty"
+      },
+      {
+        "id": "tw:phase",
+        "ty": "int",
+        "doc": "0 ashore (before or between watches), 1 a watch is running, 2 every watch is over"
+      },
+      {
+        "id": "tw:reserve",
+        "ty": "int",
+        "doc": "bricks left in Odile's own reserve"
+      },
+      {
+        "id": "tw:secs_left",
+        "ty": "int",
+        "doc": "seconds left in the running watch"
+      },
+      {
+        "id": "tw:shed_fuel",
+        "ty": "int",
+        "doc": "bricks of peat in the shed"
+      },
+      {
+        "id": "tw:watch",
+        "ty": "int",
+        "doc": "watches begun (1 during the first)"
+      }
+    ],
+    "commands": [
+      "tw:feed",
+      "tw:lend",
+      "tw:odile_helps",
+      "tw:ring",
+      "tw:stock_lamp",
+      "tw:take"
+    ],
+    "unattended": [
+      "tw:odile_helps"
+    ],
+    "events": [
+      "tw:fed",
+      "tw:lamp_stocked",
+      "tw:lent",
+      "tw:low",
+      "tw:odile_helped",
+      "tw:out",
+      "tw:relit",
+      "tw:watch_ended",
+      "tw:watch_started"
+    ]
+  },
+  "notes": {
+    "tw:take": "the player takes a brick from the shed (the game issues it at the shed)",
+    "tw:feed": "the player puts the carried brick in the brazier (the game issues it at the brazier)",
+    "tw:ring": "the bell: the next watch begins (ashore only)",
+    "tw:lend": "value n: move n bricks from the shed to the dock lamp (refused, changing nothing, if the shed has fewer)",
+    "tw:stock_lamp": "the player puts the carried brick in the dock lamp (the game issues it at the lamp)",
+    "tw:odile_helps": "Odile carries one brick from her own reserve to the brazier (unattended: a director may run it; the reserve holds 2; between watches it is spent for little: a watch begins with the brazier topped up to 2)",
+    "tw:watch_started": "a watch begins; value: its number (1, 2)",
+    "tw:fed": "a brick went in; value: bricks in the brazier now",
+    "tw:low": "the brazier is down to its last brick",
+    "tw:out": "the brazier burnt its last brick: the light is out",
+    "tw:relit": "a brick went into an empty brazier during a watch",
+    "tw:watch_ended": "a watch is over; value 1: the boat came in, 0: it was late",
+    "tw:lent": "bricks went to the dock lamp by `tw:lend`; value: how many",
+    "tw:lamp_stocked": "the player put a brick in the dock lamp themselves",
+    "tw:odile_helped": "Odile brought a brick from her reserve"
+  }
+}

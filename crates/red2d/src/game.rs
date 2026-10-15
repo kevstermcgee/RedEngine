@@ -545,14 +545,8 @@ pub struct Pick {
     pub by: Expr,
 }
 
-/// Where a dialogue goes after a line or a choice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Goto {
-    /// The line at this index.
-    Line(usize),
-    /// Close the dialogue.
-    End,
-}
+/// Where a dialogue goes after a line or a choice: the story runtime's own (`red_core::sim::story::talk`), so moving on means one thing.
+pub use red_core::sim::story::talk::Goto;
 
 /// One choice on a dialogue line.
 #[derive(Debug, Clone)]
