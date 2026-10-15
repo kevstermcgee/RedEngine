@@ -126,7 +126,7 @@
     },
     "game_systems": {
       "summary": "Game-owned state beyond rules: namespaced definitions with provenance (`sim::defs`), a transactional resource ledger (`sim::ledger`) and the host that composes a game's systems under the match's one authority (`sim::systems`); Workshop (`games/workshop`) is the reference.",
-      "files": ["crates/red_core/src/sim/defs.rs", "crates/red_core/src/sim/ledger.rs", "crates/red_core/src/sim/systems.rs"],
+      "files": ["crates/red_core/src/sim/defs.rs", "crates/red_core/src/sim/ledger.rs", "crates/red_core/src/sim/ledger_props.rs", "crates/red_core/src/sim/systems.rs"],
       "tests": ["lib:sim", "systems_abilities"],
       "commands": ["red_engine2 describe systems", "cargo test -p workshop_server", "cargo test -p workshop_server --release --test scale -- --ignored --nocapture"],
       "docs": ["docs/adr/2026-10-14-game-systems-compose-under-one-match-authority.md", "games/workshop/README.md"],
