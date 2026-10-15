@@ -425,14 +425,28 @@ impl Systems {
     }
 
     /// Delivers `command` to the system that declares it, now (between ticks, in the order commands arrive). A command no system declares
-    /// is [`code::EVENT`]; one the system refuses changes nothing.
+    /// is [`code::EVENT`]; one the system refuses changes nothing. The host enforces that, not each system: it keeps the ledger, the target
+    /// system's state, the random stream and the event queue before the command and puts them back when it errs (a command is a rare player
+    /// decision, so the copy costs nothing that matters). A system that cannot take its own saved state back halts the host.
     pub fn command(&mut self, command: &Command) -> Result<(), Diagnostic> {
         let Some(i) = self.meta.iter().position(|m| m.commands.contains(&command.name)) else {
             return Err(Diagnostic::new(code::EVENT, &command.name, "no system takes this command")
                 .fix(format!("one of: {}", self.meta.iter().flat_map(|m| m.commands.iter().map(Id::as_str)).collect::<Vec<_>>().join(", "))));
         };
+        let (ledger, state, rng, queued) = (self.ledger.clone(), self.list[i].save(), self.rng, self.queue.len());
         let (s, mut cx) = self.cx(i);
-        s.command(command, &mut cx)
+        let Err(refused) = s.command(command, &mut cx) else {
+            return Ok(());
+        };
+        self.ledger = ledger;
+        self.rng = rng;
+        self.queue.truncate(queued);
+        if let Err(e) = self.list[i].load(state) {
+            let d = Diagnostic::new(code::STATE_VERSION, &self.meta[i].id, format!("refused `{}` but cannot take back its own state: {e}", command.name))
+                .fix("a system's `load` must accept what its `save` wrote");
+            self.halted = Some(d);
+        }
+        Err(refused)
     }
 
     /// Explains `target`: an instance some system owns, or a store.
@@ -679,6 +693,66 @@ mod tests {
         assert_eq!(s.halted(), Some(&e));
         let e = s.command(&Command { name: id("t:nothing"), subject: None, value: 0 }).unwrap_err();
         assert_eq!(e.code, code::EVENT);
+    }
+
+    /// Takes `t:grab`: draws a random number, mints ore, bumps its counter and emits, then refuses (a system that breaks the contract).
+    struct Grabber {
+        count: u64,
+    }
+
+    impl System for Grabber {
+        fn id(&self) -> Id {
+            id("t:grabber")
+        }
+        fn emits(&self) -> Vec<Id> {
+            vec![id("t:grabbed")]
+        }
+        fn commands(&self) -> Vec<Id> {
+            vec![id("t:grab")]
+        }
+        fn tick(&mut self, _cx: &mut Cx) {}
+        fn command(&mut self, c: &Command, cx: &mut Cx) -> Result<(), Diagnostic> {
+            cx.random(10);
+            cx.ledger.apply(&Tx::new().producing(&id("t:box"), &id("t:ore"), 2, &Reason::Source(id("t:mine"))))?;
+            self.count += 1;
+            cx.emit(&id("t:grabbed"), None, 1)?;
+            if c.value == 0 {
+                return Err(Diagnostic::new("refused", &c.name, "changed its mind"));
+            }
+            Ok(())
+        }
+        fn save(&self) -> Value {
+            json!(self.count)
+        }
+        fn load(&mut self, s: Value) -> Result<(), String> {
+            self.count = s.as_u64().ok_or("not a count")?;
+            Ok(())
+        }
+        fn hash(&self) -> u64 {
+            self.count
+        }
+    }
+
+    #[test]
+    fn a_refused_command_changes_nothing_even_when_the_system_mutated_first() {
+        let mut ledger = Ledger::new();
+        ledger.resource(id("t:ore"));
+        ledger.declare(Reason::Source(id("t:mine")));
+        ledger.add_store(id("t:box"), id("t:grabber"), 5).unwrap();
+        let mut s = Systems::new(vec![Box::new(Grabber { count: 0 })], ledger, 3).unwrap();
+        s.tick().unwrap();
+        let (hash, state) = (s.hash(), s.save());
+        let grab = |value| Command { name: id("t:grab"), subject: None, value };
+        assert_eq!(s.command(&grab(0)).unwrap_err().code, "refused");
+        assert_eq!((s.hash(), s.save()), (hash, state.clone()), "the ledger, the system, the random stream: all as before");
+        s.tick().unwrap();
+        assert!(s.recent_events().next().is_none(), "the refused command's event was never delivered");
+        assert!(s.halted().is_none());
+        // The same command accepted keeps everything it did.
+        s.command(&grab(1)).unwrap();
+        s.tick().unwrap();
+        assert_eq!((s.ledger().count(&id("t:box"), &id("t:ore")), s.get::<Grabber>().unwrap().count, s.recent_events().count()), (2, 1, 1));
+        s.ledger().audit().unwrap();
     }
 
     #[test]
