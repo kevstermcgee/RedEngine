@@ -1,0 +1,74 @@
+{
+  "game2d": 1,
+  "id": "electric-carousel",
+  "title": "Electric Carousel",
+  "description": "Walk a pet storm into position and zap the right lamps in five rooms; waking a lamp next to a lit room rebuilds the rooms from your last three mistakes.",
+  "capabilities": {"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
+  "view": {"width":320,"height":180,"background":"#151a2b","scale":"fit","world":[640,180],"camera":{"follow":"player","lerp":0.15}},
+  "sounds": {
+    "zap": {"seconds":0.25,"layers":[{"sine":660,"decay":12},{"sine":1320,"decay":25}]},
+    "bad": {"seconds":0.4,"layers":[{"sine":110,"decay":6},{"sine":95,"decay":8}]},
+    "win": {"seconds":0.5,"layers":[{"sine":523,"decay":5},{"sine":784,"decay":5}]},
+    "steal": {"seconds":0.2,"layers":[{"sine":300,"decay":15}]}
+  },
+  "vars": {"mistakes":0,"room":0,"m1":0,"m2":0,"m3":0,"wins":0,"zaps":0,"thieves_zapped":0},
+  "persist": ["wins"],
+  "prefabs": {
+    "cartographer": {"tag":"player","shape":{"rect":[8,10],"color":"#f2e3b0"},"size":[8,10],"layer":2,"move":{"keys":{"mode":"topdown","speed":80}},"body":{"type":"dynamic","gravity":0},"collide":["rubble"],"clamp":true},
+    "storm": {"tag":"storm","shape":{"circle":6,"color":"#7fd6ff"},"size":[12,12],"layer":2,"move":{"chase":{"target":"player","speed":55}},"body":{"type":"dynamic","gravity":0},"collide":["rubble"],
+      "emit":{"rate":30,"life":[0.2,0.4],"speed":[6,16],"angle":[0,360],"color":"#cdeeff"}},
+    "bolt": {"tag":"bolt","shape":{"circle":20,"color":"#fff7a0"},"size":[40,40],"layer":3,"ttl":0.2},
+    "lamp": {"tag":"lamp","shape":{"rect":[10,14],"color":"#6b5a3a"},"size":[10,14],"layer":1},
+    "litlamp": {"tag":"lit","shape":{"rect":[10,14],"color":"#ffe45c"},"size":[10,14],"layer":1,"emit":{"rate":6,"life":[0.3,0.6],"speed":[4,10],"angle":[250,290],"color":"#ffe45c"}},
+    "decoy": {"tag":"decoy","shape":{"rect":[10,14],"color":"#7a3a58"},"size":[10,14],"layer":1},
+    "thief": {"tag":"thief","shape":{"rect":[8,8],"color":"#c2523c"},"size":[8,8],"layer":2,"move":{"chase":{"target":"lit","speed":28}}},
+    "rubble": {"tag":"rubble","shape":{"rect":[14,44],"color":"#4a4f63"},"size":[14,44],"layer":1,"body":{"type":"static"}},
+    "divider": {"shape":{"rect":[2,180],"color":"#2a3150"},"size":[2,180],"layer":0}
+  },
+  "scene": [
+    {"prefab":"divider","at":[128,90]},{"prefab":"divider","at":[256,90]},{"prefab":"divider","at":[384,90]},{"prefab":"divider","at":[512,90]},
+    {"prefab":"lamp","at":[100,90]},{"prefab":"decoy","at":[150,90]},
+    {"prefab":"lamp","at":[330,90]},{"prefab":"decoy","at":[400,90]},
+    {"prefab":"lamp","at":[600,90]},
+    {"prefab":"cartographer","at":[30,90],"id":"p"},
+    {"prefab":"storm","at":[20,120],"id":"storm"}
+  ],
+  "ui": [
+    {"text":"LIT {count_lit}/3  MISTAKES {mistakes}/4  WINS {wins}","at":[4,4],"color":"#fff"},
+    {"text":"SPACE ZAPS THE STORM. SKIP PURPLE LAMPS.","at":[4,168],"color":"#8fa0c8"},
+    {"text":"MAPPED! THE COUNTRY SIGHS.","at":[160,80],"align":"center","color":"#ffe45c","show":"ended"}
+  ],
+  "rules": [
+    {"id":"zap","when":{"press":"action"},"cooldown":0.4,"do":[{"spawn":{"prefab":"bolt","at":[ "storm_x","storm_y"]}},{"add":["zaps",1]},{"play":"zap"},{"shake":2}]},
+    {"id":"light","when":{"touch":["bolt","lamp"]},"do":[{"become":{"target":"other","prefab":"litlamp"}}]},
+    {"id":"zapthief","when":{"touch":["bolt","thief"]},"do":[{"destroy":"other"},{"add":["thieves_zapped",1]}]},
+    {"id":"steal","when":{"touch":["thief","lit"]},"do":[{"become":{"target":"other","prefab":"lamp"}},{"destroy":"self"},{"play":"steal"}]},
+    {"id":"mistake","when":{"touch":["bolt","decoy"]},"do":[
+      {"set":["room","floor(other_x / 128) + 1"]},{"add":["mistakes",1]},
+      {"set":["m3","m2"]},{"set":["m2","m1"]},{"set":["m1","room"]},
+      {"destroy":"tag:lit"},{"destroy":"tag:rubble"},{"destroy":"tag:thief"},{"destroy":"tag:bolt"},
+      {"teleport":{"target":"id:p","to":[30,90]}},{"teleport":{"target":"id:storm","to":[20,120]}},
+      {"play":"bad"},{"shake":5},{"emit":"rebuild"}]},
+    {"id":"r1","when":{"event":"rebuild"},"if":"m1 > 0","do":[{"spawn":{"prefab":"rubble","at":["(m1-1)*128+64+22",90]}}]},
+    {"id":"r2","when":{"event":"rebuild"},"if":"m2 > 0","do":[{"spawn":{"prefab":"rubble","at":["(m2-1)*128+64-22",90]}}]},
+    {"id":"r3","when":{"event":"rebuild"},"if":"m3 > 0","do":[{"spawn":{"prefab":"rubble","at":["(m3-1)*128+64",140]}}]},
+    {"id":"thieves","when":{"every":8},"do":[{"spawn":{"prefab":"thief","at":[630,150]}}]},
+    {"id":"lose","when":{"every":0.1},"if":"mistakes >= 4 && ended == 0","do":[{"end":"lose"},{"play":"bad"}]},
+    {"id":"win","when":{"every":0.1},"if":"count_lit >= 3 && ended == 0","do":[{"add":["wins",1]},{"play":"win"},{"end":"win"}]}
+  ],
+  "checks": {"scenarios":[
+    {"name":"zap_lights_lamp","max_seconds":10,"script":[{"hold_until":["right"],"until":{"entity":"storm","near":[100,90],"tol":12},"timeout":4},{"wait":0.6},{"press":"action"},{"wait":0.5}],"expect":[{"count":"lit","eq":1},{"var":"mistakes","eq":0},{"sound":"zap","min":1}]},
+    {"name":"decoy_rebuilds_rooms","max_seconds":10,"script":[{"hold_until":["right"],"until":{"entity":"storm","near":[150,90],"tol":12},"timeout":5},{"wait":0.6},{"press":"action"},{"wait":0.5}],"expect":[{"var":"mistakes","eq":1},{"var":"m1","eq":2},{"count":"rubble","eq":1},{"count":"lit","eq":0}]},
+    {"name":"win_run","smoke":true,"max_seconds":60,"script":[
+      {"hold_until":["right"],"until":{"entity":"storm","near":[100,90],"tol":10},"timeout":4},{"wait":0.5},{"press":"action"},
+      {"hold_until":["right"],"until":{"entity":"storm","near":[330,90],"tol":10},"timeout":10},{"wait":0.5},{"press":"action"},
+      {"hold_until":["right"],"until":{"entity":"storm","near":[600,90],"tol":10},"timeout":10},{"wait":0.5},{"press":"action"},{"wait":0.5}],
+     "expect":[{"ended":"win"}]},
+    {"name":"lose_run","max_seconds":60,"script":[
+      {"hold_until":["right"],"until":{"entity":"storm","near":[150,90],"tol":10},"timeout":5},{"wait":0.5},{"press":"action"},{"wait":0.5},
+      {"hold_until":["right"],"until":{"entity":"storm","near":[150,90],"tol":10},"timeout":5},{"wait":0.5},{"press":"action"},{"wait":0.5},
+      {"hold_until":["right"],"until":{"entity":"storm","near":[150,90],"tol":10},"timeout":5},{"wait":0.5},{"press":"action"},{"wait":0.5},
+      {"hold_until":["right"],"until":{"entity":"storm","near":[150,90],"tol":10},"timeout":5},{"wait":0.5},{"press":"action"},{"wait":0.5}],
+     "expect":[{"ended":"lose"}]}
+  ]}
+}
