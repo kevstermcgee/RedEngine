@@ -198,6 +198,20 @@
           "type": "null"
         }
       ]
+    },
+    "pause_if": {
+      "description": "While this expression holds the world stands still but press rules run (a pause menu made of rules).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "icon": {
+      "description": "A sprite name: the window, taskbar and shortcut icon.",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": false,
@@ -313,7 +327,9 @@
             "boolean",
             "null"
           ]
-        }
+        },
+        "min_x": true,
+        "max_x": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -558,6 +574,13 @@
           "items": {
             "$ref": "#/$defs/ScoreTrack"
           }
+        },
+        "title": {
+          "description": "The track's name for people (a pause menu shows it; an exported file is called it).",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false,
@@ -896,7 +919,9 @@
         "cut": true,
         "run_jump": true,
         "coyote": true,
-        "buffer": true
+        "buffer": true,
+        "glide": true,
+        "glide_time": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -1099,7 +1124,55 @@
             "string",
             "null"
           ]
+        },
+        "sky": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "backdrop": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Backdrop"
+          }
         }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "Backdrop": {
+      "description": "A band of far scenery that scrolls slower than the world.",
+      "type": "object",
+      "properties": {
+        "sprites": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "y": true,
+        "parallax": true,
+        "spacing": true,
+        "fill": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seed": true,
+        "scale": true
       },
       "additionalProperties": false,
       "patternProperties": {
@@ -1129,6 +1202,9 @@
         },
         {
           "$ref": "#/$defs/MinimapWidget"
+        },
+        {
+          "$ref": "#/$defs/ImageWidget"
         }
       ]
     },
@@ -1473,6 +1549,24 @@
           ]
         },
         "level": true,
+        "window": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "save": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "export_music": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "apply": {
           "type": [
             "string",
@@ -1977,6 +2071,30 @@
         "viewport": {
           "type": [
             "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "ImageWidget": {
+      "description": "A sprite drawn on the screen.",
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": true,
+        "scale": true,
+        "show": {
+          "type": [
+            "string",
             "null"
           ]
         }
