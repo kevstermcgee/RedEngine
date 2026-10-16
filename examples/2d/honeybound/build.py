@@ -811,7 +811,7 @@ def ui():
     title = "mode == 0 && level == 0"
     shadow("HONEYBOUND", W / 2, 38, title, "#ffc531", scale=4, align="center")
     shadow("PIP AND THE HEARTCOMB", W / 2, 76, title, "#fff6e0", align="center")
-    U.append({"panel": {"at": [W / 2 - 130, 104], "size": [260, 94], "color": "#2b1a14cc"}, "show": title})
+    U.append({"panel": {"at": [W / 2 - 140, 104], "size": [280, 94], "color": "#2b1a14cc"}, "show": title})
     items = [("CONTINUE  {sv_w}-{sv_s}", "has_save == 1"), ("A NEW JOURNEY", "1 == 1"), ("FULLSCREEN", "1 == 1"), ("CLOSE GAME", "1 == 1")]
     for k, (label, cond) in enumerate(items):
         y = 110 + k * 14
