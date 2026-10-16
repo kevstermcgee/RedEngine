@@ -87,6 +87,13 @@ controller-first pause menu and title, autosaves and Continue, an icon everywher
 12. **Killing one solver run from a shell.** `pkill -f`/`pgrep -f` with the level id matched the agent's own shell command line and killed it
     (twice). `red_engine2 solve` could write its pid, or `dev.py`-style drivers could run each attempt under `timeout` with a progress line.
 
+13. **Publishing should be automatic (the owner, 2026-10-16).** The game was finished, verified (194/194) and green on hosted CI, and still did not
+    reach RedEngineGames: the last step was a human merging two PRs (the engine/game PR, and RedEngineGames' installer-icon PR), and the agent's
+    merge was refused as "merge without review". The owner's words: publishing to RedEngineGames should be automatic. *Want:* a game PR whose
+    content verifies and whose hosted CI is green publishes itself (auto-merge with required checks on `main`, which today has no branch
+    protection, so `--auto` merges instantly; see the repo-settings note), and the RedEngineGames side (catalog sync, installers, site) follows
+    from the RedEngine merge with no second PR to review. Until then every finished game waits on a person for its last click.
+
 ## Not proven
 
 Real controller in hand (the mapping is unit-tested; the pad reader is the 3D client's), the window and taskbar icon on Windows (built through
