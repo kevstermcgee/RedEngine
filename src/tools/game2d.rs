@@ -118,7 +118,17 @@ pub fn verify(path: &Path, only: Option<&str>) -> Report {
 
 /// `solve`: a playthrough that reaches `goal` from a level's start, as scenario steps (see `red2d::solve`).
 #[allow(clippy::too_many_arguments)]
-pub fn solve(path: &Path, level: Option<&str>, goal: &str, avoid: Option<&str>, progress: Option<&str>, max_seconds: f32, beam: usize, seed: u64, after: Option<&Path>) -> Report {
+pub fn solve(
+    path: &Path,
+    level: Option<&str>,
+    goal: &str,
+    avoid: Option<&str>,
+    progress: Option<&str>,
+    max_seconds: f32,
+    beam: usize,
+    seed: u64,
+    after: Option<&Path>,
+) -> Report {
     let (d, _) = match load(path) {
         Ok(x) => x,
         Err(e) => return Report { text: e, ok: false },
@@ -144,17 +154,24 @@ pub fn solve(path: &Path, level: Option<&str>, goal: &str, avoid: Option<&str>, 
     let mut prefix_steps: Vec<serde_json::Value> = Vec::new();
     let mut prefix = Vec::new();
     if let Some(f) = after {
-        let parsed = std::fs::read_to_string(f).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str::<Vec<serde_json::Value>>(&t).map_err(|e| e.to_string()));
+        let parsed =
+            std::fs::read_to_string(f).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str::<Vec<serde_json::Value>>(&t).map_err(|e| e.to_string()));
         let steps = match parsed {
             Ok(v) => v,
             Err(e) => return Report { text: format!("--after {}: {e} (a JSON list of `hold`/`wait` steps)", f.display()), ok: false },
         };
         for (i, st) in steps.iter().enumerate() {
-            let held: Vec<String> = st.get("hold").and_then(|h| h.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            let held: Vec<String> =
+                st.get("hold").and_then(|h| h.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
             let secs = st.get("seconds").or_else(|| st.get("wait")).and_then(serde_json::Value::as_f64);
             match secs {
                 Some(s) if st.get("hold").is_some() || st.get("wait").is_some() => prefix.push((held, s as f32)),
-                _ => return Report { text: format!("--after {} step {}: only {{\"hold\": [..], \"seconds\": s}} and {{\"wait\": s}} steps", f.display(), i + 1), ok: false },
+                _ => {
+                    return Report {
+                        text: format!("--after {} step {}: only {{\"hold\": [..], \"seconds\": s}} and {{\"wait\": s}} steps", f.display(), i + 1),
+                        ok: false,
+                    }
+                }
             }
         }
         prefix_steps = steps;

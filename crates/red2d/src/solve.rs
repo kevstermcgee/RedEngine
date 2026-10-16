@@ -241,8 +241,16 @@ mod tests {
     #[test]
     fn it_jumps_the_pit_and_its_steps_replay_as_a_scenario() {
         let def = pit_level(None);
-        let goal =
-            Goal { level: None, goal: expr(&def, "won == 1"), avoid: Some(expr(&def, "fell == 1")), progress: None, max_seconds: 20.0, beam: 16, seed: 1, prefix: Vec::new() };
+        let goal = Goal {
+            level: None,
+            goal: expr(&def, "won == 1"),
+            avoid: Some(expr(&def, "fell == 1")),
+            progress: None,
+            max_seconds: 20.0,
+            beam: 16,
+            seed: 1,
+            prefix: Vec::new(),
+        };
         let s = solve(&def, &goal).expect("solvable");
         assert!(s.ticks > 60 && s.ticks < 20 * 60, "{} ticks", s.ticks);
         // The printed steps, played by the scenario runner, reach the same goal without falling.
@@ -258,7 +266,16 @@ mod tests {
     #[test]
     fn an_impossible_goal_says_how_far_it_got() {
         let def = pit_level(None);
-        let goal = Goal { level: None, goal: expr(&def, "won == 2"), avoid: Some(expr(&def, "fell == 1")), progress: None, max_seconds: 3.0, beam: 8, seed: 1, prefix: Vec::new() };
+        let goal = Goal {
+            level: None,
+            goal: expr(&def, "won == 2"),
+            avoid: Some(expr(&def, "fell == 1")),
+            progress: None,
+            max_seconds: 3.0,
+            beam: 8,
+            seed: 1,
+            prefix: Vec::new(),
+        };
         let e = solve(&def, &goal).unwrap_err();
         assert!(e.contains("furthest x"), "{e}");
     }
