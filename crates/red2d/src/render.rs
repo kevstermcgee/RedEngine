@@ -140,6 +140,11 @@ pub fn fill_template(text: &str, sim: &Sim) -> String {
         };
         let spec = &after[..close];
         let (name, fmt) = spec.split_once(':').unwrap_or((spec, ""));
+        if name == crate::game::MUSIC_TITLE {
+            out.push_str(&music_title(sim));
+            rest = &after[close + 1..];
+            continue;
+        }
         let (width, decimals) = match fmt.strip_prefix('.') {
             Some(d) => (0, d.parse::<usize>().ok()),
             None => (fmt.parse::<usize>().unwrap_or(0), None),
@@ -160,6 +165,15 @@ pub fn fill_template(text: &str, sim: &Sim) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// The `title` of the music track playing now (its score's `title`, else its name).
+pub fn music_title(sim: &Sim) -> String {
+    sim.def
+        .music
+        .get(sim.music_track)
+        .map(|(name, score)| score.get("title").and_then(serde_json::Value::as_str).unwrap_or(name).to_string())
+        .unwrap_or_default()
 }
 
 /// The text a widget or dialogue line shows: its template, or the table entry its `pick` chooses (nothing for an index past either end).
@@ -506,6 +520,14 @@ pub fn render(sim: &Sim) -> Frame {
     let def = &*sim.def;
     let mut f = Frame::new(def.view.width, def.view.height, sim.background);
     let off = [sim.cam[0] - sim.shake_off[0], sim.cam[1] - sim.shake_off[1]];
+    if let Some(lv) = def.levels.get(sim.level).filter(|_| def.world3d.is_none()) {
+        if let Some((top, bottom)) = lv.sky {
+            draw_sky(&mut f, top, bottom);
+        }
+        for band in &lv.backdrop {
+            draw_backdrop(&mut f, sim, band, off);
+        }
+    }
     if let Some(w) = &def.world3d {
         draw_world3d(&mut f, sim, w, off);
     } else {
@@ -570,6 +592,10 @@ pub fn render(sim: &Sim) -> Frame {
                 f.rect(at[0] as i32, at[1] as i32, (size[0] as f64 * k).round() as i32, size[1] as i32, *color);
             }
             WidgetKind::Panel { at, size, color } => f.rect(at[0] as i32, at[1] as i32, size[0] as i32, size[1] as i32, *color),
+            WidgetKind::Image { sprite, at, scale } => {
+                let sp = &def.sprites[*sprite];
+                draw_sprite(&mut f, sp, sprite_frame(sim, sp), at[0].round() as i32, at[1].round() as i32, *scale as i32, false);
+            }
             WidgetKind::View3d(v) => draw_view3d(&mut f, sim, v),
             WidgetKind::Minimap { at, size, colors, back, border, dot, viewport } => {
                 draw_minimap(&mut f, sim, *at, *size, colors, *back, *border, *dot, *viewport)
@@ -600,24 +626,80 @@ fn draw_entity(f: &mut Frame, sim: &Sim, e: &crate::sim::Entity, off: [f32; 2]) 
         Shape::Sprite { scale, flip, .. } => {
             let sp = &def.sprites[sprite_now(&p.shape, e)];
             let s = *scale as i32;
-            let frame = sprite_frame(sim, sp);
             let (x0, y0) = ((cx - (sp.w as i32 * s) as f32 * 0.5).round() as i32, (cy - (sp.h as i32 * s) as f32 * 0.5).round() as i32);
-            for (k, px) in sp.frames[frame].iter().enumerate() {
-                if px[3] == 0 {
-                    continue;
-                }
-                let (mut sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
-                if *flip == Flip::X || (*flip == Flip::Auto && e.face_left) {
-                    sx = sp.w as i32 - 1 - sx;
-                }
-                f.rect(x0 + sx * s, y0 + sy * s, s, s, *px);
-            }
+            draw_sprite(f, sp, sprite_frame(sim, sp), x0, y0, s, *flip == Flip::X || (*flip == Flip::Auto && e.face_left));
         }
         Shape::Text { text, color, scale } => {
             let t = fill_template(text, sim);
             let w = font::text_width(&t, *scale as i32);
             f.text((cx - w as f32 * 0.5).round() as i32, (cy - (font::GLYPH_H * *scale as i32) as f32 * 0.5).round() as i32, &t, *scale as i32, *color);
         }
+    }
+}
+
+/// One frame of a sprite with its top-left at `(x0, y0)`, at a whole-number scale, mirrored or not.
+fn draw_sprite(f: &mut Frame, sp: &Sprite, frame: usize, x0: i32, y0: i32, s: i32, mirror: bool) {
+    for (k, px) in sp.frames[frame].iter().enumerate() {
+        if px[3] == 0 {
+            continue;
+        }
+        let (mut sx, sy) = ((k % sp.w) as i32, (k / sp.w) as i32);
+        if mirror {
+            sx = sp.w as i32 - 1 - sx;
+        }
+        f.rect(x0 + sx * s, y0 + sy * s, s, s, *px);
+    }
+}
+
+/// A level's `sky`: the top colour fading to the bottom one, row by row, with a two-row dither where neighbouring rows differ so the bands do not show.
+fn draw_sky(f: &mut Frame, top: Color, bottom: Color) {
+    let h = f.h.max(2) as usize;
+    let mix = |t: f32| -> Color {
+        let l = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round().clamp(0.0, 255.0) as u8;
+        [l(top[0], bottom[0]), l(top[1], bottom[1]), l(top[2], bottom[2]), 255]
+    };
+    let w = f.w as usize;
+    for y in 0..f.h as usize {
+        let t = y as f32 / (h - 1) as f32;
+        let (c0, c1) = (mix(t), mix((t + 0.5 / (h - 1) as f32).min(1.0)));
+        for x in 0..w {
+            let c = if (x + y) % 2 == 0 { c0 } else { c1 };
+            let i = (y * w + x) * 4;
+            f.rgba[i..i + 4].copy_from_slice(&c);
+        }
+    }
+}
+
+/// A stable pseudo-random number for item `k` of a band.
+fn band_hash(seed: u64, k: u64) -> u64 {
+    let mut v = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ k.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    v ^= v >> 31;
+    v = v.wrapping_mul(0x94d0_49bb_1331_11eb);
+    v ^ (v >> 29)
+}
+
+/// A `backdrop` band: its sprites side by side from world x 0 in a fixed pseudo-random order, scrolled `parallax` times the camera, with an optional
+/// fill below. Only what the screen shows is visited (a band scrolls at most as far as the world).
+fn draw_backdrop(f: &mut Frame, sim: &Sim, band: &crate::game::Backdrop, off: [f32; 2]) {
+    let def = &*sim.def;
+    let s = band.scale.max(1) as i32;
+    let ox = (off[0] * band.parallax).round() as i32;
+    let base = (band.y - off[1] * band.parallax).round() as i32;
+    if let Some(c) = band.fill {
+        f.rect(0, base, f.w as i32, f.h as i32 - base, c);
+    }
+    let n = band.sprites.len() as u64;
+    let (mut x, mut k) = (0i32, 0u64);
+    while x < ox + f.w as i32 && k < 100_000 {
+        let h = band_hash(band.seed, k);
+        let sp = &def.sprites[band.sprites[(h % n) as usize]];
+        let w = sp.w as i32 * s;
+        if x + w >= ox {
+            draw_sprite(f, sp, sprite_frame(sim, sp), x - ox, base - sp.h as i32 * s, s, false);
+        }
+        let gap = band.spacing[0] + (band.spacing[1] - band.spacing[0]) * ((h >> 20) % 1000) as f32 / 999.0;
+        x += w + gap.round() as i32;
+        k += 1;
     }
 }
 

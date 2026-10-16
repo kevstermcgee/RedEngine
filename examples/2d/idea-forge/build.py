@@ -215,12 +215,12 @@ def build() -> dict:
     # footer
     ui.append({"button": {"id": "forge", "label": "FORGE", "at": [6, 244], "size": [56, 18], "key": "Enter", "color": "#7a3b12", "do": [{"emit": "forge"}]}})
     ui.append({"button": {"id": "story", "label": "STORY", "at": [68, 244], "size": [44, 18], "key": "KeyS", "color": "#26305a", "do": [{"emit": "story"}]}})
-    ui.append({"button": {"id": "fav", "label": "SAVE", "at": [118, 244], "size": [38, 18], "key": "KeyF", "color": "#26305a", "do": [{"emit": "fav"}]}})
+    ui.append({"button": {"id": "fav", "label": "SAVE", "at": [118, 244], "size": [38, 18], "key": "KeyL", "color": "#26305a", "do": [{"emit": "fav"}]}})
     ui.append({"button": {"id": "nextfav", "label": "SAVED", "at": [162, 244], "size": [44, 18], "key": "KeyV", "color": "#26305a", "do": [{"emit": "nextfav"}]}})
     ui.append({"button": {"id": "back", "label": "BACK", "at": [212, 244], "size": [38, 18], "key": "KeyB", "color": "#26305a", "do": [{"emit": "back"}]}})
     ui.append({"button": {"id": "music", "label": "MUSIC", "at": [256, 244], "size": [44, 18], "key": "KeyM", "color": "#26305a", "do": [{"music": "toggle"}]}})
     ui.append({"text": "OFF", "at": [296, 250], "color": "#ff7a8c", "scale": 1, "align": "right", "show": "!music_on"})
-    ui.append({"text": "SPACE FORGE   1-5 LOCK   S STORY   F SAVE   V SAVED   B BACK   M MUSIC", "at": [240, 231], "color": DIM, "scale": 1, "align": "center"})
+    ui.append({"text": "SPACE FORGE   1-5 LOCK   S STORY   L SAVE   V SAVED   B BACK   M MUSIC", "at": [240, 231], "color": DIM, "scale": 1, "align": "center"})
     ui.append({"text": "SAVED IDEA {fi}/{fn}", "at": [226, 4], "color": "#8ff0a4", "scale": 1, "show": "fi > 0"})
 
     sprites = {

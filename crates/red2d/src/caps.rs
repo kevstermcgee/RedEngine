@@ -188,8 +188,9 @@ pub fn input_support(presentation: Presentation, platform: Platform, input: Inpu
     let presentation = if presentation == Presentation::Hybrid { Presentation::TwoD } else { presentation };
     match (input, presentation, platform) {
         (Input::Keyboard | Input::Mouse, _, _) => Support::Supported,
-        (Input::Gamepad, Presentation::ThreeD, Platform::Windows | Platform::Linux) => Support::Supported,
-        (Input::Gamepad, _, _) => Support::Prepared("the native 2D player reads the keyboard and the mouse; a gamepad is not mapped to the game's actions yet"),
+        // The 3D client and the native 2D player (`play2d`, `re2d`) both read a gamepad: in 2D its stick/d-pad, A, X/B and Start drive the game's actions.
+        (Input::Gamepad, _, Platform::Windows | Platform::Linux) => Support::Supported,
+        (Input::Gamepad, _, _) => Support::Prepared("no gamepad reader is built for this platform"),
     }
 }
 
@@ -471,6 +472,11 @@ mod tests {
             ""
         );
         assert_eq!(all(json!({"presentation": "3d", "platforms": ["windows", "linux"], "networking": "authoritative", "input": ["keyboard", "gamepad"]})), "");
+        assert_eq!(
+            all(json!({"presentation": "2d", "platforms": ["windows", "linux"], "input": ["keyboard", "gamepad"]})),
+            "",
+            "the native 2D player reads a gamepad"
+        );
     }
 
     /// The plausible mistakes, each refused with what RedEngine does support.
@@ -485,12 +491,6 @@ mod tests {
                 json!({"presentation": "2d", "platforms": ["windows"], "input": ["touch"]}),
                 "capabilities.input[0]: `touch` is not one of keyboard, mouse, gamepad",
                 "",
-            ),
-            (
-                "a gamepad in a 2D game",
-                json!({"presentation": "2d", "platforms": ["windows"], "input": ["gamepad"]}),
-                "`gamepad` input on `windows` is prepared",
-                "keyboard and the mouse",
             ),
             (
                 "a typo in a platform",
