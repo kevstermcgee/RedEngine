@@ -84,7 +84,7 @@ pub fn build(name: &str, w: u32, h: u32, opts: &ScreenOpts) -> Option<Layout> {
             // With a scene's `ui` block that has a `pause` line, the game's own name and line (`ui-shot pause --scene marcel.json --var days_lived=4`).
             let own = opts.game.as_ref().and_then(|g| {
                 let vars: Vec<(&str, f64)> = g.vars.iter().map(|(n, v)| (n.as_str(), *v)).collect();
-                g.ui.pause_line(&vars).map(|line| (g.ui.title.clone().unwrap_or_else(|| opts.map.clone()), line))
+                g.ui.pause_line(&vars).map(|line| (g.ui.title_text(&vars).unwrap_or_else(|| opts.map.clone()), line))
             });
             Some(match &own {
                 Some((name, line)) => pause_layout_with(w, h, PauseInfo::Game { name, line }, opts.message.as_deref(), opts.hover, opts.music_on, opts.sfx_on),

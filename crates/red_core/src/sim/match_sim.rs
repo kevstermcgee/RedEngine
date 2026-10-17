@@ -192,7 +192,8 @@ impl MatchSim {
             teams_requested: scene.teams,
             sent_rule_vars: {
                 let names: Vec<String> = scene.rules.var_names.iter().skip(crate::sim::rules::BUILTIN_VARS.len()).cloned().collect();
-                let reads: Vec<usize> = crate::ui_config::hud_reads(scene.ui.as_ref(), &scene.hud, &names).iter().map(|r| r.var).collect();
+                let audio: Vec<&str> = scene.audio.iter().flat_map(|a| a.layers.iter().map(|l| l.var.as_str())).collect();
+                let reads: Vec<usize> = crate::ui_config::client_reads(scene.ui.as_ref(), &scene.hud, &audio, &names).iter().map(|r| r.var).collect();
                 crate::net::protocol::rule_vars_to_send(names.len(), &reads)
             },
         })

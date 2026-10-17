@@ -352,7 +352,7 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
     (
         "net-hud",
         "error",
-        "the HUD reads more than the 64 variables a networked match sends (red_server, play-local, playtest): online it shows 0 -> read at most 64 (fewer counters/objective variables/rows); offline play is unaffected",
+        "the client reads (HUD, title, pause line, audio layers) more than the 64 variables a networked match sends (red_server, play-local, playtest): online it shows 0 -> read at most 64; or an event/outcome name over 32 bytes, shown cut online -> rename it; offline play is unaffected",
     ),
     (
         "style-sky",
@@ -564,7 +564,8 @@ fn ui_text() -> String {
      }\n\n\
      Everything is checked on load with a did-you-mean: variables (labels, counters, `of`, conditions, {placeholders}), `end` outcomes against the rules' `end` actions,\n\
      unknown keys, texts too long for a screen. `hud` composes: `show_rules_vars: false` hides the plain variable rows but counters and the objective stay; `enabled: false` hides all.\n\
-     Online a match sends 64 variables (by index), the ones the HUD reads first: reading more is lint `net-hud`, as it would show 0.\n\
+     Online a match sends 64 variables (by index), the ones the client reads first (HUD, title, `pause`, audio layers; the client copies them into its own\n\
+     rules): reading more, or an event/outcome name over 32 bytes, is lint `net-hud`. Texts (`title`, `objective`, `pause`) fill their {var} placeholders.\n\
      Offline (`re2 scene.json`): Enter, Space, E or a click uses a card's button; a restart rebuilds the game from the scene file and skips the start card. Online: the HUD\n\
      uses the labels, counters and objective, but the cards are offline only (a shared match cannot wait for one player; it has its own lobby and results).\n\n\
      SEE IT:    red_engine2 ui-shot game-hud|game-start|game-end out.png --scene scene.json [--var delivered=3] [--outcome victory] [--size 1280x720]\n\

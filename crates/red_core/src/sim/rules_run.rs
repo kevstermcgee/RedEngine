@@ -388,6 +388,18 @@ impl RulesEngine {
         self.set.var_names.iter().zip(&self.vars).skip(super::rules::BUILTIN_VARS.len()).map(|(n, v)| (n.as_str(), *v)).collect()
     }
 
+    /// Sets the scene's own variable at `index` (declaration order, the order of [`vars`](Self::vars) and of a networked `RuleState`); false
+    /// when there is none. The online client copies the server's variables into its own rules this way.
+    pub fn set_own_var(&mut self, index: usize, value: f64) -> bool {
+        match self.vars.get_mut(super::rules::BUILTIN_VARS.len() + index) {
+            Some(v) => {
+                *v = value;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Sets a scene variable (not a built-in) to a value; false when there is no such variable.
     pub fn set_var(&mut self, name: &str, value: f64) -> bool {
         match self.set.var_names.iter().position(|n| n == name).filter(|i| *i >= super::rules::BUILTIN_VARS.len()) {

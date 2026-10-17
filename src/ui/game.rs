@@ -72,7 +72,7 @@ pub fn hud_layout(w: u32, h: u32, ui: &GameUi, vars: &[(&str, f64)], shown: &[(&
     let event = event.map(|e| format!("EVENT: {}", e.to_uppercase()));
     let n = counters.len() + rows.len() + usize::from(event.is_some());
     if n > 0 || ui.title.is_some() {
-        let title = ui.title.as_ref().map(|t| t.to_uppercase());
+        let title = ui.title_text(vars).map(|t| t.to_uppercase());
         let panel_w = (140 * s).min(wi - 8);
         let row_h = text_height(s) + 3 * s;
         let top = if ui.objective_text(vars).is_some_and(|t| !t.is_empty()) { 4 * s + 40 * s } else { 4 * s };

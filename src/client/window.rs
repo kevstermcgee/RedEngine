@@ -48,7 +48,7 @@ impl App {
             // A game with a `ui.pause` line (and so a clean screen) says its name and that line here, where the HUD would have.
             let vars = self.rules.vars();
             let line = self.scene.ui.as_ref().and_then(|ui| ui.pause_line(&vars));
-            let name = self.scene.ui.as_ref().and_then(|ui| ui.title.clone()).unwrap_or_else(|| map.clone());
+            let name = self.scene.ui.as_ref().and_then(|ui| ui.title_text(&vars)).unwrap_or_else(|| map.clone());
             let px = match &line {
                 Some(line) => menu::paint_pause_with(w, h, menu::PauseInfo::Game { name: &name, line }, status.as_deref(), hover, self.music_on, self.sfx_on),
                 None => menu::paint_pause(w, h, &map, status.as_deref(), hover, self.music_on, self.sfx_on),
