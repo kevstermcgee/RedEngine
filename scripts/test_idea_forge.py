@@ -146,6 +146,14 @@ class Brief(unittest.TestCase):
         self.assertNotIn("Story (optional", idea_forge.brief(idea_forge.make_idea(1, story=False), "2026-10-08"))
 
 
+    def test_the_brief_demands_a_fun_unique_and_clear_game_and_puts_it_above_fidelity_to_the_card(self):
+        for kind in ("2d", "3d"):
+            text = idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-08", kind=kind)
+            for must in ("Make it fun, unique and clear", "unfun, awkward, strange and confusing", "beat fidelity to the card", "or drop the BUT", "ls examples/2d examples/3d",
+                         "one-sentence goal on screen", "Check it as a stranger", "why a stranger would find it fun", "how a first-time player learns it"):
+                self.assertIn(must, text, kind)
+
+
 class Feedback(unittest.TestCase):
     def test_findings_are_checked(self):
         self.assertEqual(idea_forge.check_findings([GOOD]), [])
@@ -1120,7 +1128,10 @@ exit 0
         after = rd(os.path.join(d, ".release-games.json"))
         self.assertTrue(after.startswith(before.split('\n  ],\n  "native_playables"')[0] + ",\n"), "the hand-formatted manifest is only added to, never rewritten")
         changed = subprocess.run(["git", "-C", d, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
-        self.assertTrue(changed and all(c == ".release-games.json" or c.startswith(("projects/", "site/thumbs/")) for c in changed), changed)
+        self.assertTrue(changed and all(c in (".release-games.json", "site/games-meta.json") or c.startswith(("projects/", "site/thumbs/")) for c in changed), changed)
+        meta = json.loads(rd(os.path.join(d, "site", "games-meta.json")))
+        self.assertEqual([meta["alpha-game"]["author"], meta["beta-game"]["author"]], ["ai", "ai"], "every game the forge publishes is marked AI-designed for the site's filter")
+        self.assertNotIn("old-game", meta, "a game the forge did not publish is not claimed")
         self.assertIn("site/thumbs/alpha-game.png", changed)
         self.assertIn("site/thumbs/beta-game.png", changed)
         self.assertIn("site/thumbs/old-game.png", changed, "a game that was listed without a screenshot gets one in the same commit")

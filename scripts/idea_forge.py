@@ -224,9 +224,24 @@ You are an AI game developer working with RedEngine, a data-driven game engine. 
 - Pushback: {idea['pushback']}
 - Goal: {idea['goal']}
 {story}
-The card is a seed, not a spec. Before building, write a one-paragraph design: THE mechanic in one sentence (YOU + BUT together are the mechanic), the core loop (what the player does every few seconds), why it is fun,
-how the game is won and lost. If parts of the card clash, keep YOU and BUT and adapt the rest, and say what you adapted. The mechanic must be what the player does most, not a power-up on a generic collector or
-platformer. Finished and small beats ambitious and broken. If the mechanic cannot be built faithfully, build the nearest faithful subset and say what was cut and what the engine lacked.
+The card is a seed, not a spec, and it is random: some cards are odd. YOUR JOB IS A GAME PEOPLE WANT TO PLAY, not a faithful rendering of the card. Fun, uniqueness and clarity (the next section) beat fidelity to the card.
+Before building, write a one-paragraph design: THE mechanic in one sentence, the core loop (what the player does every few seconds), why it is fun, how a first-time player learns it, how the game is won and lost.
+Keep the spirit of YOU and the most fun reading of BUT. If the literal reading would be awkward, strange or hard to explain, reinterpret it into something a player grasps at once, soften it, or drop the BUT, and say what you changed.
+The mechanic must be what the player does most, not a power-up on a generic collector or platformer. Finished and small beats ambitious and broken.
+If the mechanic cannot be built faithfully, build the nearest fun subset and say what was cut and what the engine lacked.
+
+## Make it fun, unique and clear (this decides whether the run counts)
+
+Earlier games from this tool were judged unfun, awkward, strange and confusing. Do not repeat that. The test is a stranger who has never seen the card: in the first ten seconds they know what to do, within a minute they are enjoying it, and when it ends they want one more go.
+
+- **Fun.** One verb the player does constantly must feel good by itself (responsive, with an immediate visible and audible reaction: a sound, a flash, a shake, a number popping up). Add a small decision, risk or skill in that verb, a goal that pulls the player forward, and
+  a difficulty that ramps: an easy first success within 30 seconds, then harder. A round lasts 3 to 5 minutes. Dying or failing restarts in a second, and the player can see why they lost.
+- **Unique.** Before designing, skim what already exists (`ls examples/2d examples/3d`, and the `description` of a few) and do not rebuild a mechanic that is there. Make something that would be worth describing to a friend in one sentence, with a twist that is
+  the game, not decoration on a collect-the-coins loop. Still, one strong, simple idea beats three clever ones.
+- **Clear.** No confusing games: the player must never have to guess. Show a title and a one-sentence goal on screen at the start, the controls for the one or two buttons that matter, and keep the goal and progress (score, timer, counter) visible while playing. Teach by doing: the first screen or room
+  is safe and shows only the core mechanic, and each further rule is introduced one at a time, never two new things at once. Rules the player cannot see (invisible state, hidden timers, an unexplained meter) do not belong in the game: make every state visible and give every action visible feedback. Prefer
+  plain, familiar controls and readable art (strong contrast between the player, hazards and goals) over cleverness. Awkward camera, floaty or slippery controls, unfair deaths and walls of text are bugs: fix them.
+- **Check it as a stranger.** After it works, play it (or step through `frame` / `playtest` pictures) using ONLY what is on screen. If you had to remember something from the design paragraph to understand it, add it to the screen. Record in your feedback what you changed after this pass.
 
 ## Build it
 
@@ -249,7 +264,7 @@ missing capability); and what worked well (`--area worked`). One line each, conc
    add evidence and a proposed engine change to each, and fill in "Idea fit" and "What worked".
 2. `{cli} feedback --check` must pass.
 3. Do not `git push`, open a PR, merge or publish: the CLI does that after review. Commit locally or leave the files uncommitted.
-4. Your last message is five lines: the game path, the `verify` result, the mechanic in one sentence, and your top three findings.
+4. Your last message is six lines: the game path, the `verify` result, the mechanic in one sentence, why a stranger would find it fun, how a first-time player learns it, and your top three findings (one line).
 """
 
 
@@ -1526,7 +1541,21 @@ def stage_games(root, clone, items, ref="origin/main"):
         staged.append(r)
     if staged:
         wr(manifest_path, add_playables(text, [playable_entry(r) for r in staged]))
+        mark_authors(clone, [r["slug"] for r in staged], "ai")
     return staged, skipped, failed
+
+
+GAMES_META = "site/games-meta.json"
+
+
+def mark_authors(clone, slugs, author):
+    """Record who designed each game in RedEngineGames' `site/games-meta.json` (`"author": "ai"`), which the site reads to badge a game and to filter AI-designed from human-designed ones.
+    Every game this tool publishes is AI-designed; a slug without an author is a human's. The file is rewritten with its other entries untouched."""
+    path = os.path.join(clone, GAMES_META)
+    meta = jload(path) if os.path.exists(path) else {}
+    for slug in slugs:
+        meta.setdefault(slug, {})["author"] = author
+    wr(path, json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
 
 
 def check_release_manifest(clone):
@@ -1539,7 +1568,7 @@ def check_release_manifest(clone):
 
 def push_games(clone, message):
     """Commit and push to RedEngineGames main; returns the commit id. A rejected push (the publish workflow committed meanwhile) is rebased and retried."""
-    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST)   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
+    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST, *([GAMES_META] if os.path.exists(os.path.join(clone, GAMES_META)) else []))   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
     p = subprocess.run(["git", "-C", clone, "commit", "-q", "-m", message], capture_output=True, text=True)
     if p.returncode:
         raise RuntimeError("git commit failed (is user.name / user.email set?): " + (p.stderr or p.stdout).strip())
