@@ -151,6 +151,48 @@ impl Host {
         self.sim.as_ref().map_or(0, |s| s.music_track)
     }
 
+    /// What the game's rules asked of the platform since the last call (`window`, `save`, `export_music` actions), oldest first.
+    pub fn take_requests(&mut self) -> Vec<crate::sim::Request> {
+        self.sim.as_mut().map(|s| std::mem::take(&mut s.requests)).unwrap_or_default()
+    }
+
+    /// The platform reports back (`music_exported`, `music_not_exported`): an event the game's rules see at the next tick.
+    pub fn notify(&mut self, event: &str) {
+        if let Some(s) = self.sim.as_mut() {
+            s.notify(event);
+        }
+    }
+
+    /// Whether a gamepad is connected (the game's `gamepad` variable: it shows pad buttons instead of keys).
+    pub fn set_gamepad(&mut self, connected: bool) {
+        if let Some(s) = self.sim.as_mut() {
+            s.gamepad = connected;
+        }
+    }
+
+    /// The `title` of music track `i` (its score's `title`, else its name), what an exported file is called.
+    pub fn music_title(&self, i: usize) -> Option<String> {
+        let d = self.sim.as_ref()?.def.clone();
+        d.music.get(i).map(|(name, score)| score.get("title").and_then(serde_json::Value::as_str).unwrap_or(name).to_string())
+    }
+
+    /// The game's `icon` as RGBA pixels scaled up to at least `min_side` px (whole-number scale, crisp), with its size; None when it has none.
+    pub fn icon_rgba(&self, min_side: u32) -> Option<(u32, u32, Vec<u8>)> {
+        let d = self.sim.as_ref()?.def.clone();
+        let sp = &d.sprites[d.icon?];
+        let k = min_side.div_ceil(sp.w.max(sp.h).max(1) as u32).max(1);
+        let (w, h) = (sp.w as u32 * k, sp.h as u32 * k);
+        let mut out = vec![0u8; (w * h * 4) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let px = sp.frames[0][(y / k) as usize * sp.w + (x / k) as usize];
+                let i = ((y * w + x) * 4) as usize;
+                out[i..i + 4].copy_from_slice(&px);
+            }
+        }
+        Some((w, h, out))
+    }
+
     /// Mono samples of sound `i`.
     pub fn sound_pcm(&self, i: usize) -> Result<Vec<f32>, String> {
         let d = self.sim.as_ref().ok_or("init first")?.def.clone();

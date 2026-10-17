@@ -194,6 +194,18 @@ impl<G: ClientGame> ApplicationHandler for Shell<G> {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // `F` and `F11` toggle borderless fullscreen in every game (the window's, never the game's): the same keys as `re2`, `re2d` and the game binaries.
+        if let WindowEvent::KeyboardInput { event: key, .. } = &event {
+            use winit::event::ElementState;
+            use winit::keyboard::{KeyCode, PhysicalKey};
+            if let (PhysicalKey::Code(KeyCode::F11 | KeyCode::KeyF), ElementState::Pressed, false) = (key.physical_key, key.state, key.repeat) {
+                if let Some(w) = &self.window {
+                    let full = w.fullscreen().is_none();
+                    w.set_fullscreen(full.then(|| winit::window::Fullscreen::Borderless(w.current_monitor())));
+                }
+                return;
+            }
+        }
         match &event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {

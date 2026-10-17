@@ -1,6 +1,7 @@
-"""Honeybound's levels, built with a few verbs (ground, gap, log, stairs, blocks, foes) on a 15-row tile grid (16 px tiles, a 256x240 view).
+"""Honeybound's levels, built with a few verbs (ground, gap, log, stairs, blocks, foes) on a 15-row tile grid (16 px tiles; the 480x270 view shows 30
+columns, and `build.py` puts the grid 30 px down so the HUD has a band of sky above it).
 
-Row 13 is the top of the ground (Tobin stands on it), row 14 the soil under it; row 15 (below the screen) is the abyss that catches falls. Each verb
+Row 13 is the top of the ground (Pip stands on it), row 14 the soil under it; row 15 (below the screen) is the abyss that catches falls. Each verb
 can leave a `hint` for the scripted run that proves the level can be finished (`build.py` turns hints into a scenario): where to jump, how
 long to hold the button, where to wait for a lift.
 """
@@ -106,25 +107,40 @@ class Level:
             self.set(col + i * step, row, "o")
 
     def pole(self, col, base=13):
-        """The beacon pole at the end: a hard block, the pole, its ball, the banner."""
-        self.set(col, base - 1, "X")
-        for r in range(base - 10, base - 1):
-            self.set(col, r, "I")
-        self.set(col, base - 11, "!")
-        self.add("banner", col * T + 2, (base - 10) * T + 4, None)
-        self.add("hut", (col + 6) * T + 8, base * T - 24, None)
+        """The Bloom Gate at the end of a stage: a great flower bud on a tall stem; touching it opens it and clears the stage."""
+        self.add("bloom", col * T + 8, base * T - 32, "bloom")
+        # the ground the bloom stands on runs on past it, so Pip has somewhere to walk off to
+        self.ground(col - 2, min(self.w - 1, col + 12), top=base)
+
+    def folk(self, col, prefab):
+        """A bug of the road who says a line when Pip bumps into them (`build.py` picks the line by world)."""
+        self.add(prefab, cx(col), 13 * T - 8, None)
 
     def decor_band(self, every=16, hills=True, bushes=True, clouds=True, flowers=False, seed=0):
-        for c in range(2 + seed % 5, self.w - 4, every):
-            v = getattr(self, "decor_set", None)
-            if hills and (c // every) % 2 == 0:
-                self.add(f"hill_{v}" if v else "hill", cx(c), 13 * T - 16, None)
-            if bushes and (c // every) % 2 == 1:
-                self.add(f"bush_{v}" if v else "bush", cx(c + 3), 13 * T - 8, None)
-            if clouds:
-                self.add(self.cloud, cx(c + 6), cy(2 + (c * 7 + seed) % 3), None)
-            if flowers:
-                self.add("flowers", cx(c + 9), 13 * T - 8, None)
+        """Ground scenery: tufts of grass, mushrooms, pebbles and daisies (the hills and clouds are the parallax backdrop now). Placed by `place_decor`
+        once the level is finished, so nothing stands over a pit dug after this call."""
+        self.decor_args = dict(every=every, bushes=bushes, flowers=flowers, seed=seed)
+
+    def place_decor(self):
+        if not hasattr(self, "decor_args"):
+            return
+        a = self.decor_args
+        every, bushes, flowers, seed = a["every"], a["bushes"], a["flowers"], a["seed"]
+        v = getattr(self, "decor_set", None)
+        v = {"ending": "frost"}.get(v, v)
+        tuft = f"tuft_{v}" if v in ("autumn", "frost", "night", "blossom", "ash", "dunes", "dusk") else "tuft"
+        for c in range(2 + seed % 5, self.w - 4, max(5, every // 3)):
+            k = ((c * 2654435761 + seed * 40503) >> 9) % 7  # a stable shuffle: tufts, daisies, a mushroom now and then, pebbles, bare ground
+            if self.grid[13][c] != "=" or self.grid[12][c] != ".":
+                continue
+            if k in (0, 2, 5) and bushes:
+                self.add(tuft, cx(c), 13 * T - 6, None)
+            elif k == 1 and flowers:
+                self.add("flowers", cx(c), 13 * T - 6, None)
+            elif k == 3 and v not in ("frost", "ash"):
+                self.add("mushroom", cx(c), 13 * T - 8, None)
+            elif k == 4:
+                self.add("pebbles", cx(c), 13 * T - 4, None)
 
     def midpoint(self, col):
         self.add("midpoint", cx(col), cy(10), None)
@@ -140,6 +156,12 @@ class Level:
         self.set(col, row, "U")
         for k in range(1, n + 1):
             self.add(f"orb_{k * 8}_{speed}_{phase}", cx(col), cy(row), None)
+
+    def shift(self, n, ch):
+        """Moves everything n columns right, filling the columns that open on the left with `ch` (a narrow room centred on the screen)."""
+        self.grid = [[ch] * n + row[: self.w - n] for row in self.grid]
+        self.scene = [(p, x + n * T, y, sid) for (p, x, y, sid) in self.scene]
+        self.start = (self.start[0] + n, self.start[1])
 
     def rows(self):
         # lava under lava is the deep part (no wavy surface)
@@ -159,6 +181,7 @@ def l11():
     L = Level("1-1", "MEADOW PATH", 212, "meadow", "#6bb4ff", "meadow")
     L.decor_band(every=16, flowers=True)
     L.ground(0, 211)
+    L.folk(8, "bramwell")
     L.set(16, 9, "?")
     L.text(20, 9, "B?BPB")
     L.set(22, 5, "?")
@@ -225,7 +248,8 @@ def l11():
 
 
 def b11():
-    L = Level("1-1b", "", 16, "roots", "#0b0c1a", "roots")
+    L = Level("1-1b", "", 30, "roots", "#0b0c1a", "roots")
+    L.fill(16, 29, 0, 14, "W")  # the honey room is half the screen: the rest is earth
     L.fill(0, 0, 0, 14, "W")
     L.fill(0, 15, 13, 14, "W")
     L.fill(4, 11, 0, 0, "W")
@@ -238,6 +262,7 @@ def b11():
     L.set(12, 12, ".")
     L.add("logside", 13 * T + 8, 12 * T, None)
     L.start = (2, 2)
+    L.shift(7, "W")
     return L
 
 
@@ -309,6 +334,7 @@ def l13():
         L.add("cloud", cx(c), cy(2 + c % 4), None)
     L.ground(0, 14)
     L.ground(166, 183)
+    L.folk(9, "ladybug")
 
     def tree(c0, width, top, hold=None, foe=None, coins=0):
         L.set(c0, top, "(")
@@ -364,30 +390,26 @@ def l13():
 
 
 def castle(L, boss_col, lever_col, friend, length, hp):
-    """The end of a keep: the Baron's bridge over lava, walls only he bumps into, the lever, a friend."""
-    b0, b1 = boss_col - 9, boss_col + 6
-    L.fill(b0 - 8, b0 - 1, 9, 14, "W")
-    for c in range(b0, b1 + 1):
-        L.set(c, 9, "_")
-        for r in range(10, 13):
-            L.set(c, r, ".")
-        L.set(c, 13, "~")
-        L.set(c, 14, "~")
-    L.fill(b1 + 1, length - 1, 9, 14, "W")
-    L.fill(b0 - 1, b0 - 1, 9, 14, "W")
-    L.set(b0 - 1, 9, "W")
-    for r in range(4, 9):
-        L.set(b0, r, "Z")
-        L.set(b1, r, "Z")
-    L.add("baron", cx(boss_col), 9 * T - 16, "baron")
-    L.add("lever", cx(lever_col), cy(8), None)
-    L.add(friend, cx(length - 4), 9 * T - (12 if friend == "queen" else 8), "friend")
+    """The end of a keep: a corridor, then a drop into the boss's den (one screen, 30 columns) whose bramble gate shuts behind Pip.
+    `build.py` puts the boss (`L.boss`, by world) and its prisoner in a thorn cocoon; markers `den_l`, `den_c`, `den_r` give the rules the den's x."""
+    d0 = length - 30
+    L.fill(boss_col - 12, d0 - 1, 9, 14, "W")
+    L.set(d0 - 6, 5, "P")  # one last comb before the den: a grown Pip can take a hit
+    L.fill(d0, length - 1, 3, 11, ".")
+    L.fill(d0, length - 1, 12, 14, "W")
+    L.fill(length - 1, length - 1, 3, 11, "W")
+    L.den = d0
+    L.add("densensor", cx(d0 + 4), cy(7), None)
+    L.add("mark", cx(d0), cy(7), "den_l")
+    L.add("mark", d0 * T + 15 * T, cy(7), "den_c")
+    L.add("mark", cx(length - 2), cy(7), "den_r")
+    L.friend = friend
     L.boss_hp = hp
-    L.hint(b0 - 2, hold=0.5)
+    L.hint(boss_col - 14, hold=0.5)
 
 
 def l14():
-    L = Level("1-4", "THORNKEEP", 160, "castle", "#140a12", "keep")
+    L = Level("1-4", "THORNKEEP", 160, "keep", "#140a12", "keep")
     L.fill(0, 159, 0, 2, "W")
     L.fill(0, 14, 9, 14, "W")
     L.start = (2, 8)
@@ -433,6 +455,7 @@ def l21():
         L.add("stars", cx(c), cy(1 + c % 5), None)
     L.decor_band(every=18, clouds=True, flowers=False, seed=3)
     L.ground(0, 211)
+    L.folk(10, "cricket")
     L.text(14, 9, "?B?")
     L.foe("dgrubble", 22)
     L.foe("dgrubble", 24)
@@ -608,7 +631,7 @@ def l23():
     L.hint(152, kind="wait_lift", lift=lift3, near=[155 * T + 24 - 40, 9 * T + 3], tol=6)
     L.hint(152, hold=0.2)
     L.hint(159, hold=0.3)
-    bridge(163, 172, 10, foe="spike")
+    bridge(163, 172, 10, foe="dgrubble")
     L.hint(165, hold=0.5)
     L.hint(172, hold=0.3)
     L.stairs(178, 3)
@@ -617,7 +640,7 @@ def l23():
 
 
 def l24():
-    L = Level("2-4", "ASHEN THORNKEEP", 176, "castle", "#1c0a08", "keep")
+    L = Level("2-4", "ASHEN THORNKEEP", 176, "keep", "#1c0a08", "keep")
     L.fill(0, 175, 0, 2, "W")
     L.fill(0, 12, 9, 14, "W")
     L.start = (2, 8)

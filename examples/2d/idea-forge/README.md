@@ -16,7 +16,7 @@ STORY A cartographer mapping a country that dislikes being mapped.
 | Space / Enter | forge the next idea (reels settle one by one) |
 | 1-5 | lock YOU / BUT / PUSHBACK / GOAL / STORY; the next strike changes only the unlocked parts |
 | S | story on/off |
-| F / V | save the idea (a ring of 8) / browse the saved ones |
+| L / V | save the idea (a ring of 8) / browse the saved ones |
 | B | back to the previous idea (8 deep) |
 | M | music on/off |
 

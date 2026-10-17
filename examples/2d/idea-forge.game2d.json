@@ -3214,7 +3214,7 @@
      38,
      18
     ],
-    "key": "KeyF",
+    "key": "KeyL",
     "color": "#26305a",
     "do": [
      {
@@ -3298,7 +3298,7 @@
    "show": "!music_on"
   },
   {
-   "text": "SPACE FORGE   1-5 LOCK   S STORY   F SAVE   V SAVED   B BACK   M MUSIC",
+   "text": "SPACE FORGE   1-5 LOCK   S STORY   L SAVE   V SAVED   B BACK   M MUSIC",
    "at": [
     240,
     231

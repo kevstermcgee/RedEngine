@@ -10,6 +10,7 @@
 use crate::caps::{self, Capabilities, Input, Persistence};
 use crate::fields::{check_fields, check_keys, describe_value, opt, req, Field, Ty};
 use crate::rules_expr::{self, Expr};
+pub use crate::scenery::{Backdrop, WindowCmd};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 
@@ -71,6 +72,10 @@ pub struct View {
     pub lerp: f32,
     /// The camera never scrolls back left, and the thing it follows cannot walk off the left edge of the screen.
     pub forward_only: bool,
+    /// The camera's left edge never goes below this (an expression, evaluated each tick: a boss arena locks the view with it).
+    pub min_x: Option<Expr>,
+    /// The camera's left edge never goes above this.
+    pub max_x: Option<Expr>,
 }
 
 /// A sprite: one or more frames of paletted pixels.
@@ -263,12 +268,16 @@ pub struct Feel {
     pub coyote: f32,
     /// Seconds a jump pressed just before landing is remembered.
     pub buffer: f32,
+    /// Holding jump while falling caps the fall at this speed, px/s (a flutter or a glide; 0 = no glide).
+    pub glide: f32,
+    /// Seconds of gliding per time in the air (the ground gives it back; 0 with a `glide` = as long as jump is held).
+    pub glide_time: f32,
 }
 
 impl Feel {
     /// The plain mover's feel for a top speed.
     pub fn plain(speed: f32) -> Feel {
-        Feel { run: speed, accel: 0.0, decel: 0.0, cut: 1.0, run_jump: 0.0, coyote: 0.0, buffer: 0.0 }
+        Feel { run: speed, accel: 0.0, decel: 0.0, cut: 1.0, run_jump: 0.0, coyote: 0.0, buffer: 0.0, glide: 0.0, glide_time: 0.0 }
     }
 }
 
@@ -479,6 +488,12 @@ pub enum Act {
     Become(Target, usize),
     /// `level`: replace the world with a level now (its index, or an expression giving one).
     Level(Val),
+    /// Ask the window: borderless fullscreen on or off, or close the game (it saves first).
+    Window(WindowCmd),
+    /// Write the saved variables now (the player also saves every few seconds and on closing).
+    Save,
+    /// Export the music track playing now as a sound file the player keeps (the platform names it after the track's `title`); emits `music_exported` or `music_not_exported`.
+    ExportMusic,
 }
 
 /// What starts a rule.
@@ -689,6 +704,15 @@ pub enum WidgetKind {
         /// Outline the part of the world the camera shows.
         viewport: bool,
     },
+    /// A sprite drawn on the screen (its frames animate).
+    Image {
+        /// Index into [`GameDef::sprites`].
+        sprite: usize,
+        /// Top-left.
+        at: [f32; 2],
+        /// Integer scale.
+        scale: u32,
+    },
     /// A clickable button.
     Button {
         /// Its id (a scenario can click it by id).
@@ -743,6 +767,10 @@ pub struct Level {
     pub background: Color,
     /// The music track it plays (index into [`GameDef::music`]); None keeps the current one.
     pub music: Option<usize>,
+    /// A sky drawn behind everything: the top colour fading to the bottom one (`sky: [top, bottom]`), instead of the flat background.
+    pub sky: Option<(Color, Color)>,
+    /// Scenery bands drawn over the sky and behind every thing, each scrolling slower than the world (parallax).
+    pub backdrop: Vec<Backdrop>,
 }
 
 /// One step of a scripted playthrough.
@@ -925,6 +953,10 @@ pub struct GameDef {
     pub layers3d: Vec<crate::game3d::Layer3d>,
     /// The whole world seen in 3D.
     pub world3d: Option<crate::game3d::World3d>,
+    /// While this holds the world stands still (no movement, touching, timers or clock) but press rules still run: a pause menu made of rules.
+    pub pause_if: Option<Expr>,
+    /// The game's icon (index into [`GameDef::sprites`]): the window's title bar and taskbar, and the installer's shortcut.
+    pub icon: Option<usize>,
     /// Hash of the game text: its revision.
     pub rev: String,
 }
@@ -979,6 +1011,7 @@ pub const BUILTINS: &[&str] = &[
     "other_vx",
     "other_vy",
     "other_face",
+    "gamepad",
 ];
 
 /// Side bits of a contact, as seen from the rule's first thing: its top met the other (it jumped into it from below), its bottom (it landed on it), ...
@@ -1025,6 +1058,8 @@ pub const ROOT: &[&str] = &[
     "models",
     "layers3d",
     "checks",
+    "pause_if",
+    "icon",
 ];
 
 fn fnv(text: &str) -> u64 {
@@ -1389,6 +1424,8 @@ const KEYS_FIELDS: &[Field] = &[
     opt("run_jump", Ty::Num(Some((0.0, 2000.0))), "platformer: extra jump speed at full running speed, px/s (default 0)"),
     opt("coyote", Ty::Num(Some((0.0, 1.0))), "platformer: seconds after leaving a ledge that a jump still works (default 0)"),
     opt("buffer", Ty::Num(Some((0.0, 1.0))), "platformer: seconds a jump pressed before landing is remembered (default 0)"),
+    opt("glide", Ty::Num(Some((0.0, 2000.0))), "platformer: holding jump while falling caps the fall at this speed, px/s (a flutter; default 0: none)"),
+    opt("glide_time", Ty::Num(Some((0.0, 60.0))), "platformer: seconds of `glide` per time in the air, given back on the ground (default 0: unlimited)"),
 ];
 const CHASE_FIELDS: &[Field] = &[req("target", Ty::Str, "the tag to chase"), req("speed", Ty::Num(Some((1.0, 2000.0))), "px/s")];
 const WANDER_FIELDS: &[Field] =
@@ -1436,9 +1473,11 @@ fn parse_move(ctx: &mut Ctx, path: &str, v: &Value) -> Move {
                 run_jump: f("run_jump", 0.0),
                 coyote: f("coyote", 0.0),
                 buffer: f("buffer", 0.0),
+                glide: f("glide", 0.0),
+                glide_time: f("glide_time", 0.0),
             };
             if mode == KeyMode::TopDown && feel != Feel::plain(speed) {
-                ctx.err(&sub, "run, accel, decel, cut, run_jump, coyote and buffer shape a platformer's movement: use them with mode platformer");
+                ctx.err(&sub, "run, accel, decel, cut, run_jump, coyote, buffer and glide shape a platformer's movement: use them with mode platformer");
             }
             Move::Keys { mode, speed, jump: m.get("jump").and_then(num).unwrap_or(0.0) as f32, feel }
         }),
@@ -1507,7 +1546,7 @@ const EMIT_FIELDS: &[Field] = &[
     opt("gravity", Ty::Num(Some((-2000.0, 2000.0))), "px/s^2, default 0"),
 ];
 
-fn range_or_num(v: &Value) -> Result<(), String> {
+pub(crate) fn range_or_num(v: &Value) -> Result<(), String> {
     if num(v).is_some() || Ty::Range.check(v, "").is_ok() {
         Ok(())
     } else {
@@ -1515,7 +1554,7 @@ fn range_or_num(v: &Value) -> Result<(), String> {
     }
 }
 
-fn range_of(o: &Map<String, Value>, key: &str, default: [f32; 2]) -> [f32; 2] {
+pub(crate) fn range_of(o: &Map<String, Value>, key: &str, default: [f32; 2]) -> [f32; 2] {
     match o.get(key) {
         Some(v) if num(v).is_some() => [num(v).unwrap_or(0.0) as f32; 2],
         Some(v) => pair(v).unwrap_or(default),
@@ -1556,7 +1595,7 @@ pub(crate) struct Names<'a> {
     pub(crate) music: &'a [String],
 }
 
-fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
+pub(crate) fn expr(ctx: &mut Ctx, path: &str, src: &str, names: &Names) -> Option<Expr> {
     match rules_expr::parse(src, names.vars) {
         Ok(e) => Some(e),
         Err(e) => {
@@ -1669,6 +1708,9 @@ pub const ACT_KEYS: &[&str] = &[
     "become",
     "level",
     "apply",
+    "window",
+    "save",
+    "export_music",
 ];
 
 fn declared(ctx: &mut Ctx, path: &str, name: &str, names: &Names) -> Option<usize> {
@@ -1704,7 +1746,7 @@ const BURST_FIELDS: &[Field] = &[
     opt("gravity", Ty::Num(Some((-2000.0, 2000.0))), "px/s^2, default 0"),
 ];
 
-fn any_ok(_: &Value) -> Result<(), String> {
+pub(crate) fn any_ok(_: &Value) -> Result<(), String> {
     Ok(())
 }
 fn count_ok(v: &Value) -> Result<(), String> {
@@ -1717,7 +1759,7 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
         return Vec::new();
     };
     if list.is_empty() {
-        ctx.err(path, "`do` is empty: a rule that does nothing proves nothing (actions: set, add, emit, spawn, destroy, play, music, burst, shake, end, restart, reset_save, velocity, teleport, become, level)");
+        ctx.err(path, "`do` is empty: a rule that does nothing proves nothing (actions: set, add, emit, spawn, destroy, play, music, burst, shake, end, restart, reset_save, velocity, teleport, become, level, window, save, export_music)");
     }
     let mut out = Vec::new();
     // `{"apply": effect}` items are replaced by the effect's actions first, so every one of them is checked exactly like a hand-written action.
@@ -1851,6 +1893,7 @@ fn parse_actions(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, in_button:
                 ctx.err(&ap, "write {\"reset_save\": true}");
                 None
             }),
+            k @ ("window" | "save" | "export_music") => crate::scenery::parse_action(ctx, &ap, k, arg, names),
             "velocity" => ctx.obj(&ap, arg).and_then(|o| {
                 check_keys(&mut ctx.errs, &ap, o, &["target", "v"]);
                 let t = target(ctx, &format!("{ap}.target"), o.get("target")?, names)?;
@@ -2101,7 +2144,7 @@ const BUTTON_FIELDS: &[Field] = &[
 ];
 
 /// A text is a template string, or `{"pick": table, "by": expression}`.
-fn text_source_ok(v: &Value) -> Result<(), String> {
+pub(crate) fn text_source_ok(v: &Value) -> Result<(), String> {
     match v {
         Value::String(_) => Ok(()),
         Value::Object(o) if o.get("pick").is_some_and(Value::is_string) && o.get("by").is_some_and(|b| b.is_string() || b.is_number()) && o.len() == 2 => {
@@ -2112,7 +2155,7 @@ fn text_source_ok(v: &Value) -> Result<(), String> {
 }
 
 /// Parses `{"pick": table, "by": expr}` against the game's tables: an unknown table, or a constant index outside it, is an error.
-fn parse_pick(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, tables: &[(String, Vec<String>)], names: &Names) -> Option<Pick> {
+pub(crate) fn parse_pick(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, tables: &[(String, Vec<String>)], names: &Names) -> Option<Pick> {
     let name = o.get("pick").and_then(Value::as_str)?;
     let Some(t) = tables.iter().position(|(n, _)| n == name) else {
         ctx.err(format!("{path}.pick"), format!("no table `{name}`{} (declare it in `tables`)", Ctx::near(name, tables.iter().map(|(n, _)| n.clone()))));
@@ -2133,137 +2176,8 @@ fn parse_pick(ctx: &mut Ctx, path: &str, o: &Map<String, Value>, tables: &[(Stri
     Some(Pick { table: t, by })
 }
 
-fn scale_ok(v: &Value) -> Result<(), String> {
+pub(crate) fn scale_ok(v: &Value) -> Result<(), String> {
     v.as_u64().filter(|s| (1..=16).contains(s)).map(|_| ()).ok_or_else(|| format!("expected a whole number from 1 to 16, got {}", describe_value(v)))
-}
-
-const DIALOGUE_FIELDS: &[Field] = &[
-    req("id", Ty::Str, "a name: its state is the variables <id>_line and <id>_choice"),
-    req("lines", Ty::Custom(any_ok), "[{\"who\": \"NAME\", \"text\": \"...\"}, ...] in order"),
-    req("at", Ty::Nums(&[2]), "[x, y] top-left of the box"),
-    req("size", Ty::Nums(&[2]), "[w, h]"),
-    opt("color", Ty::Custom(color_ok), "text, default white"),
-    opt("back", Ty::Custom(color_ok), "the box, default dark"),
-    opt("accent", Ty::Custom(color_ok), "speaker name and the highlighted choice, default gold"),
-    opt("scale", Ty::Custom(scale_ok), "1 to 16, default 1"),
-    opt("advance", Ty::OneOf(ACTIONS), "the input action that moves on, default action"),
-    opt("pause", Ty::Bool, "the world stands still while it is open (default true)"),
-    opt("done", Ty::Str, "an event emitted when it closes"),
-];
-const LINE_FIELDS: &[Field] = &[
-    req("text", Ty::Custom(text_source_ok), "the words ({var} placeholders), or {\"pick\": table, \"by\": expression}"),
-    opt("id", Ty::Str, "a name a goto can jump to"),
-    opt("who", Ty::Str, "the speaker, drawn above the text"),
-    opt("emit", Ty::Str, "an event emitted when the player moves past the line"),
-    opt("goto", Ty::Str, "a line id, or \"end\": where to go after this line (default the next)"),
-    opt("choices", Ty::Custom(any_ok), "[{\"label\": \"YES\", \"emit\": \"said_yes\", \"goto\": \"line_id\"|\"end\"}] (up to 9)"),
-];
-const CHOICE_FIELDS: &[Field] = &[
-    req("label", Ty::Str, "what the player picks"),
-    opt("emit", Ty::Str, "the event it emits"),
-    opt("goto", Ty::Str, "a line id, or \"end\" (default the next line)"),
-];
-
-/// Parses a `dialogue` widget. Its two state variables were declared by [`dialogue_vars`] before the rules were read.
-fn parse_dialogue(ctx: &mut Ctx, path: &str, v: &Value, names: &Names, tables: &[(String, Vec<String>)]) -> Option<Dialogue> {
-    let o = ctx.obj(path, v)?;
-    let before = ctx.errs.len();
-    check_fields(&mut ctx.errs, path, o, DIALOGUE_FIELDS);
-    let id = o.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-    let lines_v = o.get("lines").and_then(Value::as_array).cloned().unwrap_or_default();
-    if lines_v.is_empty() {
-        ctx.err(format!("{path}.lines"), "a dialogue needs at least one line: [{\"text\": \"...\"}]");
-    }
-    let ids: Vec<Option<String>> = lines_v.iter().map(|l| l.get("id").and_then(Value::as_str).map(str::to_string)).collect();
-    let goto = |ctx: &mut Ctx, p: &str, g: Option<&Value>| -> Option<Goto> {
-        let g = g?.as_str()?;
-        if g == "end" {
-            return Some(Goto::End);
-        }
-        match ids.iter().position(|x| x.as_deref() == Some(g)) {
-            Some(i) => Some(Goto::Line(i)),
-            None => {
-                ctx.err(p.to_string(), format!("no line with id `{g}`{} (or \"end\")", Ctx::near(g, ids.iter().flatten().cloned())));
-                None
-            }
-        }
-    };
-    let mut lines = Vec::new();
-    for (li, lv) in lines_v.iter().enumerate() {
-        let lp = format!("{path}.lines[{li}]");
-        let Some(lo) = ctx.obj(&lp, lv) else { continue };
-        check_fields(&mut ctx.errs, &lp, lo, LINE_FIELDS);
-        let pick = match lo.get("text").and_then(Value::as_object) {
-            Some(po) => parse_pick(ctx, &format!("{lp}.text"), po, tables, names),
-            None => None,
-        };
-        let text = lo.get("text").and_then(Value::as_str).unwrap_or("").to_string();
-        if !text.is_empty() {
-            check_template(ctx, &format!("{lp}.text"), &text, names);
-        }
-        let mut choices = Vec::new();
-        let cv = lo.get("choices").and_then(Value::as_array).cloned().unwrap_or_default();
-        if cv.len() > 9 {
-            ctx.err(format!("{lp}.choices"), format!("{} choices; at most 9 (keys 1-9)", cv.len()));
-        }
-        for (ci, c) in cv.iter().enumerate() {
-            let cp = format!("{lp}.choices[{ci}]");
-            let Some(co) = ctx.obj(&cp, c) else { continue };
-            check_fields(&mut ctx.errs, &cp, co, CHOICE_FIELDS);
-            choices.push(Choice {
-                label: co.get("label").and_then(Value::as_str).unwrap_or("").to_string(),
-                emit: co.get("emit").and_then(Value::as_str).map(str::to_string),
-                goto: goto(ctx, &format!("{cp}.goto"), co.get("goto")),
-            });
-        }
-        lines.push(DialogueLine {
-            id: ids[li].clone(),
-            who: lo.get("who").and_then(Value::as_str).map(str::to_string),
-            text,
-            pick,
-            emit: lo.get("emit").and_then(Value::as_str).map(str::to_string),
-            goto: goto(ctx, &format!("{lp}.goto"), lo.get("goto")),
-            choices,
-        });
-    }
-    let var = |n: String| names.vars.iter().position(|v| *v == n);
-    let (Some(line_var), Some(choice_var)) = (var(format!("{id}_line")), var(format!("{id}_choice"))) else {
-        ctx.err(format!("{path}.id"), "a dialogue id is letters, digits and _ (its state lives in <id>_line and <id>_choice)");
-        return None;
-    };
-    if ctx.errs.len() > before {
-        return None;
-    }
-    let col = |k: &str, d: Color| o.get(k).and_then(Value::as_str).and_then(parse_color).unwrap_or(d);
-    Some(Dialogue {
-        id,
-        lines,
-        at: pair(&o["at"])?,
-        size: pair(&o["size"])?,
-        color: col("color", [255, 255, 255, 255]),
-        back: col("back", [16, 20, 32, 230]),
-        accent: col("accent", [255, 204, 102, 255]),
-        scale: o.get("scale").and_then(Value::as_u64).unwrap_or(1) as u32,
-        advance: o.get("advance").and_then(Value::as_str).and_then(|a| ACTIONS.iter().position(|x| *x == a)).unwrap_or(4),
-        pause: o.get("pause").and_then(Value::as_bool).unwrap_or(true),
-        done: o.get("done").and_then(Value::as_str).map(str::to_string),
-        line_var,
-        choice_var,
-    })
-}
-
-/// The state variables of every dialogue in `ui` (`<id>_line`, `<id>_choice`), declared before anything reads the variables so rules can use them.
-fn dialogue_vars(root: &Map<String, Value>) -> Vec<String> {
-    let mut out = Vec::new();
-    for w in root.get("ui").and_then(Value::as_array).into_iter().flatten() {
-        if let Some(id) = w.get("dialogue").and_then(|d| d.get("id")).and_then(Value::as_str) {
-            if !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !id.starts_with(|c: char| c.is_ascii_digit()) {
-                out.push(format!("{id}_line"));
-                out.push(format!("{id}_choice"));
-            }
-        }
-    }
-    out
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2275,6 +2189,7 @@ fn parse_widget(
     models: &[crate::game3d::Model],
     screen: [f32; 2],
     tables: &[(String, Vec<String>)],
+    sprites: &[Sprite],
 ) -> Option<Widget> {
     let path = format!("ui[{i}]");
     let o = ctx.obj(&path, v)?;
@@ -2288,6 +2203,9 @@ fn parse_widget(
     };
     let before = ctx.errs.len();
     let col = |o: &Map<String, Value>, k: &str, d: Color| o.get(k).and_then(Value::as_str).and_then(parse_color).unwrap_or(d);
+    if let Some(iv) = o.get("image") {
+        return crate::scenery::parse_image(ctx, &path, o, iv, show, sprites);
+    }
     if let Some(vv) = o.get("view3d") {
         check_keys(&mut ctx.errs, &path, o, &["view3d", "show"]);
         let v3 = crate::game3d::parse_view3d(ctx, &format!("{path}.view3d"), vv, models, names, screen)?;
@@ -2295,7 +2213,7 @@ fn parse_widget(
     }
     if let Some(dv) = o.get("dialogue") {
         check_keys(&mut ctx.errs, &path, o, &["dialogue", "show"]);
-        let d = parse_dialogue(ctx, &format!("{path}.dialogue"), dv, names, tables)?;
+        let d = crate::dialogue_parse::parse_dialogue(ctx, &format!("{path}.dialogue"), dv, names, tables)?;
         return Some(Widget { kind: WidgetKind::Dialogue(Box::new(d)), show });
     }
     if let Some(mv) = o.get("minimap") {
@@ -2409,6 +2327,10 @@ fn parse_widget(
                 if ctx.errs.len() > before {
                     return None;
                 }
+                if let Some(k @ ("KeyF" | "F11")) = inner.get("key").and_then(Value::as_str) {
+                    ctx.err(format!("{kp}.key"), format!("`{k}` toggles fullscreen in every game: choose another key"));
+                    return None;
+                }
                 let actions = parse_actions(ctx, &format!("{kp}.do"), &inner["do"], names, true);
                 WidgetKind::Button {
                     id: inner["id"].as_str().unwrap_or("").to_string(),
@@ -2438,8 +2360,11 @@ fn declared_or_builtin(ctx: &mut Ctx, path: &str, name: &str, names: &Names) -> 
     }
 }
 
+/// The text placeholder `{music_title}`: the `title` of the music track playing now (else its name), what a pause menu shows next to "save this song".
+pub const MUSIC_TITLE: &str = "music_title";
+
 /// Parses a `{var}` placeholder template and reports unknown variables.
-fn check_template(ctx: &mut Ctx, path: &str, text: &str, names: &Names) {
+pub(crate) fn check_template(ctx: &mut Ctx, path: &str, text: &str, names: &Names) {
     let mut rest = text;
     while let Some(open) = rest.find('{') {
         let after = &rest[open + 1..];
@@ -2449,7 +2374,7 @@ fn check_template(ctx: &mut Ctx, path: &str, text: &str, names: &Names) {
         };
         let spec = &after[..close];
         let name = spec.split(':').next().unwrap_or("");
-        if !names.vars.iter().any(|v| v == name) {
+        if name != MUSIC_TITLE && !names.vars.iter().any(|v| v == name) {
             ctx.err(path, format!("`{{{spec}}}` names no variable{}", Ctx::near(name, names.vars.iter().cloned())));
         }
         rest = &after[close + 1..];
@@ -2770,6 +2695,8 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         follow: None,
         lerp: 0.15,
         forward_only: false,
+        min_x: None,
+        max_x: None,
     };
     match root.get("view") {
         None => ctx.err("view", "needs `view`, like {\"width\": 320, \"height\": 180}: the virtual screen your game is drawn on, scaled to any window"),
@@ -2785,7 +2712,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                         opt("background", Ty::Custom(color_ok), ""),
                         opt("scale", Ty::OneOf(&["fit", "integer"]), "fit: any size; integer: whole-number scale for crisp pixels"),
                         opt("world", Ty::Nums(&[2]), "[w, h] of the world when it is bigger than the screen"),
-                        opt("camera", Ty::Custom(object_ok), "{ \"follow\": tag, \"lerp\": 0.15, \"forward_only\": false }"),
+                        opt("camera", Ty::Custom(object_ok), "{ \"follow\": tag, \"lerp\": 0.15, \"forward_only\": false, \"min_x\": expr, \"max_x\": expr }"),
                         opt("world3d", Ty::Custom(object_ok), "draw the whole world in 3D: { \"pitch\": 55, \"distance\": 150, \"ground\": {...} }"),
                     ],
                 );
@@ -2802,7 +2729,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     view.world = (w[0].max(view.width as f32), w[1].max(view.height as f32));
                 }
                 if let Some(c) = o.get("camera").and_then(Value::as_object) {
-                    check_keys(&mut ctx.errs, "view.camera", c, &["follow", "lerp", "forward_only"]);
+                    check_keys(&mut ctx.errs, "view.camera", c, &["follow", "lerp", "forward_only", "min_x", "max_x"]);
                     view.follow = c.get("follow").and_then(Value::as_str).map(str::to_string);
                     view.lerp = c.get("lerp").and_then(num).unwrap_or(0.15).clamp(0.01, 1.0) as f32;
                     view.forward_only = c.get("forward_only").and_then(Value::as_bool).unwrap_or(false);
@@ -2881,7 +2808,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                     ctx.err(format!("vars.{name}"), "a variable name is letters, digits and _ (not starting with a digit)");
                     continue;
                 }
-                if BUILTINS.contains(&name.as_str()) {
+                if BUILTINS.contains(&name.as_str()) || name == MUSIC_TITLE {
                     ctx.err(format!("vars.{name}"), format!("`{name}` is built in ({}): choose another name", BUILTINS.join(", ")));
                     continue;
                 }
@@ -2893,7 +2820,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             }
         }
     }
-    for name in dialogue_vars(root) {
+    for name in crate::dialogue_parse::dialogue_vars(root) {
         if vars.iter().any(|(n, _)| *n == name) {
             ctx.err(format!("vars.{name}"), format!("`{name}` is a dialogue's state variable (declared by it): choose another name"));
         } else {
@@ -2966,6 +2893,16 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                             opt("world", Ty::Nums(&[2]), "[w, h]: default the map's size (at least the view)"),
                             opt("background", Ty::Custom(color_ok), "default the view's"),
                             opt("music", Ty::Str, "the music track it plays"),
+                            opt(
+                                "sky",
+                                Ty::Custom(crate::scenery::sky_ok),
+                                "[top, bottom]: two colours, the sky fading from one to the other behind everything",
+                            ),
+                            opt(
+                                "backdrop",
+                                Ty::Custom(any_ok),
+                                "bands of far scenery that scroll slower than the world: [{\"sprites\": [..], \"y\": 200, \"parallax\": 0.3}]",
+                            ),
                         ],
                     );
                     let id = o.get("id").and_then(Value::as_str).unwrap_or("").to_string();
@@ -3127,12 +3064,16 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
                 }
             },
         };
+        let sky = crate::scenery::sky_of(o);
+        let backdrop = o.get("backdrop").map(|b| crate::scenery::parse_backdrop(&mut ctx, &format!("{path}.backdrop"), b, &sprites)).unwrap_or_default();
         levels.push(Level {
             id: id.clone(),
             placements: resolve(&mut ctx, &format!("{path}.scene"), raw),
             world: *world,
             background: o.get("background").and_then(Value::as_str).and_then(parse_color).unwrap_or(view.background),
             music: music_ix,
+            sky,
+            backdrop,
         });
     }
     if placements.is_empty() && levels.is_empty() {
@@ -3205,7 +3146,7 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             Some(list) => {
                 let mut button_ids: Vec<String> = Vec::new();
                 for (i, w) in list.iter().enumerate() {
-                    if let Some(w) = parse_widget(&mut ctx, i, w, &names, &models, [view.width as f32, view.height as f32], &tables) {
+                    if let Some(w) = parse_widget(&mut ctx, i, w, &names, &models, [view.width as f32, view.height as f32], &tables, &sprites) {
                         if let WidgetKind::Text { text, .. } = &w.kind {
                             check_template(&mut ctx, &format!("ui[{i}].text"), text, &names);
                         }
@@ -3222,6 +3163,10 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
             None => ctx.err("ui", format!("expected a list of widgets, got {}", describe_value(uv))),
         }
     }
+
+    // what the game asks of the camera, the pause and the window
+    crate::scenery::parse_camera_limits(&mut ctx, root, &mut view, &names);
+    let (pause_if, icon) = crate::scenery::parse_pause_and_icon(&mut ctx, root, &sprites, &names);
 
     // rules
     let mut rules = Vec::new();
@@ -3385,6 +3330,8 @@ pub fn parse(text: &str) -> Result<GameDef, Vec<String>> {
         models,
         layers3d,
         world3d,
+        pause_if,
+        icon,
         rev: revision(text),
     })
 }

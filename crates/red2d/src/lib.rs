@@ -14,14 +14,18 @@ pub use red_core::sim::rules_expr;
 pub use red_core::{audio_analysis, audio_fx, dsp, fields, score, suggest, synth, voice_spec};
 
 pub mod caps;
+pub(crate) mod dialogue_parse;
 pub(crate) mod effects;
 pub mod font;
 pub mod game;
 pub mod game3d;
 pub mod host;
+#[cfg(test)]
+mod platform_tests;
 pub mod raster3d;
 pub mod reference;
 pub mod render;
+pub mod scenery;
 pub mod script;
 pub mod sim;
 pub mod solve;

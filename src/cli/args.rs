@@ -1005,6 +1005,9 @@ pub(crate) enum Command {
         /// The scenario seed the steps will be replayed with.
         #[arg(long, default_value_t = 1)]
         seed: u64,
+        /// A JSON file of `hold`/`wait` steps played first; the search goes on from where they end (a moving platform it cannot wait for).
+        #[arg(long)]
+        after: Option<PathBuf>,
     },
     /// Repository bookkeeping in about a second, nothing compiled: ADR index, feature ownership, generated docs facts, headless boundary, doc claims, `describe`
     /// budgets, rustfmt. Every problem prints the exact edit; `--fix` makes the mechanical ones. Run it before every commit (the checks CI bounced on, found early).

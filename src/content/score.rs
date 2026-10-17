@@ -20,6 +20,8 @@ strict_struct! {
         /// name -> voice.
         instruments: BTreeMap<String, Voice>,
         tracks: Vec<ScoreTrack>,
+        /// The track's name for people (a pause menu shows it; an exported file is called it).
+        title: String,
     }
 }
 

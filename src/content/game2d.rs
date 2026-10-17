@@ -41,6 +41,10 @@ strict_struct! {
         models: BTreeMap<String, Model>,
         layers3d: Vec<Layer3d>,
         checks: Checks,
+        /// While this expression holds the world stands still but press rules run (a pause menu made of rules).
+        pause_if: String,
+        /// A sprite name: the window, taskbar and shortcut icon.
+        icon: String,
     }
 }
 
@@ -56,7 +60,7 @@ strict_struct! {
 
 strict_struct! {
     /// The camera that follows.
-    pub struct ViewCamera { follow: String, lerp: Any, forward_only: bool }
+    pub struct ViewCamera { follow: String, lerp: Any, forward_only: bool, min_x: Any, max_x: Any }
 }
 
 strict_struct! {
@@ -118,7 +122,7 @@ strict_struct! {
 
 strict_struct! {
     /// Moved by the keys.
-    pub struct KeysMove { mode: String, speed: Any, jump: Any, run: Any, accel: Any, decel: Any, cut: Any, run_jump: Any, coyote: Any, buffer: Any }
+    pub struct KeysMove { mode: String, speed: Any, jump: Any, run: Any, accel: Any, decel: Any, cut: Any, run_jump: Any, coyote: Any, buffer: Any, glide: Any, glide_time: Any }
 }
 
 strict_struct! {
@@ -158,7 +162,12 @@ strict_struct! {
 
 strict_struct! {
     /// A level: its own world.
-    pub struct Level { id: String, scene: Vec<Placement>, map: TileMap, world: Any, background: String, music: String }
+    pub struct Level { id: String, scene: Vec<Placement>, map: TileMap, world: Any, background: String, music: String, sky: Vec<String>, backdrop: Vec<Backdrop> }
+}
+
+strict_struct! {
+    /// A band of far scenery that scrolls slower than the world.
+    pub struct Backdrop { sprites: Vec<String>, y: Any, parallax: Any, spacing: Any, fill: String, seed: Any, scale: Any }
 }
 
 strict_struct! {
@@ -185,6 +194,12 @@ pub enum Widget {
     View3d(View3dWidget),
     Dialogue(DialogueWidget),
     Minimap(MinimapWidget),
+    Image(ImageWidget),
+}
+
+strict_struct! {
+    /// A sprite drawn on the screen.
+    pub struct ImageWidget { image: String, at: Any, scale: Any, show: String }
 }
 
 /// A text: a template string, or one entry of a string table.
@@ -326,6 +341,9 @@ strict_struct! {
         teleport: TeleportAction,
         r#become: BecomeAction,
         level: Any,
+        window: String,
+        save: bool,
+        export_music: bool,
         apply: String,
         /// The effect's arguments: name -> value.
         with: BTreeMap<String, Any>,
