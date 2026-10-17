@@ -274,6 +274,8 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("player_vars", "{name: number|bool} per-player variables: every player has their own copy (laps, lives, a personal score); rules read and write them as `me.name` for the player that triggered the rule (`describe rules`)"),
+    ("prop_vars", "{name: number|bool} per-prop variables: every loose prop has its own copy (heat, hits); rules read and write the subject prop's as `self.name` (`describe rules`, TIMERS for `self.` timers)"),
+    ("groups", "{name: [ids, \"door_*\"] | {id: {field: value}}} members a rule template repeats over (`for_each`, `$name`, `$name.field`): expanded when the scene loads (`describe rules`)"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
     ("phases", "{name: [rule ids]} named level states for lint/reach/walk/verify: the rules assumed to have fired, so a gate they open is open (`describe rules`)"),
     ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
@@ -581,7 +583,7 @@ fn rules_text() -> String {
          rule = { id, when, who?, if?, once?, cooldown?, do }\n\
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
          \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; `prop: id | [ids]` beside it: only those)\n\
-         \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
+         \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)   {timer: name} (a timer ran out; see TIMERS)\n\
          \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
@@ -606,6 +608,12 @@ fn rules_text() -> String {
          \x20 \"do\": [{\"for_each\": \"door\", \"do\": [{\"hide\": \"$door\"}]}]      actions repeated in place\n\
          `$name` is the member's id, `$name.field` its field (a whole-string placeholder is the value itself: `\"box\": \"$tile.box\"`); the longest name in scope\n\
          wins (`$tile_$n`). A template's id must hold its placeholder. An error names the template and the member: `rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`.\n\
+         TIMERS (restartable): {\"timer\": [\"close\", 2]} starts it, or restarts it if it is running; {\"cancel\": \"close\"} stops it; a rule with\n\
+         `\"when\": {\"timer\": \"close\"}` fires once when it runs out (every rule that waits for it, that tick). `secs` may be an expression. A timer only\n\
+         started or only waited for is a validate error. Per thing: `\"close_$door\"` in a for_each template, or `self.fuse` for each loose prop's own.\n\
+         PER-PROP VARIABLES: `\"prop_vars\": {\"heat\": 0}` gives every loose prop its own copy; `self.heat` reads and writes the rule's subject prop's\n\
+         (prop_enter, prop_exit, prop_below, pickup, drop, prop_hit, or a `self.` timer). Prove it: `{\"prop_var\": \"heat\", \"of\": \"crate\", \"eq\": 1}`.\n\
+         Both are server state: in the match checksum, never sent to clients (they see what the rules do with them).\n\
          Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
     );
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {
@@ -954,7 +962,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "brief" => brief_json(commands),
             "rules" => json!({
                 "actions": crate::sim::rules::ACTIONS.iter().map(|(n, h)| json!({"action": n, "help": h})).collect::<Vec<_>>(),
-                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below"],
+                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below", "timer"],
                 "functions": crate::sim::rules_expr::Func::ALL.iter().map(|(n, _, h)| json!({"function": n, "help": h})).collect::<Vec<_>>(),
                 "engine_events": crate::sim::rules::ENGINE_EVENTS,
                 "volumes": ["zone", "object", "box"],
