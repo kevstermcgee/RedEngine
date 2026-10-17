@@ -40,7 +40,7 @@ fn panel_layout(w: u32, h: u32, vars: &[(&str, f64)], event: Option<&str>, outco
     let s = (hi / 240).max(1);
 
     if !vars.is_empty() || event.is_some() {
-        let shown = vars.len().min(8);
+        let shown = vars.len().min(crate::hud_config::HUD_ROWS);
         let rows = shown + usize::from(vars.len() > shown) + usize::from(event.is_some());
         let panel_w = (125 * s).min(wi - 8);
         let row_h = text_height(s) + 3 * s;

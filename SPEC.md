@@ -625,7 +625,9 @@ where each aimed field points included) is part of the match checksum. Offline `
 and the field pushes, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
 state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
-objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
+objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. Of the variables, the ones the HUD reads
+(`ui` counters and objective, then its plain rows) go first; a HUD that reads more than 16, or a name over 32 bytes, is a `lint` error (`net-hud`), since online
+it would show 0. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)

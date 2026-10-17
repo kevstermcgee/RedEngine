@@ -326,6 +326,20 @@ impl Expr {
         }
     }
 
+    /// Pushes the index of every variable the expression reads (into the table it was compiled against) onto `out`, in reading order, repeats included.
+    pub fn read_vars(&self, out: &mut Vec<usize>) {
+        match self {
+            Expr::Var(i) => out.push(*i),
+            Expr::Num(_) | Expr::Me(_) | Expr::Call(..) | Expr::Call2(..) => {}
+            Expr::Neg(e) | Expr::Not(e) => e.read_vars(out),
+            Expr::Bin(_, l, r) | Expr::Random(l, r) => {
+                l.read_vars(out);
+                r.read_vars(out);
+            }
+            Expr::Math(_, args) => args.iter().for_each(|a| a.read_vars(out)),
+        }
+    }
+
     /// Whether the expression calls any built-in function (so evaluating it needs a real [`World`]).
     pub fn reads_world(&self) -> bool {
         match self {
