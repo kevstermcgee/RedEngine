@@ -1,0 +1,1606 @@
+{
+ "game2d": 1,
+ "id": "wandering-engine",
+ "title": "Wandering Engine",
+ "description": "Pour blue, yellow and red paint that changes the physics of what it soaks while a pendulum of light scorches anything standing still and the left half of the world runs at half speed, to reach a stranger who bakes the same bread.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#2a1f2d",
+  "scale": "fit",
+  "world": [
+   640,
+   180
+  ],
+  "camera": {
+   "follow": "player",
+   "lerp": 0.15
+  }
+ },
+ "sounds": {
+  "pour": {
+   "seconds": 0.2,
+   "layers": [
+    {
+     "sine": 300,
+     "decay": 14
+    },
+    {
+     "sine": 420,
+     "decay": 20
+    }
+   ]
+  },
+  "freeze": {
+   "seconds": 0.35,
+   "layers": [
+    {
+     "sine": 1200,
+     "decay": 12
+    },
+    {
+     "sine": 1800,
+     "decay": 18
+    }
+   ]
+  },
+  "dry": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 180,
+     "decay": 25
+    }
+   ]
+  },
+  "burn": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 90,
+     "decay": 5
+    },
+    {
+     "sine": 70,
+     "decay": 6
+    }
+   ]
+  },
+  "win": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 523,
+     "decay": 5
+    },
+    {
+     "sine": 784,
+     "decay": 5
+    },
+    {
+     "sine": 1046,
+     "decay": 6
+    }
+   ]
+  },
+  "swap": {
+   "seconds": 0.08,
+   "layers": [
+    {
+     "sine": 700,
+     "decay": 30
+    }
+   ]
+  }
+ },
+ "vars": {
+  "col": 0,
+  "paint": 4,
+  "burn": 0,
+  "ldir": -1,
+  "lx": 100,
+  "sy": 0,
+  "sr": 0,
+  "swind": 0,
+  "code": 0,
+  "gopen": 0,
+  "wins": 0,
+  "best": 0,
+  "cur": 21
+ },
+ "persist": [
+  "wins",
+  "best"
+ ],
+ "tables": {
+  "cname": [
+   "BLUE: FREEZES WATER",
+   "YELLOW: SPEED",
+   "RED: SHADE FROM LIGHT"
+  ]
+ },
+ "prefabs": {
+  "baker10": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#c9a0dc"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 14.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "baker11": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#c9a0dc"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 7.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "baker20": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#f2e3b0"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 80.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "baker21": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#f2e3b0"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 40.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "baker30": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#ffd23c"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 140.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "baker31": {
+   "tag": "player",
+   "shape": {
+    "rect": [
+     8,
+     10
+    ],
+    "color": "#ffd23c"
+   },
+   "size": [
+    8,
+    10
+   ],
+   "layer": 2,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 70.0
+    }
+   },
+   "body": {
+    "type": "dynamic",
+    "gravity": 0
+   },
+   "collide": [
+    "water",
+    "gate"
+   ],
+   "clamp": true
+  },
+  "pblue": {
+   "tag": "pblue",
+   "shape": {
+    "circle": 16,
+    "color": "#3a8dff"
+   },
+   "size": [
+    32,
+    32
+   ],
+   "layer": 0
+  },
+  "pyellow": {
+   "tag": "pyellow",
+   "shape": {
+    "circle": 16,
+    "color": "#ffd23c"
+   },
+   "size": [
+    32,
+    32
+   ],
+   "layer": 0
+  },
+  "pred": {
+   "tag": "pred",
+   "shape": {
+    "circle": 16,
+    "color": "#c0302f"
+   },
+   "size": [
+    32,
+    32
+   ],
+   "layer": 0
+  },
+  "water": {
+   "tag": "water",
+   "shape": {
+    "rect": [
+     24,
+     30
+    ],
+    "color": "#245a9c"
+   },
+   "size": [
+    24,
+    30
+   ],
+   "layer": 1,
+   "body": {
+    "type": "static"
+   }
+  },
+  "ice": {
+   "tag": "ice",
+   "shape": {
+    "rect": [
+     24,
+     30
+    ],
+    "color": "#bfe8ff"
+   },
+   "size": [
+    24,
+    30
+   ],
+   "layer": 1
+  },
+  "wind": {
+   "tag": "wind",
+   "shape": {
+    "rect": [
+     110,
+     180
+    ],
+    "color": "#4b3a52"
+   },
+   "size": [
+    110,
+    180
+   ],
+   "layer": 0,
+   "emit": {
+    "rate": 14,
+    "life": [
+     0.4,
+     0.8
+    ],
+    "speed": [
+     30,
+     50
+    ],
+    "angle": [
+     170,
+     190
+    ],
+    "color": "#d9c6e8"
+   }
+  },
+  "gate": {
+   "tag": "gate",
+   "shape": {
+    "rect": [
+     8,
+     180
+    ],
+    "color": "#8a5a3a"
+   },
+   "size": [
+    8,
+    180
+   ],
+   "layer": 1,
+   "body": {
+    "type": "static"
+   }
+  },
+  "gateopen": {
+   "tag": "gateopen",
+   "shape": {
+    "rect": [
+     8,
+     180
+    ],
+    "color": "#3b2c33"
+   },
+   "size": [
+    8,
+    180
+   ],
+   "layer": 0
+  },
+  "beam": {
+   "tag": "beam",
+   "shape": {
+    "rect": [
+     20,
+     180
+    ],
+    "color": "#fff2a8"
+   },
+   "size": [
+    20,
+    180
+   ],
+   "layer": 3,
+   "emit": {
+    "rate": 20,
+    "life": [
+     0.2,
+     0.5
+    ],
+    "speed": [
+     4,
+     12
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#fff7c8"
+   }
+  },
+  "stranger": {
+   "tag": "goal",
+   "shape": {
+    "rect": [
+     10,
+     12
+    ],
+    "color": "#e08a5a"
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2
+  }
+ },
+ "scene": [
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    15
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    45
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    75
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    105
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    135
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    150,
+    165
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    15
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    45
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    75
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    105
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    135
+   ]
+  },
+  {
+   "prefab": "water",
+   "at": [
+    560,
+    165
+   ]
+  },
+  {
+   "prefab": "wind",
+   "at": [
+    385,
+    90
+   ]
+  },
+  {
+   "prefab": "gate",
+   "at": [
+    480,
+    90
+   ],
+   "id": "gate"
+  },
+  {
+   "prefab": "stranger",
+   "at": [
+    605,
+    90
+   ]
+  },
+  {
+   "prefab": "beam",
+   "at": [
+    100,
+    90
+   ],
+   "id": "beam"
+  },
+  {
+   "prefab": "baker21",
+   "at": [
+    24,
+    90
+   ],
+   "id": "p"
+  }
+ ],
+ "ui": [
+  {
+   "text": "PAINT {paint}  BEST {best}",
+   "at": [
+    4,
+    4
+   ],
+   "color": "#fff"
+  },
+  {
+   "text": "SHIFT: COLOUR  SPACE: POUR",
+   "at": [
+    4,
+    168
+   ],
+   "color": "#a89bb8"
+  },
+  {
+   "text": {
+    "pick": "cname",
+    "by": "col"
+   },
+   "at": [
+    60,
+    14
+   ],
+   "color": "#fff"
+  },
+  {
+   "bar": {
+    "var": "burn",
+    "max": 60,
+    "at": [
+     4,
+     14
+    ],
+    "size": [
+     50,
+     5
+    ]
+   }
+  },
+  {
+   "text": "THE STRANGER KNEADS THE SAME BREAD. BAKED.",
+   "at": [
+    160,
+    80
+   ],
+   "align": "center",
+   "color": "#ffe45c",
+   "show": "ended"
+  }
+ ],
+ "rules": [
+  {
+   "id": "cycle",
+   "when": {
+    "press": "secondary"
+   },
+   "do": [
+    {
+     "set": [
+      "col",
+      "(col+1)%3"
+     ]
+    },
+    {
+     "play": "swap"
+    }
+   ]
+  },
+  {
+   "id": "pourpblue",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pblue",
+      "at": "self"
+     }
+    },
+    {
+     "add": [
+      "paint",
+      -1
+     ]
+    },
+    {
+     "play": "pour"
+    }
+   ],
+   "if": "col == 0 && paint > 0 && ended == 0",
+   "cooldown": 0.35
+  },
+  {
+   "id": "pourpyellow",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pyellow",
+      "at": "self"
+     }
+    },
+    {
+     "add": [
+      "paint",
+      -1
+     ]
+    },
+    {
+     "play": "pour"
+    }
+   ],
+   "if": "col == 1 && paint > 0 && ended == 0",
+   "cooldown": 0.35
+  },
+  {
+   "id": "pourpred",
+   "when": {
+    "press": "action"
+   },
+   "do": [
+    {
+     "spawn": {
+      "prefab": "pred",
+      "at": "self"
+     }
+    },
+    {
+     "add": [
+      "paint",
+      -1
+     ]
+    },
+    {
+     "play": "pour"
+    }
+   ],
+   "if": "col == 2 && paint > 0 && ended == 0",
+   "cooldown": 0.35
+  },
+  {
+   "id": "refill",
+   "when": {
+    "every": 3
+   },
+   "do": [
+    {
+     "add": [
+      "paint",
+      1
+     ]
+    }
+   ],
+   "if": "paint < 4"
+  },
+  {
+   "id": "sweep",
+   "when": {
+    "every": 0.05
+   },
+   "do": [
+    {
+     "add": [
+      "lx",
+      "ldir * 0.05 * (30 + 30 * (lx >= 320))"
+     ]
+    },
+    {
+     "set": [
+      "ldir",
+      "ldir * (1 - 2 * (lx <= 0 || lx >= 640))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:beam",
+      "to": [
+       "lx",
+       90
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "gate_open",
+   "when": {
+    "every": 0.05
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:gate",
+      "prefab": "gateopen"
+     }
+    },
+    {
+     "set": [
+      "gopen",
+      1
+     ]
+    }
+   ],
+   "if": "lx < 100 && gopen == 0"
+  },
+  {
+   "id": "gate_shut",
+   "when": {
+    "every": 0.05
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:gate",
+      "prefab": "gate"
+     }
+    },
+    {
+     "set": [
+      "gopen",
+      0
+     ]
+    }
+   ],
+   "if": "lx >= 100 && gopen == 1"
+  },
+  {
+   "id": "soak_y",
+   "when": {
+    "touching": [
+     "player",
+     "pyellow"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "sy",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "soak_r",
+   "when": {
+    "touching": [
+     "player",
+     "pred"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "sr",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "soak_w",
+   "when": {
+    "touching": [
+     "player",
+     "wind"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "swind",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "code",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "set": [
+      "code",
+      "(sy * 3 + (1 - sy) * (2 - swind)) * 10 + (p_x < 320)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "be10",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker10"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      10
+     ]
+    }
+   ],
+   "if": "code == 10 && cur != 10"
+  },
+  {
+   "id": "be11",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker11"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      11
+     ]
+    }
+   ],
+   "if": "code == 11 && cur != 11"
+  },
+  {
+   "id": "be20",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker20"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      20
+     ]
+    }
+   ],
+   "if": "code == 20 && cur != 20"
+  },
+  {
+   "id": "be21",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker21"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      21
+     ]
+    }
+   ],
+   "if": "code == 21 && cur != 21"
+  },
+  {
+   "id": "be30",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker30"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      30
+     ]
+    }
+   ],
+   "if": "code == 30 && cur != 30"
+  },
+  {
+   "id": "be31",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "become": {
+      "target": "id:p",
+      "prefab": "baker31"
+     }
+    },
+    {
+     "set": [
+      "cur",
+      31
+     ]
+    }
+   ],
+   "if": "code == 31 && cur != 31"
+  },
+  {
+   "id": "reset",
+   "when": {
+    "every": 0.03
+   },
+   "do": [
+    {
+     "set": [
+      "sy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "sr",
+      0
+     ]
+    },
+    {
+     "set": [
+      "swind",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "scorch",
+   "when": {
+    "touching": [
+     "player",
+     "beam"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "burn",
+      1
+     ]
+    }
+   ],
+   "if": "abs(self_vx) + abs(self_vy) < 6 && sr == 0 && ended == 0"
+  },
+  {
+   "id": "cool",
+   "when": {
+    "every": 0.1
+   },
+   "do": [
+    {
+     "add": [
+      "burn",
+      -1
+     ]
+    }
+   ],
+   "if": "burn > 0"
+  },
+  {
+   "id": "dryb",
+   "when": {
+    "touch": [
+     "beam",
+     "pblue"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "play": "dry"
+    }
+   ]
+  },
+  {
+   "id": "dryy",
+   "when": {
+    "touch": [
+     "beam",
+     "pyellow"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "play": "dry"
+    }
+   ]
+  },
+  {
+   "id": "freeze",
+   "when": {
+    "touch": [
+     "pblue",
+     "water"
+    ]
+   },
+   "do": [
+    {
+     "become": {
+      "target": "other",
+      "prefab": "ice"
+     }
+    },
+    {
+     "play": "freeze"
+    }
+   ]
+  },
+  {
+   "id": "lose",
+   "when": {
+    "every": 0.1
+   },
+   "do": [
+    {
+     "play": "burn"
+    },
+    {
+     "end": "lose"
+    }
+   ],
+   "if": "burn >= 60 && ended == 0"
+  },
+  {
+   "id": "win",
+   "when": {
+    "touch": [
+     "player",
+     "goal"
+    ]
+   },
+   "do": [
+    {
+     "add": [
+      "wins",
+      1
+     ]
+    },
+    {
+     "set": [
+      "best",
+      "(best == 0 || time < best) * time + (best != 0 && time >= best) * best"
+     ]
+    },
+    {
+     "play": "win"
+    },
+    {
+     "end": "win"
+    }
+   ],
+   "if": "ended == 0"
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "win",
+    "max_seconds": 120,
+    "smoke": true,
+    "script": [
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 126
+      },
+      "timeout": 30
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 180
+      },
+      "timeout": 30
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 322
+      },
+      "timeout": 30
+     },
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 460
+      },
+      "timeout": 30
+     },
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.5
+     },
+     {
+      "wait_until": {
+       "var": "gopen",
+       "eq": 1
+      },
+      "timeout": 80
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 540
+      },
+      "timeout": 30
+     },
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "ended": "win"
+      },
+      "timeout": 20
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "wins",
+      "gte": 1
+     }
+    ]
+   },
+   {
+    "name": "idle_scorched",
+    "max_seconds": 15,
+    "script": [
+     {
+      "wait": 12
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   },
+   {
+    "name": "left_half_is_slow",
+    "max_seconds": 5,
+    "script": [
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 1
+     }
+    ],
+    "expect": [
+     {
+      "entity": "p",
+      "near": [
+       64,
+       90
+      ],
+      "tol": 6
+     },
+     {
+      "var": "cur",
+      "eq": 21
+     }
+    ]
+   },
+   {
+    "name": "blue_freezes_water",
+    "max_seconds": 30,
+    "script": [
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 126
+      },
+      "timeout": 30
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "count": "ice",
+      "gte": 1
+     },
+     {
+      "count": "water",
+      "lt": 12
+     },
+     {
+      "sound": "freeze",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "wind_drags",
+    "max_seconds": 30,
+    "script": [
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 126
+      },
+      "timeout": 30
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 180
+      },
+      "timeout": 30
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 350
+      },
+      "timeout": 30
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "var": "cur",
+      "eq": 10
+     }
+    ]
+   },
+   {
+    "name": "yellow_soak_outruns_wind",
+    "max_seconds": 40,
+    "script": [
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 126
+      },
+      "timeout": 30
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 180
+      },
+      "timeout": 30
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 318
+      },
+      "timeout": 30
+     },
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.15
+     }
+    ],
+    "expect": [
+     {
+      "var": "cur",
+      "eq": 30
+     }
+    ]
+   },
+   {
+    "name": "red_hides_from_light",
+    "max_seconds": 30,
+    "script": [
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "secondary"
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 14
+     }
+    ],
+    "expect": [
+     {
+      "not_ended": true
+     },
+     {
+      "count": "pred",
+      "gte": 1
+     }
+    ]
+   },
+   {
+    "name": "gate_shut_blocks",
+    "max_seconds": 60,
+    "script": [
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 126
+      },
+      "timeout": 30
+     },
+     {
+      "press": "action"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 180
+      },
+      "timeout": 30
+     },
+     {
+      "hold_until": [
+       "right"
+      ],
+      "until": {
+       "var": "p_x",
+       "gte": 440
+      },
+      "timeout": 30
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 3
+     },
+     {
+      "wait_until": {
+       "var": "gopen",
+       "eq": 0
+      },
+      "timeout": 30
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 4
+     }
+    ],
+    "expect": [
+     {
+      "not_ended": true
+     },
+     {
+      "var": "p_x",
+      "lt": 476
+     }
+    ]
+   }
+  ]
+ }
+}
