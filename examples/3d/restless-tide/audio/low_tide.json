@@ -1,0 +1,18 @@
+{
+  "bpm": 60, "beats": 4, "bars": 8, "key": "D", "scale": "dorian", "seed": 11, "lufs": -24,
+  "reverb": { "decay": 4, "size": 1.2, "damp": 0.5, "predelay": 0.02, "mix": 0.45 },
+  "instruments": {
+    "swell": { "seconds": 8, "level": 0.5, "layers": [
+      { "sine": 1, "attack": 2, "release": 3 },
+      { "sine": 1.5, "attack": 3, "release": 3, "gain": 0.4 } ] },
+    "breath": { "seconds": 3, "level": 0.3, "layers": [
+      { "noise": "lp 0.1", "attack": 0.8, "decay": 1.5, "gain": 0.8 } ] },
+    "tick": { "seconds": 1, "level": 0.4, "layers": [
+      { "sine": 1, "decay": 12 }, { "sine": 2.01, "decay": 18, "gain": 0.25 } ] }
+  },
+  "tracks": [
+    { "inst": "swell", "play": "chords", "chords": "i VII VI VII", "every": "2 bars", "octave": 2, "gain": 0.9 },
+    { "inst": "breath", "play": "pattern", "pattern": "x... .... .... ....", "notes": "1", "octave": 3, "gain": 0.6 },
+    { "inst": "tick", "play": "walk", "every": "1 beat", "density": 0.25, "range": [3, 9], "octave": 5, "pan": "spread", "gain": 0.4, "vel": [0.4, 0.7] }
+  ]
+}

@@ -1,0 +1,3454 @@
+{
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "primary": "#2fb5a0",
+   "secondary": "#e8693a",
+   "accent": "#f4d35e",
+   "wood": "#5b3a29",
+   "metal": "#9aa3ad",
+   "floor": "#17222c",
+   "wall": "#2c4256",
+   "trim": "#a9c2c9",
+   "stone": "#4a5a68",
+   "lamp": "#9fe8d8"
+  },
+  "light": {
+   "ambient": {
+    "color": "#5d8fa3",
+    "intensity": 0.5
+   },
+   "lamp": {
+    "color": "#9fe8d8",
+    "intensity": 9
+   }
+  },
+  "sky": {
+   "top": "#06141c",
+   "bottom": "#1e4a55"
+  },
+  "fog": {
+   "color": "#0e2a33",
+   "density": 0.02
+  },
+  "post": {
+   "ao": 0.8,
+   "outline": 0.4
+  },
+  "materials": {}
+ },
+ "camera": {
+  "fov": 72,
+  "position": [
+   -12,
+   1.7,
+   0.9
+  ],
+  "target": [
+   0,
+   1.4,
+   0.9
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 2.4,
+  "jump_speed": 1,
+  "mode": "peaceful"
+ },
+ "prefabs": {
+  "rail_piece": {
+   "desc": "one length of laid track: two rails and sleepers",
+   "params": {
+    "rail": {
+     "default": "#8a8f98",
+     "palette": "metal"
+    },
+    "tie": {
+     "default": "#5b3a29",
+     "palette": "wood"
+    }
+   },
+   "objects": [
+    {
+     "id": "r1",
+     "type": "box",
+     "size": [
+      2.2,
+      0.1,
+      0.1
+     ],
+     "position": [
+      0,
+      0.12,
+      -0.4
+     ],
+     "collide": false,
+     "material": {
+      "color": "$rail",
+      "metallic": 0.8,
+      "roughness": 0.35
+     }
+    },
+    {
+     "id": "r2",
+     "type": "box",
+     "size": [
+      2.2,
+      0.1,
+      0.1
+     ],
+     "position": [
+      0,
+      0.12,
+      0.4
+     ],
+     "collide": false,
+     "material": {
+      "color": "$rail",
+      "metallic": 0.8,
+      "roughness": 0.35
+     }
+    },
+    {
+     "id": "t1",
+     "type": "box",
+     "size": [
+      0.2,
+      0.08,
+      1.1
+     ],
+     "position": [
+      -0.8,
+      0.06,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$tie",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "t2",
+     "type": "box",
+     "size": [
+      0.2,
+      0.08,
+      1.1
+     ],
+     "position": [
+      0,
+      0.06,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$tie",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "t3",
+     "type": "box",
+     "size": [
+      0.2,
+      0.08,
+      1.1
+     ],
+     "position": [
+      0.8,
+      0.06,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$tie",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  "ore_cart": {
+   "desc": "the runaway cart: a rusty tub on four wheels with a hot lamp",
+   "params": {
+    "body": {
+     "default": "#8a8f98",
+     "palette": "metal"
+    },
+    "glow": {
+     "default": "#f4d35e",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "tub",
+     "type": "box",
+     "size": [
+      1.6,
+      0.8,
+      1.2
+     ],
+     "position": [
+      0,
+      0.65,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$body",
+      "metallic": 0.6,
+      "roughness": 0.7
+     }
+    },
+    {
+     "id": "ore",
+     "type": "box",
+     "size": [
+      1.3,
+      0.2,
+      0.9
+     ],
+     "position": [
+      0,
+      1.1,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$glow",
+      "emissive": "$glow"
+     }
+    },
+    {
+     "id": "w1",
+     "type": "cylinder",
+     "radius": 0.22,
+     "height": 0.1,
+     "position": [
+      -0.5,
+      0.22,
+      -0.65
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "#222222"
+     }
+    },
+    {
+     "id": "w2",
+     "type": "cylinder",
+     "radius": 0.22,
+     "height": 0.1,
+     "position": [
+      0.5,
+      0.22,
+      -0.65
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "#222222"
+     }
+    },
+    {
+     "id": "w3",
+     "type": "cylinder",
+     "radius": 0.22,
+     "height": 0.1,
+     "position": [
+      -0.5,
+      0.22,
+      0.65
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "#222222"
+     }
+    },
+    {
+     "id": "w4",
+     "type": "cylinder",
+     "radius": 0.22,
+     "height": 0.1,
+     "position": [
+      0.5,
+      0.22,
+      0.65
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "#222222"
+     }
+    }
+   ]
+  },
+  "tide_slab": {
+   "desc": "one band of the closing wall: wet stone with a glowing seam",
+   "params": {
+    "c": {
+     "default": "#4a5560",
+     "palette": "stone"
+    },
+    "seam": {
+     "default": "#9fe8d8",
+     "palette": "lamp"
+    }
+   },
+   "objects": [
+    {
+     "id": "slab",
+     "type": "box",
+     "size": [
+      26,
+      2.8,
+      0.7
+     ],
+     "position": [
+      0,
+      1.4,
+      0
+     ],
+     "material": {
+      "color": "$c",
+      "roughness": 0.5
+     }
+    },
+    {
+     "id": "seam",
+     "type": "box",
+     "size": [
+      26,
+      0.06,
+      0.72
+     ],
+     "position": [
+      0,
+      2.2,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$seam",
+      "emissive": "$seam",
+      "opacity": 0.7
+     }
+    }
+   ]
+  },
+  "hand_pad": {
+   "desc": "a floor plate for one hand: coloured plate with a raised rim",
+   "params": {
+    "c": {
+     "default": "#2f9e8f",
+     "palette": "primary"
+    },
+    "w": {
+     "default": 1.4
+    },
+    "d": {
+     "default": 2.0
+    }
+   },
+   "objects": [
+    {
+     "id": "plate",
+     "type": "box",
+     "size": [
+      "=$w",
+      0.04,
+      "=$d"
+     ],
+     "position": [
+      0,
+      0.02,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c",
+      "roughness": 0.6,
+      "opacity": 0.55
+     }
+    }
+   ]
+  }
+ },
+ "lights": [
+  {
+   "id": "lamp_0",
+   "type": "point",
+   "position": [
+    -9,
+    3.0,
+    0.9
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 9
+  },
+  {
+   "id": "lamp_1",
+   "type": "point",
+   "position": [
+    -3,
+    3.0,
+    0.9
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 9
+  },
+  {
+   "id": "lamp_2",
+   "type": "point",
+   "position": [
+    3,
+    3.0,
+    0.9
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 9
+  },
+  {
+   "id": "lamp_3",
+   "type": "point",
+   "position": [
+    9,
+    3.0,
+    0.9
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 9
+  }
+ ],
+ "audio": {
+  "music": {
+   "night": "audio/undertow.json",
+   "dusk": "audio/undertow.json",
+   "dawn": "audio/undertow.json",
+   "day": "audio/undertow.json"
+  },
+  "music_volume": 0.7
+ },
+ "zones": [
+  {
+   "id": "hall",
+   "rect": [
+    -13.4,
+    -4.2,
+    13.4,
+    6.0
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "za_0",
+   "rect": [
+    -12.25,
+    -2.1500000000000004,
+    -10.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_0",
+   "rect": [
+    -12.25,
+    0.55,
+    -10.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_1",
+   "rect": [
+    -9.75,
+    -2.1500000000000004,
+    -7.75,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_1",
+   "rect": [
+    -9.75,
+    0.55,
+    -7.75,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_2",
+   "rect": [
+    -7.25,
+    -2.1500000000000004,
+    -5.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_2",
+   "rect": [
+    -7.25,
+    0.55,
+    -5.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_3",
+   "rect": [
+    -4.75,
+    -2.1500000000000004,
+    -2.75,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_3",
+   "rect": [
+    -4.75,
+    0.55,
+    -2.75,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_4",
+   "rect": [
+    -2.25,
+    -2.1500000000000004,
+    -0.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_4",
+   "rect": [
+    -2.25,
+    0.55,
+    -0.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_5",
+   "rect": [
+    0.25,
+    -2.1500000000000004,
+    2.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_5",
+   "rect": [
+    0.25,
+    0.55,
+    2.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_6",
+   "rect": [
+    2.75,
+    -2.1500000000000004,
+    4.75,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_6",
+   "rect": [
+    2.75,
+    0.55,
+    4.75,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_7",
+   "rect": [
+    5.25,
+    -2.1500000000000004,
+    7.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_7",
+   "rect": [
+    5.25,
+    0.55,
+    7.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_8",
+   "rect": [
+    7.75,
+    -2.1500000000000004,
+    9.75,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_8",
+   "rect": [
+    7.75,
+    0.55,
+    9.75,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "za_9",
+   "rect": [
+    10.25,
+    -2.1500000000000004,
+    12.25,
+    -0.55
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zb_9",
+   "rect": [
+    10.25,
+    0.55,
+    12.25,
+    2.1500000000000004
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "zbtn_faster_0",
+   "rect": [
+    -11.05,
+    3.3499999999999996,
+    -9.55,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  },
+  {
+   "id": "zbtn_slower_0",
+   "rect": [
+    -9.25,
+    3.3499999999999996,
+    -7.75,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  },
+  {
+   "id": "zbtn_shove_0",
+   "rect": [
+    -7.45,
+    3.3499999999999996,
+    -5.95,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  },
+  {
+   "id": "zbtn_faster_1",
+   "rect": [
+    5.95,
+    3.3499999999999996,
+    7.45,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  },
+  {
+   "id": "zbtn_slower_1",
+   "rect": [
+    7.75,
+    3.3499999999999996,
+    9.25,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  },
+  {
+   "id": "zbtn_shove_1",
+   "rect": [
+    9.55,
+    3.3499999999999996,
+    11.05,
+    4.85
+   ],
+   "y": 0,
+   "kind": "button"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    -12.4,
+    0,
+    0.9
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
+ ],
+ "vars": {
+  "n": 0,
+  "ash": 0,
+  "ember": 0,
+  "ct": 2,
+  "ws": 2,
+  "c": -3,
+  "wall": 0,
+  "spare": 2,
+  "_cacc": 0,
+  "_wacc": 0
+ },
+ "ui": {
+  "title": "Sunken Marathon",
+  "labels": {
+   "n": "Track laid",
+   "ash": "Ash twin",
+   "ember": "Ember twin",
+   "ct": "Cart share",
+   "ws": "Tide share",
+   "wall": "Tide wall",
+   "spare": "Spare pieces",
+   "c": "Cart at"
+  },
+  "counters": [
+   {
+    "var": "n",
+    "of": 10,
+    "label": "Track"
+   },
+   {
+    "var": "ash",
+    "of": 5,
+    "label": "Ash twin (teal)"
+   },
+   {
+    "var": "ember",
+    "of": 5,
+    "label": "Ember twin (orange)"
+   }
+  ],
+  "objective": [
+   {
+    "if": "wall >= 3 && ash < 5",
+    "text": "The tide shut the teal lane: Ash can lay no more. Shove it back (costs a spare piece)!"
+   },
+   {
+    "text": "Lay 5 teal + 5 orange track pieces, exactly even. Shelf plates trade cart speed for tide speed."
+   }
+  ],
+  "start": {
+   "title": "Sunken Marathon",
+   "text": "Two twins, one pair of hands. Step on a plate to lay the next piece: teal for Ash, orange for Ember. Finish with exactly 5 each. A cart gains on you and a tide wall closes on the teal side; they share one speed budget (the shelf plates move it), and a shove costs a spare piece for good.",
+   "button": "Start"
+  },
+  "end": {
+   "victory": {
+    "title": "Even.",
+    "text": "Ash {ash}, Ember {ember}. Both twins finish together.",
+    "button": "Again"
+   },
+   "lopsided": {
+    "title": "Uneven",
+    "text": "Ash {ash}, Ember {ember}. The twins cannot finish apart.",
+    "button": "Again"
+   },
+   "crushed": {
+    "title": "Run over",
+    "text": "The cart caught the end of the track.",
+    "button": "Again"
+   },
+   "drowned": {
+    "title": "Drowned",
+    "text": "The tide wall closed.",
+    "button": "Again"
+   }
+  }
+ },
+ "rules": [
+  {
+   "id": "setup",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "hide": "arail_0"
+    },
+    {
+     "hide": "brail_0"
+    },
+    {
+     "hide": "arail_1"
+    },
+    {
+     "hide": "brail_1"
+    },
+    {
+     "hide": "arail_2"
+    },
+    {
+     "hide": "brail_2"
+    },
+    {
+     "hide": "arail_3"
+    },
+    {
+     "hide": "brail_3"
+    },
+    {
+     "hide": "arail_4"
+    },
+    {
+     "hide": "brail_4"
+    },
+    {
+     "hide": "arail_5"
+    },
+    {
+     "hide": "brail_5"
+    },
+    {
+     "hide": "arail_6"
+    },
+    {
+     "hide": "brail_6"
+    },
+    {
+     "hide": "arail_7"
+    },
+    {
+     "hide": "brail_7"
+    },
+    {
+     "hide": "arail_8"
+    },
+    {
+     "hide": "brail_8"
+    },
+    {
+     "hide": "arail_9"
+    },
+    {
+     "hide": "brail_9"
+    },
+    {
+     "hide": "cart_0"
+    },
+    {
+     "hide": "cart_1"
+    },
+    {
+     "hide": "cart_2"
+    },
+    {
+     "hide": "cart_3"
+    },
+    {
+     "hide": "cart_4"
+    },
+    {
+     "hide": "cart_5"
+    },
+    {
+     "hide": "cart_6"
+    },
+    {
+     "hide": "cart_7"
+    },
+    {
+     "hide": "cart_8"
+    },
+    {
+     "hide": "cart_9"
+    },
+    {
+     "deactivate": "tide_1"
+    },
+    {
+     "deactivate": "tide_2"
+    },
+    {
+     "deactivate": "tide_3"
+    },
+    {
+     "deactivate": "tide_4"
+    },
+    {
+     "deactivate": "tide_5"
+    },
+    {
+     "deactivate": "tide_6"
+    }
+   ]
+  },
+  {
+   "id": "clock_cart",
+   "when": {
+    "every": 1
+   },
+   "do": [
+    {
+     "add": [
+      "_cacc",
+      "ct"
+     ]
+    },
+    {
+     "add": [
+      "_wacc",
+      "ws"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cart_step",
+   "when": {
+    "every": 1
+   },
+   "if": "_cacc >= 3",
+   "do": [
+    {
+     "add": [
+      "c",
+      1
+     ]
+    },
+    {
+     "add": [
+      "_cacc",
+      -3
+     ]
+    },
+    {
+     "emit": "cartmoved"
+    }
+   ]
+  },
+  {
+   "id": "wall_step",
+   "when": {
+    "every": 1
+   },
+   "if": "_wacc >= 4",
+   "do": [
+    {
+     "add": [
+      "wall",
+      1
+     ]
+    },
+    {
+     "add": [
+      "_wacc",
+      -4
+     ]
+    },
+    {
+     "emit": "wallmoved"
+    },
+    {
+     "emit": "tide"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_0",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 0",
+   "do": [
+    {
+     "show": "cart_0"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_0",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 0",
+   "do": [
+    {
+     "hide": "cart_0"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_1",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 1",
+   "do": [
+    {
+     "show": "cart_1"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_1",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 1",
+   "do": [
+    {
+     "hide": "cart_1"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_2",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 2",
+   "do": [
+    {
+     "show": "cart_2"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_2",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 2",
+   "do": [
+    {
+     "hide": "cart_2"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_3",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 3",
+   "do": [
+    {
+     "show": "cart_3"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_3",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 3",
+   "do": [
+    {
+     "hide": "cart_3"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_4",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 4",
+   "do": [
+    {
+     "show": "cart_4"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_4",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 4",
+   "do": [
+    {
+     "hide": "cart_4"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_5",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 5",
+   "do": [
+    {
+     "show": "cart_5"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_5",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 5",
+   "do": [
+    {
+     "hide": "cart_5"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_6",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 6",
+   "do": [
+    {
+     "show": "cart_6"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_6",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 6",
+   "do": [
+    {
+     "hide": "cart_6"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_7",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 7",
+   "do": [
+    {
+     "show": "cart_7"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_7",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 7",
+   "do": [
+    {
+     "hide": "cart_7"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_8",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 8",
+   "do": [
+    {
+     "show": "cart_8"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_8",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 8",
+   "do": [
+    {
+     "hide": "cart_8"
+    }
+   ]
+  },
+  {
+   "id": "cart_show_9",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c == 9",
+   "do": [
+    {
+     "show": "cart_9"
+    }
+   ]
+  },
+  {
+   "id": "cart_hide_9",
+   "when": {
+    "event": "cartmoved"
+   },
+   "if": "c != 9",
+   "do": [
+    {
+     "hide": "cart_9"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_1",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 1",
+   "do": [
+    {
+     "activate": "tide_1"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_1",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 1",
+   "do": [
+    {
+     "deactivate": "tide_1"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_2",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 2",
+   "do": [
+    {
+     "activate": "tide_2"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_2",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 2",
+   "do": [
+    {
+     "deactivate": "tide_2"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_3",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 3",
+   "do": [
+    {
+     "activate": "tide_3"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_3",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 3",
+   "do": [
+    {
+     "deactivate": "tide_3"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_4",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 4",
+   "do": [
+    {
+     "activate": "tide_4"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_4",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 4",
+   "do": [
+    {
+     "deactivate": "tide_4"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_5",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 5",
+   "do": [
+    {
+     "activate": "tide_5"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_5",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 5",
+   "do": [
+    {
+     "deactivate": "tide_5"
+    }
+   ]
+  },
+  {
+   "id": "tide_up_6",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall >= 6",
+   "do": [
+    {
+     "activate": "tide_6"
+    }
+   ]
+  },
+  {
+   "id": "tide_dn_6",
+   "when": {
+    "event": "wallmoved"
+   },
+   "if": "wall < 6",
+   "do": [
+    {
+     "deactivate": "tide_6"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_0",
+   "when": {
+    "enter": {
+     "zone": "za_0"
+    }
+   },
+   "if": "n == 0 && wall < 3",
+   "do": [
+    {
+     "show": "arail_0"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_0",
+   "when": {
+    "enter": {
+     "zone": "zb_0"
+    }
+   },
+   "if": "n == 0",
+   "do": [
+    {
+     "show": "brail_0"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_1",
+   "when": {
+    "enter": {
+     "zone": "za_1"
+    }
+   },
+   "if": "n == 1 && wall < 3",
+   "do": [
+    {
+     "show": "arail_1"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_1",
+   "when": {
+    "enter": {
+     "zone": "zb_1"
+    }
+   },
+   "if": "n == 1",
+   "do": [
+    {
+     "show": "brail_1"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_2",
+   "when": {
+    "enter": {
+     "zone": "za_2"
+    }
+   },
+   "if": "n == 2 && wall < 3",
+   "do": [
+    {
+     "show": "arail_2"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_2",
+   "when": {
+    "enter": {
+     "zone": "zb_2"
+    }
+   },
+   "if": "n == 2",
+   "do": [
+    {
+     "show": "brail_2"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_3",
+   "when": {
+    "enter": {
+     "zone": "za_3"
+    }
+   },
+   "if": "n == 3 && wall < 3",
+   "do": [
+    {
+     "show": "arail_3"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_3",
+   "when": {
+    "enter": {
+     "zone": "zb_3"
+    }
+   },
+   "if": "n == 3",
+   "do": [
+    {
+     "show": "brail_3"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_4",
+   "when": {
+    "enter": {
+     "zone": "za_4"
+    }
+   },
+   "if": "n == 4 && wall < 3",
+   "do": [
+    {
+     "show": "arail_4"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_4",
+   "when": {
+    "enter": {
+     "zone": "zb_4"
+    }
+   },
+   "if": "n == 4",
+   "do": [
+    {
+     "show": "brail_4"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_5",
+   "when": {
+    "enter": {
+     "zone": "za_5"
+    }
+   },
+   "if": "n == 5 && wall < 3",
+   "do": [
+    {
+     "show": "arail_5"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_5",
+   "when": {
+    "enter": {
+     "zone": "zb_5"
+    }
+   },
+   "if": "n == 5",
+   "do": [
+    {
+     "show": "brail_5"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_6",
+   "when": {
+    "enter": {
+     "zone": "za_6"
+    }
+   },
+   "if": "n == 6 && wall < 3",
+   "do": [
+    {
+     "show": "arail_6"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_6",
+   "when": {
+    "enter": {
+     "zone": "zb_6"
+    }
+   },
+   "if": "n == 6",
+   "do": [
+    {
+     "show": "brail_6"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_7",
+   "when": {
+    "enter": {
+     "zone": "za_7"
+    }
+   },
+   "if": "n == 7 && wall < 3",
+   "do": [
+    {
+     "show": "arail_7"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_7",
+   "when": {
+    "enter": {
+     "zone": "zb_7"
+    }
+   },
+   "if": "n == 7",
+   "do": [
+    {
+     "show": "brail_7"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_8",
+   "when": {
+    "enter": {
+     "zone": "za_8"
+    }
+   },
+   "if": "n == 8 && wall < 3",
+   "do": [
+    {
+     "show": "arail_8"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_8",
+   "when": {
+    "enter": {
+     "zone": "zb_8"
+    }
+   },
+   "if": "n == 8",
+   "do": [
+    {
+     "show": "brail_8"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_a_9",
+   "when": {
+    "enter": {
+     "zone": "za_9"
+    }
+   },
+   "if": "n == 9 && wall < 3",
+   "do": [
+    {
+     "show": "arail_9"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ash",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "lay_b_9",
+   "when": {
+    "enter": {
+     "zone": "zb_9"
+    }
+   },
+   "if": "n == 9",
+   "do": [
+    {
+     "show": "brail_9"
+    },
+    {
+     "add": [
+      "n",
+      1
+     ]
+    },
+    {
+     "add": [
+      "ember",
+      1
+     ]
+    },
+    {
+     "emit": "laid"
+    }
+   ]
+  },
+  {
+   "id": "finish_even",
+   "when": {
+    "event": "laid"
+   },
+   "if": "n >= 10 && ash == ember",
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  },
+  {
+   "id": "finish_uneven",
+   "when": {
+    "event": "laid"
+   },
+   "if": "n >= 10 && ash != ember",
+   "do": [
+    {
+     "end": "lopsided"
+    }
+   ]
+  },
+  {
+   "id": "too_many",
+   "when": {
+    "event": "laid"
+   },
+   "if": "ash > 5 || ember > 5",
+   "do": [
+    {
+     "end": "lopsided"
+    }
+   ]
+  },
+  {
+   "id": "cart_catches",
+   "when": {
+    "every": 0.2
+   },
+   "if": "c >= n",
+   "do": [
+    {
+     "end": "crushed"
+    }
+   ]
+  },
+  {
+   "id": "tide_closes",
+   "when": {
+    "every": 0.2
+   },
+   "if": "wall >= 6",
+   "do": [
+    {
+     "end": "drowned"
+    }
+   ]
+  },
+  {
+   "id": "faster_0",
+   "when": {
+    "enter": {
+     "zone": "zbtn_faster_0"
+    }
+   },
+   "if": "ct < 3",
+   "do": [
+    {
+     "add": [
+      "ct",
+      1
+     ]
+    },
+    {
+     "set": [
+      "ws",
+      "4 - ct"
+     ]
+    },
+    {
+     "emit": "tempo"
+    }
+   ]
+  },
+  {
+   "id": "slower_0",
+   "when": {
+    "enter": {
+     "zone": "zbtn_slower_0"
+    }
+   },
+   "if": "ct > 1",
+   "do": [
+    {
+     "add": [
+      "ct",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "ws",
+      "4 - ct"
+     ]
+    },
+    {
+     "emit": "tempo"
+    }
+   ]
+  },
+  {
+   "id": "shove_0",
+   "when": {
+    "enter": {
+     "zone": "zbtn_shove_0"
+    }
+   },
+   "if": "spare > 0 && wall > 0",
+   "do": [
+    {
+     "add": [
+      "spare",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "wall",
+      "max(wall - 2, 0)"
+     ]
+    },
+    {
+     "set": [
+      "_wacc",
+      0
+     ]
+    },
+    {
+     "emit": "wallmoved"
+    },
+    {
+     "emit": "shoved"
+    }
+   ]
+  },
+  {
+   "id": "faster_1",
+   "when": {
+    "enter": {
+     "zone": "zbtn_faster_1"
+    }
+   },
+   "if": "ct < 3",
+   "do": [
+    {
+     "add": [
+      "ct",
+      1
+     ]
+    },
+    {
+     "set": [
+      "ws",
+      "4 - ct"
+     ]
+    },
+    {
+     "emit": "tempo"
+    }
+   ]
+  },
+  {
+   "id": "slower_1",
+   "when": {
+    "enter": {
+     "zone": "zbtn_slower_1"
+    }
+   },
+   "if": "ct > 1",
+   "do": [
+    {
+     "add": [
+      "ct",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "ws",
+      "4 - ct"
+     ]
+    },
+    {
+     "emit": "tempo"
+    }
+   ]
+  },
+  {
+   "id": "shove_1",
+   "when": {
+    "enter": {
+     "zone": "zbtn_shove_1"
+    }
+   },
+   "if": "spare > 0 && wall > 0",
+   "do": [
+    {
+     "add": [
+      "spare",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "wall",
+      "max(wall - 2, 0)"
+     ]
+    },
+    {
+     "set": [
+      "_wacc",
+      0
+     ]
+    },
+    {
+     "emit": "wallmoved"
+    },
+    {
+     "emit": "shoved"
+    }
+   ]
+  }
+ ],
+ "objects": [
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    27,
+    10.4
+   ],
+   "position": [
+    0,
+    0.01,
+    0.9
+   ],
+   "material": {
+    "color": "@floor",
+    "roughness": 0.4
+   }
+  },
+  {
+   "id": "water",
+   "type": "plane",
+   "size": [
+    27,
+    10.4
+   ],
+   "position": [
+    0,
+    0.03,
+    0.9
+   ],
+   "collide": false,
+   "material": {
+    "color": "@primary",
+    "opacity": 0.18,
+    "emissive": "@primary"
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    27,
+    0.2,
+    10.4
+   ],
+   "position": [
+    0,
+    3.4,
+    0.9
+   ],
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_0",
+   "type": "wall",
+   "from": [
+    -13.5,
+    -4.3
+   ],
+   "to": [
+    13.5,
+    -4.3
+   ],
+   "height": 3.3,
+   "thickness": 0.24,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_1",
+   "type": "wall",
+   "from": [
+    -13.5,
+    6.1
+   ],
+   "to": [
+    13.5,
+    6.1
+   ],
+   "height": 3.3,
+   "thickness": 0.24,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_2",
+   "type": "wall",
+   "from": [
+    -13.5,
+    -4.3
+   ],
+   "to": [
+    -13.5,
+    6.1
+   ],
+   "height": 3.3,
+   "thickness": 0.24,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_3",
+   "type": "wall",
+   "from": [
+    13.5,
+    -4.3
+   ],
+   "to": [
+    13.5,
+    6.1
+   ],
+   "height": 3.3,
+   "thickness": 0.24,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "curb",
+   "type": "box",
+   "size": [
+    26,
+    0.25,
+    0.15
+   ],
+   "position": [
+    0,
+    0.12,
+    3.1
+   ],
+   "material": {
+    "color": "@stone"
+   }
+  },
+  {
+   "id": "pa_0",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -11.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_0",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -11.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_0",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -11.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_0",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -11.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_0",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    -11.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_1",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -8.75,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_1",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -8.75,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_1",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -8.75,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_1",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -8.75,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_1",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    -8.75,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_2",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -6.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_2",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -6.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_2",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -6.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_2",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -6.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_2",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    -6.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_3",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -3.75,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_3",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -3.75,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_3",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -3.75,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_3",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -3.75,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_3",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    -3.75,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_4",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -1.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_4",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -1.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_4",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -1.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_4",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    -1.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_4",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    -1.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_5",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    1.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_5",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    1.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_5",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    1.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_5",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    1.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_5",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    1.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_6",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    3.75,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_6",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    3.75,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_6",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    3.75,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_6",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    3.75,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_6",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    3.75,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_7",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    6.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_7",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    6.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_7",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    6.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_7",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    6.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_7",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    6.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_8",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    8.75,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_8",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    8.75,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_8",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    8.75,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_8",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    8.75,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_8",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    8.75,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "pa_9",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    11.25,
+    0,
+    -1.35
+   ],
+   "params": {
+    "c": "@primary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "arail_9",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    11.25,
+    0,
+    -1.35
+   ]
+  },
+  {
+   "id": "pb_9",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    11.25,
+    0,
+    1.35
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 2.0,
+    "d": 2.0
+   }
+  },
+  {
+   "id": "brail_9",
+   "type": "prefab",
+   "prefab": "rail_piece",
+   "position": [
+    11.25,
+    0,
+    1.35
+   ]
+  },
+  {
+   "id": "cart_9",
+   "type": "prefab",
+   "prefab": "ore_cart",
+   "position": [
+    11.25,
+    0,
+    0.0
+   ]
+  },
+  {
+   "id": "tide_1",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -3.9499999999999997
+   ]
+  },
+  {
+   "id": "tide_2",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -3.25
+   ]
+  },
+  {
+   "id": "tide_3",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -2.5500000000000003
+   ]
+  },
+  {
+   "id": "tide_4",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -1.85
+   ]
+  },
+  {
+   "id": "tide_5",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -1.15
+   ]
+  },
+  {
+   "id": "tide_6",
+   "type": "prefab",
+   "prefab": "tide_slab",
+   "position": [
+    0,
+    0,
+    -0.4500000000000005
+   ]
+  },
+  {
+   "id": "btn_faster_0",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -10.3,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@accent",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "btn_slower_0",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -8.5,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@stone",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "btn_shove_0",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    -6.7,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "btn_faster_1",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    6.7,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@accent",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "btn_slower_1",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    8.5,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@stone",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "btn_shove_1",
+   "type": "prefab",
+   "prefab": "hand_pad",
+   "position": [
+    10.3,
+    0,
+    4.1
+   ],
+   "params": {
+    "c": "@secondary",
+    "w": 1.5,
+    "d": 1.5
+   }
+  },
+  {
+   "id": "finish_arch",
+   "type": "box",
+   "size": [
+    0.3,
+    3.0,
+    10
+   ],
+   "position": [
+    12.9,
+    1.5,
+    0.9
+   ],
+   "collide": false,
+   "material": {
+    "color": "@accent",
+    "emissive": "@accent",
+    "opacity": 0.35
+   }
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0
+  },
+  "walk": [
+   {
+    "name": "start to the finish along the track",
+    "path": "-12.4,0.9; 12,0.9",
+    "ends_near": [
+     12,
+     0.9
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   },
+   {
+    "name": "start to the shelf plates",
+    "path": "-12.4,0.9; -10.3,4.1; 10.3,4.1",
+    "ends_near": [
+     10.3,
+     4.1
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   }
+  ],
+  "objects": {
+   "exist": [
+    "floor",
+    "pa_0",
+    "pb_9",
+    "cart_0",
+    "tide_6",
+    "btn_faster_0",
+    "btn_shove_1"
+   ],
+   "min_count": 40
+  },
+  "sim": [
+   {
+    "name": "even track: five teal then five orange wins",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-11.25,-1.35; -8.75,-1.35; -6.25,-1.35; -3.75,-1.35; -1.25,-1.35; 1.25,1.35; 3.75,1.35; 6.25,1.35; 8.75,1.35; 11.25,1.35"
+     }
+    ],
+    "expect": [
+     {
+      "var": "ash",
+      "eq": 5
+     },
+     {
+      "var": "ember",
+      "eq": 5
+     },
+     {
+      "var": "n",
+      "eq": 10
+     },
+     {
+      "event": "victory",
+      "count": 1
+     },
+     {
+      "ended": "victory"
+     },
+     {
+      "shown": "arail_4"
+     },
+     {
+      "shown": "brail_9"
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "uneven track loses: four teal, six orange",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-11.25,-1.35; -8.75,-1.35; -6.25,-1.35; -3.75,-1.35; -1.25,1.35; 1.25,1.35; 3.75,1.35; 6.25,1.35; 8.75,1.35; 11.25,1.35"
+     }
+    ],
+    "expect": [
+     {
+      "var": "ash",
+      "eq": 4
+     },
+     {
+      "ended": "lopsided"
+     },
+     {
+      "no_event": "victory"
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "the tide shuts the teal lane: a late teal plate lays nothing and the unfed track is run over",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-12.9,2.7; -8.5,2.7; -8.5,4.1"
+     },
+     {
+      "player": "p1",
+      "walk": "-8.5,2.7; -12.9,2.7; -12.9,-1.35; -11.25,-1.35"
+     }
+    ],
+    "expect": [
+     {
+      "var": "wall",
+      "gte": 3
+     },
+     {
+      "var": "ash",
+      "eq": 0
+     },
+     {
+      "var": "n",
+      "eq": 0
+     },
+     {
+      "ended": "crushed"
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "shared speed: more cart share means a faster cart (and a slower tide)",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-10.3,2.5; -10.3,4.1"
+     },
+     {
+      "player": "p1",
+      "wait": 8
+     }
+    ],
+    "expect": [
+     {
+      "var": "ct",
+      "eq": 3
+     },
+     {
+      "var": "ws",
+      "eq": 1
+     },
+     {
+      "event": "tempo",
+      "count": 1
+     },
+     {
+      "ended": "crushed"
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "less cart share means a faster tide",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-12.9,2.7; -8.5,2.7; -8.5,4.1"
+     },
+     {
+      "player": "p1",
+      "wait": 3
+     }
+    ],
+    "expect": [
+     {
+      "var": "ct",
+      "eq": 1
+     },
+     {
+      "var": "ws",
+      "eq": 3
+     },
+     {
+      "var": "wall",
+      "gte": 1
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "a shove pushes the tide back and burns a spare piece for good",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "walk": "-11.25,-1.35; -8.75,-1.35; -6.25,-1.35"
+     },
+     {
+      "player": "p1",
+      "wait": 1.5
+     },
+     {
+      "player": "p1",
+      "walk": "-6.7,4.1"
+     }
+    ],
+    "expect": [
+     {
+      "event": "shoved",
+      "count": 1
+     },
+     {
+      "var": "spare",
+      "eq": 1
+     },
+     {
+      "var": "wall",
+      "lt": 2
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "standing still lets the cart catch the track",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "wait": 20
+     }
+    ],
+    "expect": [
+     {
+      "ended": "crushed"
+     },
+     {
+      "var": "n",
+      "eq": 0
+     }
+    ],
+    "max_seconds": 40
+   }
+  ]
+ }
+}
