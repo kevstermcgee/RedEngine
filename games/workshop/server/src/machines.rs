@@ -11,7 +11,7 @@
 
 use crate::content::{Catalog, Recipe};
 use red_engine2::sim::defs::{code, Diagnostic, Id};
-use red_engine2::sim::ledger::{Fnv, Reason, Tx};
+use red_engine2::sim::ledger::{Fnv, Ledger, Reason, Res, Slot, SlotOp, Tx, Why};
 use red_engine2::sim::systems::{Command, Cx, Inspection, Look, System};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -39,6 +39,28 @@ pub struct Unit {
 pub struct Machines {
     cat: Arc<Catalog>,
     units: BTreeMap<Id, Unit>,
+    /// What the tick needs of each unit (in id order, beside `units`), resolved to ledger slots once; `None` after a command or a load
+    /// changed what a unit points at, until the next tick resolves it again.
+    hot: Option<Vec<Hot>>,
+    /// Every unit's recipe inputs and outputs, flattened (`Hot::inputs`, `Hot::outputs` index it), each recipe's in resource id order.
+    flows: Vec<(Res, u32)>,
+    /// Scratch kept between ticks so a tick allocates nothing: a transaction and an output's contents.
+    ops: Vec<SlotOp>,
+    held: Vec<(Res, u32)>,
+    crafted: Id,
+}
+
+/// One unit, resolved: its stores' slots, its recipe's flows and reason, and its cycle length.
+#[derive(Debug, Clone)]
+struct Hot {
+    input: Slot,
+    output: Slot,
+    from: Slot,
+    to: Slot,
+    inputs: std::ops::Range<usize>,
+    outputs: std::ops::Range<usize>,
+    why: Option<Why>,
+    cycle: u32,
 }
 
 fn id(s: &str) -> Id {
@@ -58,20 +80,37 @@ impl Machines {
             .iter()
             .filter_map(|(iid, inst)| {
                 let kind = cat.machines.get(&inst.machine)?;
-                Some((
-                    iid.clone(),
-                    Unit {
-                        kind: inst.machine.clone(),
-                        recipe: kind.recipes.first()?.clone(),
-                        from: inst.from.clone(),
-                        to: inst.to.clone(),
-                        left: None,
-                        made: 0,
-                    },
-                ))
+                Some((*iid, Unit { kind: inst.machine, recipe: *kind.recipes.first()?, from: inst.from, to: inst.to, left: None, made: 0 }))
             })
             .collect();
-        Machines { cat, units }
+        Machines { cat, units, hot: None, flows: Vec::new(), ops: Vec::new(), held: Vec::new(), crafted: id("ws:crafted") }
+    }
+
+    /// Resolves every unit to slots (once, then after a command or a load). A recipe's resources and reason are declared by the game from
+    /// the same content, so each resolves; one that did not would be left out of the flows.
+    fn resolve(&mut self, ledger: &mut Ledger) {
+        self.flows.clear();
+        let mut hot = Vec::with_capacity(self.units.len());
+        for (inst, u) in &self.units {
+            let rec = self.recipe(u);
+            let mut flow = |side: &BTreeMap<Id, u32>| {
+                let start = self.flows.len();
+                self.flows.extend(side.iter().filter_map(|(r, n)| Some((ledger.res(r)?, *n))));
+                start..self.flows.len()
+            };
+            let (inputs, outputs) = (flow(&rec.inputs), flow(&rec.outputs));
+            hot.push(Hot {
+                input: ledger.key(&Catalog::input_store(inst)),
+                output: ledger.key(&Catalog::output_store(inst)),
+                from: ledger.key(&u.from),
+                to: ledger.key(&u.to),
+                inputs,
+                outputs,
+                why: ledger.why(&Reason::Recipe(u.recipe)),
+                cycle: self.cycle_ticks(u),
+            });
+        }
+        self.hot = Some(hot);
     }
 
     /// The stores each instance owns: `(store, owner, capacity)`.
@@ -79,8 +118,8 @@ impl Machines {
         let mut out = Vec::new();
         for (iid, inst) in cat.instances.iter() {
             if let Some(k) = cat.machines.get(&inst.machine) {
-                out.push((Catalog::input_store(iid), iid.clone(), k.input));
-                out.push((Catalog::output_store(iid), iid.clone(), k.output));
+                out.push((Catalog::input_store(iid), *iid, k.input));
+                out.push((Catalog::output_store(iid), *iid, k.output));
             }
         }
         out
@@ -110,7 +149,7 @@ impl Machines {
         let u = self.units.get(inst)?;
         let rec = self.recipe(u);
         let (input, output) = (Catalog::input_store(inst), Catalog::output_store(inst));
-        let why = Reason::Recipe(u.recipe.clone());
+        let why = Reason::Recipe(u.recipe);
         if u.left == Some(0) {
             // The cycle is done but its outputs do not fit: name the store that is really full.
             let mut tx = Tx::new();
@@ -123,7 +162,7 @@ impl Machines {
             let e = ledger.check(&tx).err()?;
             let to = ledger.store(&u.to);
             let msg = match to {
-                Some(s) if s.free() == 0 => format!("its output is full and so is `{}` ({} of {}), where the output goes", u.to, s.used(), s.capacity),
+                Some(s) if s.free() == 0 => format!("its output is full and so is `{}` ({} of {}), where the output goes", u.to, s.used(), s.capacity()),
                 _ => e.message.clone(),
             };
             return Some(Diagnostic::new(code::FULL, inst, msg).fix(format!("make room in `{}`, or switch this machine's output elsewhere", u.to)));
@@ -142,7 +181,7 @@ impl Machines {
                     let mut fix = format!("bring {} more `{r}` to `{}`", n - have, u.from);
                     // The store it takes from is full of something else: nothing more can arrive there until room is made.
                     if let Some(s) = ledger.store(&u.from).filter(|s| s.free() == 0) {
-                        let held: Vec<String> = s.items.iter().map(|(r, n)| format!("{n} `{r}`")).collect();
+                        let held: Vec<String> = s.items().map(|(r, n)| format!("{n} `{r}`")).collect();
                         msg.push_str(&format!(", and `{}` is full ({}), so no more can arrive", u.from, held.join(", ")));
                         fix = format!("make room in `{}` (move or ship what fills it)", u.from);
                     }
@@ -176,59 +215,57 @@ impl System for Machines {
     }
 
     fn tick(&mut self, cx: &mut Cx) {
-        let ids: Vec<Id> = self.units.keys().cloned().collect();
-        for inst in ids {
-            let Some(u) = self.units.get(&inst).cloned() else { continue };
-            let rec = self.recipe(&u);
-            let (input, output) = (Catalog::input_store(&inst), Catalog::output_store(&inst));
+        if self.hot.as_ref().is_none_or(|h| h.len() != self.units.len()) {
+            self.resolve(cx.ledger);
+        }
+        let Machines { units, hot: Some(hot), flows, ops, held, crafted, .. } = self else { return };
+        for ((inst, u), h) in units.iter_mut().zip(hot.iter()) {
+            let (inputs, outputs) = (&flows[h.inputs.clone()], &flows[h.outputs.clone()]);
             // Feed: up to two cycles' worth, as much as is there and fits.
-            for (r, n) in &rec.inputs {
-                let want = (2 * n).saturating_sub(cx.ledger.count(&input, r));
-                let k = want.min(cx.ledger.count(&u.from, r)).min(cx.ledger.free(&input));
+            for &(r, n) in inputs {
+                let want = (2 * n).saturating_sub(cx.ledger.count_at(h.input, r));
+                let k = want.min(cx.ledger.count_at(h.from, r)).min(cx.ledger.free_at(h.input));
                 if k > 0 {
-                    let _ = cx.ledger.apply(&Tx::new().moving(&u.from, &input, r, k));
+                    let _ = cx.ledger.apply_ops(&[SlotOp::Move { from: h.from, to: h.input, res: r, n: k }]);
                 }
             }
-            let mut next = u.clone();
-            if next.left.is_none() && rec.inputs.iter().all(|(r, n)| cx.ledger.count(&input, r) >= *n) {
-                next.left = Some(self.cycle_ticks(&u));
+            if u.left.is_none() && inputs.iter().all(|&(r, n)| cx.ledger.count_at(h.input, r) >= n) {
+                u.left = Some(h.cycle);
             }
-            if let Some(left) = next.left {
+            if let Some(left) = u.left {
                 let left = left.saturating_sub(1);
-                next.left = Some(left);
+                u.left = Some(left);
                 if left == 0 {
-                    let why = Reason::Recipe(u.recipe.clone());
-                    let mut tx = Tx::new();
-                    for (r, n) in &rec.inputs {
-                        tx = tx.consuming(&input, r, *n, &why);
-                    }
-                    for (r, n) in &rec.outputs {
-                        tx = tx.producing(&output, r, *n, &why);
+                    ops.clear();
+                    if let Some(why) = h.why {
+                        ops.extend(inputs.iter().map(|&(res, n)| SlotOp::Consume { from: h.input, res, n, why }));
+                        ops.extend(outputs.iter().map(|&(res, n)| SlotOp::Produce { to: h.output, res, n, why }));
                     }
                     // A full output keeps the cycle finished but not crafted: it crafts the first tick there is room.
-                    if cx.ledger.apply(&tx).is_ok() {
-                        next.left = None;
-                        next.made += 1;
-                        let _ = cx.emit(&id("ws:crafted"), Some(&inst), 1);
+                    if cx.ledger.apply_ops(ops).is_ok() {
+                        u.left = None;
+                        u.made += 1;
+                        let _ = cx.emit(crafted, Some(inst), 1);
                     }
                 }
             }
             // Drain: everything the output holds that fits where it goes.
-            let held: Vec<(Id, u32)> = cx.ledger.store(&output).map(|s| s.items.iter().map(|(r, n)| (r.clone(), *n)).collect()).unwrap_or_default();
-            for (r, n) in held {
-                let k = n.min(cx.ledger.free(&u.to));
+            held.clear();
+            held.extend(cx.ledger.items_at(h.output));
+            for &(r, n) in held.iter() {
+                let k = n.min(cx.ledger.free_at(h.to));
                 if k > 0 {
-                    let _ = cx.ledger.apply(&Tx::new().moving(&output, &u.to, &r, k));
+                    let _ = cx.ledger.apply_ops(&[SlotOp::Move { from: h.output, to: h.to, res: r, n: k }]);
                 }
             }
-            self.units.insert(inst, next);
         }
     }
 
     fn command(&mut self, c: &Command, cx: &mut Cx) -> Result<(), Diagnostic> {
-        let inst = c.subject.clone().ok_or_else(|| Diagnostic::new("missing-field", &c.name, "names the machine (`subject`)"))?;
+        self.hot = None;
+        let inst = c.subject.ok_or_else(|| Diagnostic::new("missing-field", c.name, "names the machine (`subject`)"))?;
         let Some(u) = self.units.get(&inst).cloned() else {
-            return Err(Diagnostic::new(code::UNKNOWN, &inst, "no such machine"));
+            return Err(Diagnostic::new(code::UNKNOWN, inst, "no such machine"));
         };
         match c.name.as_str() {
             // Sends the output to a switch position's store: setting it again changes nothing.
@@ -239,7 +276,7 @@ impl System for Machines {
                     .iter()
                     .find(|(_, s)| s.instance == inst)
                     .and_then(|(_, s)| s.to.get(c.value.max(0) as usize).cloned())
-                    .ok_or_else(|| Diagnostic::new("out-of-range", &inst, format!("no switch position {} for this machine", c.value)))?;
+                    .ok_or_else(|| Diagnostic::new("out-of-range", inst, format!("no switch position {} for this machine", c.value)))?;
                 self.units.insert(inst, Unit { to, ..u });
                 Ok(())
             }
@@ -272,6 +309,7 @@ impl System for Machines {
             return Err(format!("the save has a machine `{gone}` that the content does not define"));
         }
         self.units = units;
+        self.hot = None;
         Ok(())
     }
 
@@ -331,12 +369,12 @@ impl System for Machines {
             .iter()
             .find(|(_, s)| s.instance == *target)
             .map(|(sid, s)| json!({"switch": sid, "var": s.var, "provenance": self.cat.switches.provenance(sid)}));
-        let store = |s: &Id| look.ledger.store(s).map(|s| json!(s.items)).unwrap_or(Value::Null);
+        let store = |s: &Id| look.ledger.store(s).map(|s| json!(s.to_store().items)).unwrap_or(Value::Null);
         Some(Inspection {
-            id: target.clone(),
+            id: *target,
             system: system_id(),
             instance_at: self.cat.instances.provenance(target).cloned(),
-            definition: Some(u.kind.clone()),
+            definition: Some(u.kind),
             defined_at: self.cat.machines.provenance(&u.kind).cloned(),
             status: status.into(),
             blocked_by: blocked,

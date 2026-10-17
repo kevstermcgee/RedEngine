@@ -88,16 +88,16 @@ impl System for Abilities {
         }
     }
     fn command(&mut self, c: &Command, cx: &mut Cx) -> Result<(), Diagnostic> {
-        let inst = c.subject.clone().ok_or_else(|| Diagnostic::new("missing-field", &c.name, "names the caster's ability"))?;
+        let inst = c.subject.ok_or_else(|| Diagnostic::new("missing-field", c.name, "names the caster's ability"))?;
         if !self.cooldowns.contains_key(&inst) {
-            return Err(Diagnostic::new(code::UNKNOWN, &inst, "no such ability"));
+            return Err(Diagnostic::new(code::UNKNOWN, inst, "no such ability"));
         }
         if let Some(why) = self.why_not(&inst, cx.ledger) {
             return Err(why);
         }
-        let a = self.defs.get(&ability_of(&inst)).cloned().ok_or_else(|| Diagnostic::new(code::UNKNOWN, &inst, "no definition"))?;
+        let a = self.defs.get(&ability_of(&inst)).cloned().ok_or_else(|| Diagnostic::new(code::UNKNOWN, inst, "no definition"))?;
         cx.ledger.apply(&Tx::new().consuming(&id(&format!("{}/mana", caster_of(&inst))), &id("ab:mana"), a.cost, &Reason::Sink(id("ab:cast"))))?;
-        self.cooldowns.insert(inst.clone(), a.cooldown);
+        self.cooldowns.insert(inst, a.cooldown);
         cx.emit(&id("ab:cast"), Some(&inst), a.cost as i64)
     }
     fn save(&self) -> Value {
@@ -115,10 +115,10 @@ impl System for Abilities {
         let blocked = self.why_not(target, look.ledger);
         let ability = ability_of(target);
         Some(Inspection {
-            id: target.clone(),
+            id: *target,
             system: self.id(),
             instance_at: None,
-            definition: Some(ability.clone()),
+            definition: Some(ability),
             defined_at: self.defs.provenance(&ability).cloned(),
             status: if blocked.is_some() { "blocked" } else { "ready" }.into(),
             blocked_by: blocked,
@@ -169,7 +169,7 @@ fn host() -> Systems {
     let mut cooldowns = BTreeMap::new();
     for c in &casters {
         let pool = id(&format!("{c}/mana"));
-        ledger.add_store(pool.clone(), c.clone(), 10).unwrap();
+        ledger.add_store(pool, *c, 10).unwrap();
         ledger.apply(&Tx::new().producing(&pool, &id("ab:mana"), 6, &Reason::Source(id("ab:start")))).unwrap();
         for (a, _) in defs.iter() {
             cooldowns.insert(id(&format!("{c}/{}", a.name())), 0);

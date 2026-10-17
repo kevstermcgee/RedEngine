@@ -178,7 +178,7 @@ fn op(r: &mut Rng, m: &Model) -> Op {
     let store = |r: &mut Rng| if live.is_empty() || r.below(8) == 0 { id(r.pick(&STORES)) } else { id(r.pick(&live)) };
     let res = id(if r.below(16) == 0 { RESOURCES[2] } else { r.pick(&RESOURCES[..2]) });
     let n = if r.below(6) == 0 { r.below(14) } else { r.below(4) } as u32;
-    let why = |r: &mut Rng| if r.below(8) == 0 { r.pick(&undeclared()).clone() } else { r.pick(&declared()).clone() };
+    let why = |r: &mut Rng| if r.below(8) == 0 { *r.pick(&undeclared()) } else { *r.pick(&declared()) };
     match r.below(3) {
         0 => Op::Move { from: store(r), to: store(r), res, n },
         1 => Op::Consume { from: store(r), res, n, why: why(r) },

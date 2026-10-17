@@ -42,22 +42,22 @@ impl WorkshopGame {
         let cat = spec.catalog.clone();
         let mut ledger = Ledger::new();
         for (r, _) in cat.resources.iter() {
-            ledger.resource(r.clone());
+            ledger.resource(*r);
         }
         for (r, _) in cat.recipes.iter() {
-            ledger.declare(Reason::Recipe(r.clone()));
+            ledger.declare(Reason::Recipe(*r));
         }
         for (s, _) in cat.sources.iter() {
-            ledger.declare(Reason::Source(s.clone()));
+            ledger.declare(Reason::Source(*s));
         }
         for (s, _) in cat.sinks.iter() {
-            ledger.declare(Reason::Sink(s.clone()));
+            ledger.declare(Reason::Sink(*s));
         }
         let start = Reason::Source(Catalog::start_source());
-        ledger.declare(start.clone());
+        ledger.declare(start);
         let mut errs = Vec::new();
         for (sid, store) in cat.stores.iter() {
-            if let Err(e) = ledger.add_store(sid.clone(), floor(), store.capacity) {
+            if let Err(e) = ledger.add_store(*sid, floor(), store.capacity) {
                 errs.push(e);
             }
             for (r, n) in &store.start {
@@ -132,9 +132,9 @@ impl WorkshopGame {
 impl WorkshopGame {
     /// A definition explained: where it is written, what it uses, and what uses it (the instances, recipes and machines an edit to it affects).
     pub fn definition(&self, target: &str) -> Option<Value> {
-        let id = Id::parse(target).ok()?;
+        let id = Id::find(target)?;
         let cat = &self.spec.catalog;
-        let instances_of = |kind: &Id| cat.instances.iter().filter(|(_, i)| i.machine == *kind).map(|(i, _)| i.clone()).collect::<Vec<_>>();
+        let instances_of = |kind: &Id| cat.instances.iter().filter(|(_, i)| i.machine == *kind).map(|(i, _)| *i).collect::<Vec<_>>();
         if let Some(m) = cat.machines.get(&id) {
             return Some(json!({"definition": id, "kind": "machine", "defined_at": cat.machines.provenance(&id), "behavior": crate::machines::system_id(),
                 "parameters": {"speed": m.speed, "input": m.input, "output": m.output}, "uses": m.recipes, "used_by": instances_of(&id)}));
@@ -177,7 +177,7 @@ impl MatchGame for WorkshopGame {
                 // A position the switch does not have still goes out, so the refusal is recorded (`problems`).
                 match usize::try_from(pos).ok().and_then(|p| s.to.get(p)) {
                     Some(want) if unit.to == *want => None,
-                    want => Some((s.instance.clone(), pos, want.cloned().unwrap_or_else(|| unit.to.clone()))),
+                    want => Some((s.instance, pos, want.cloned().unwrap_or(unit.to))),
                 }
             })
             .collect();
@@ -189,9 +189,8 @@ impl MatchGame for WorkshopGame {
         if let Err(e) = self.systems.tick() {
             self.note(e);
         }
-        let shown: Vec<(String, f64)> = self.spec.show.iter().map(|(var, sink)| (var.clone(), self.shipped(sink) as f64)).collect();
-        for (var, value) in shown {
-            sim.set_var(&var, value);
+        for (var, sink) in self.spec.show.iter() {
+            sim.set_var(var, self.shipped(sink) as f64);
         }
     }
 

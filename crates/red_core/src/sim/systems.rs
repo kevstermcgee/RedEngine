@@ -150,7 +150,7 @@ impl Cx<'_> {
         if !self.emits.contains(name) {
             return Err(Diagnostic::new(code::EVENT, self.me, format!("emits `{name}`, which it does not declare")).fix("add it to the system's `emits`"));
         }
-        self.queue.push_back(Event { name: name.clone(), subject: subject.cloned(), value, from: self.me.clone(), tick: self.tick });
+        self.queue.push_back(Event { name: *name, subject: subject.cloned(), value, from: *self.me, tick: self.tick });
         Ok(())
     }
 
@@ -271,7 +271,7 @@ impl Systems {
                 }
             }
         }
-        let after: BTreeMap<Id, Vec<Id>> = by_id.iter().map(|(id, s)| (id.clone(), s.after())).collect();
+        let after: BTreeMap<Id, Vec<Id>> = by_id.iter().map(|(id, s)| (*id, s.after())).collect();
         for (id, deps) in &after {
             for d in deps.iter().filter(|d| !by_id.contains_key(*d)) {
                 errs.push(
@@ -295,8 +295,8 @@ impl Systems {
             let ready = after.iter().find(|(id, deps)| !placed.contains(*id) && deps.iter().all(|d| placed.contains(d) || !by_id.contains_key(d)));
             match ready {
                 Some((id, _)) => {
-                    placed.insert(id.clone());
-                    order.push(id.clone());
+                    placed.insert(*id);
+                    order.push(*id);
                 }
                 None => {
                     let stuck: Vec<&str> = by_id.keys().filter(|i| !placed.contains(*i)).map(Id::as_str).collect();
@@ -337,7 +337,7 @@ impl Systems {
 
     /// The order the systems run in.
     pub fn order(&self) -> Vec<Id> {
-        self.meta.iter().map(|m| m.id.clone()).collect()
+        self.meta.iter().map(|m| m.id).collect()
     }
 
     /// Ticks run.
@@ -402,7 +402,7 @@ impl Systems {
             if delivered > self.budget {
                 let d = Diagnostic::new(
                     code::OVERFLOW,
-                    &ev.from,
+                    ev.from,
                     format!("more than {} events in tick {} (the last: `{}`): a cascade that does not settle", self.budget, self.tick, ev.name),
                 )
                 .fix("make the event chain end (an event that causes itself), or raise the budget if the work is real");
@@ -430,7 +430,7 @@ impl Systems {
     /// decision, so the copy costs nothing that matters). A system that cannot take its own saved state back halts the host.
     pub fn command(&mut self, command: &Command) -> Result<(), Diagnostic> {
         let Some(i) = self.meta.iter().position(|m| m.commands.contains(&command.name)) else {
-            return Err(Diagnostic::new(code::EVENT, &command.name, "no system takes this command")
+            return Err(Diagnostic::new(code::EVENT, command.name, "no system takes this command")
                 .fix(format!("one of: {}", self.meta.iter().flat_map(|m| m.commands.iter().map(Id::as_str)).collect::<Vec<_>>().join(", "))));
         };
         let (ledger, state, rng, queued) = (self.ledger.clone(), self.list[i].save(), self.rng, self.queue.len());
@@ -442,7 +442,7 @@ impl Systems {
         self.rng = rng;
         self.queue.truncate(queued);
         if let Err(e) = self.list[i].load(state) {
-            let d = Diagnostic::new(code::STATE_VERSION, &self.meta[i].id, format!("refused `{}` but cannot take back its own state: {e}", command.name))
+            let d = Diagnostic::new(code::STATE_VERSION, self.meta[i].id, format!("refused `{}` but cannot take back its own state: {e}", command.name))
                 .fix("a system's `load` must accept what its `save` wrote");
             self.halted = Some(d);
         }
@@ -451,7 +451,7 @@ impl Systems {
 
     /// Explains `target`: an instance some system owns, or a store.
     pub fn inspect(&self, target: &str) -> Option<Inspection> {
-        let id = Id::parse(target).ok()?;
+        let id = Id::find(target)?;
         let look = Look { tick: self.tick, ledger: &self.ledger };
         if let Some(found) = self.list.iter().find_map(|s| s.inspect(&id, &look)) {
             return Some(found);
@@ -466,13 +466,13 @@ impl Systems {
         };
         Some(Inspection {
             id,
-            system: store.owner.clone(),
+            system: store.owner(),
             instance_at: None,
             definition: None,
             defined_at: None,
             status: status.into(),
             blocked_by: None,
-            state: json!({"owner": store.owner, "capacity": store.capacity, "items": store.items}),
+            state: json!({"owner": store.owner(), "capacity": store.capacity(), "items": store.to_store().items}),
         })
     }
 
@@ -612,7 +612,7 @@ mod tests {
 
     impl System for Pinger {
         fn id(&self) -> Id {
-            self.me.clone()
+            self.me
         }
         fn after(&self) -> Vec<Id> {
             self.after.clone()
@@ -717,7 +717,7 @@ mod tests {
             self.count += 1;
             cx.emit(&id("t:grabbed"), None, 1)?;
             if c.value == 0 {
-                return Err(Diagnostic::new("refused", &c.name, "changed its mind"));
+                return Err(Diagnostic::new("refused", c.name, "changed its mind"));
             }
             Ok(())
         }

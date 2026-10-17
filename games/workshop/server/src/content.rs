@@ -127,12 +127,12 @@ pub struct Catalog {
 impl Catalog {
     /// The id of instance `inst`'s input store (`ws:furnace_a/in`).
     pub fn input_store(inst: &Id) -> Id {
-        Id::parse(&format!("{inst}/in")).unwrap_or_else(|_| inst.clone())
+        Id::parse(&format!("{inst}/in")).unwrap_or(*inst)
     }
 
     /// The id of instance `inst`'s output store.
     pub fn output_store(inst: &Id) -> Id {
-        Id::parse(&format!("{inst}/out")).unwrap_or_else(|_| inst.clone())
+        Id::parse(&format!("{inst}/out")).unwrap_or(*inst)
     }
 
     /// The id of the source that fills the stores' `start` contents.
@@ -324,7 +324,7 @@ pub fn load(files: &[String], base: Option<&Path>) -> Result<Catalog, Vec<Diagno
     }
     // Instances may name each other: register their ids first.
     let instance_raw = raw.remove("instances").unwrap_or_default();
-    let instance_ids: Vec<Id> = instance_raw.iter().map(|(_, (id, ..))| id.clone()).collect();
+    let instance_ids: Vec<Id> = instance_raw.iter().map(|(_, (id, ..))| *id).collect();
     let place = |cat: &Catalog, ns: &str, v: Option<&Value>, at: &Provenance, input: bool, errs: &mut Vec<Diagnostic>| -> Option<Id> {
         let name = v.and_then(Value::as_str).unwrap_or("");
         let id = Id::resolve(ns, name).map_err(|e| errs.push(Diagnostic::new(code::ID_FORM, at, e))).ok()?;
