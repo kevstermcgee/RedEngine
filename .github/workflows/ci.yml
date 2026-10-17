@@ -53,8 +53,11 @@ jobs:
           has '^(Dockerfile$|docker-compose\.yml$|\.dockerignore$|deploy/|\.github/)' && docker_own=true
           # The Python tools run on Windows machines too (the launchpad, Idea Forge, the process supervisor, the publisher, the MCP adapter, the bench scripts): paths, quoting, subprocesses and git
           # behave differently there, and a change that is only Python does not touch what `native` looks at. Any Python or PowerShell file, anything under scripts/ (including `dev`, `ci.sh`
-          # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it.
-          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|mcp_server\.py$|\.github/)|\.(py|ps1)$' && pytools=true
+          # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it. A game's own generator
+          # (`examples/2d/<slug>/`, `examples/3d/<slug>/build.py`) is game data, not a tool: the `content` job runs it (`scripts/game_generators.py check`), so a games-only pull request stays fast.
+          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|mcp_server\.py$|\.github/)' && pytools=true
+          not_games="$(grep -Ev '^examples/(2d|3d)/' <<<"$files" || true)"
+          grep -Eq '\.(py|ps1)$' <<<"$not_games" && pytools=true
           # A pull request that only adds or edits generated games (Idea Forge: examples/2d, examples/3d, its feedback note) cannot change a compiled binary, the container image or a tool: every
           # changed file is game data, and the engine's own tests that read that data are `scripts/ci.sh games`. Linux only, no Windows leg, no headless server build, no image. One file anywhere
           # else (an engine change the game depends on, a fixture, a script) and this is false and the full suite runs. (docs/analysis/2026-10-09-engine-ci-growth.md, proposal 1.)

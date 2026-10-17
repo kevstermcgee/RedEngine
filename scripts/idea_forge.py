@@ -38,6 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import proc_supervisor  # noqa: E402  (every child process here runs under a deadline it cannot miss; see that module)
+import game_generators  # noqa: E402  (a game's generator, kept beside it, still writes the committed game)
 FORGE_DIR = os.path.join(ROOT, "examples", "2d", "idea-forge")
 FEEDBACK_DIR = "docs/analysis/idea-forge"   # always forward slashes: git reports paths that way on every OS, and Windows accepts them
 RUN_DIRNAME = ".idea-forge"
@@ -175,6 +176,9 @@ def cmd_idea(a):
 
 BUILD_2D = """- Work only in this worktree. The game is ONE file: `examples/2d/{slug}.game2d.json` (`"game2d": 1`, id `{slug}`, a one-sentence `description`). Do not change engine code (`src/`, `crates/`, `tests/`, `scripts/`) or any
   other doc: a missing feature is a finding, not a patch. Work around it in game data and record the workaround.
+- Writing rules, levels or entities with a script is fine; keep the script: it is `examples/2d/{slug}/build.py` (helpers beside it), written there from the start, never in /tmp, and committed with
+  the game (`examples/2d/honeybound/` is the pattern). It uses only the standard library and paths relative to itself (`Path(__file__).parent`), and running it again rewrites the game byte for byte
+  (`python3 scripts/game_generators.py check examples/2d/{slug}` says so; `feedback --check` runs it). Change the game by editing the script and re-running it, not by editing its output.
 - Start with `scripts/dev start "<one line>"`, then `scripts/dev red describe 2d`; use `scripts/dev red search "<question>"` and `recipe` before inventing anything. (`scripts/dev red` is the engine CLI.)
 - Prove it with the engine, not by reading your own file: `validate`, `sim --only NAME --every S`, `verify`, and `frame G out.png` then LOOK at the picture. Scenarios must include one that exercises the mechanic and asserts
   its effect (not just that the game starts), and a win and a lose path unless the design has neither. Finish with `play2d G --max-ticks 120 --mute` under a virtual display if you have one.
@@ -183,6 +187,9 @@ BUILD_2D = """- Work only in this worktree. The game is ONE file: `examples/2d/{
 BUILD_3D = """- Work only in this worktree. The game is a first-person 3D RedEngine scene: `examples/3d/{slug}/{slug}.json` (a map with `player`, `spawns`, `objects`, `zones`, `vars`, `rules`, `ui`, `checks`), plus anything it needs beside it under
   `examples/3d/{slug}/` (for example `audio/*.json` scores). Declare `checks.lint` in the scene (`ignore` lists the lint codes a deliberate pit or prop trips): the run is judged by `verify`, which honors it. Game logic is data (`rules`), never Rust. Do not change engine code (`src/`, `crates/`, `tests/`, `scripts/`) or any other doc: a missing feature is a finding,
   not a patch. Work around it in game data and record the workaround.
+- Writing rules or objects with a script is fine; keep the script: it is `examples/3d/{slug}/build.py` (helpers beside it), written there from the start, never in /tmp, and committed with the scene
+  (`examples/2d/honeybound/` is the pattern). It uses only the standard library and paths relative to itself (`Path(__file__).parent`), and running it again rewrites the scene byte for byte
+  (`python3 scripts/game_generators.py check examples/3d/{slug}` says so; `feedback --check` runs it). Change the game by editing the script and re-running it, not by editing its output.
 - Start with `scripts/dev start "<one line>"`, then `scripts/dev red describe --brief`, `describe rules` and `describe scene`; use `search "<question>"`, `recipe` (`recipe coin_run --new examples/3d/{slug}/{slug}.json` is a complete
   small game to start from) and `build --example` for room layouts. (`scripts/dev red` is the engine CLI.)
 - Make it look like its own game, not like every other game on this engine (`describe style`). The floor: a `style` block with a palette of 6-8 roles of YOUR colours (not the
@@ -396,6 +403,10 @@ def score(root, slug, kind="2d"):
                  f"{len(rep.get('own_prefabs') or [])}: {', '.join(rep.get('own_prefabs') or [])[:80]}; shared catalogue {100 * rep.get('shared_share', 0):.0f}% of {rep.get('placed', 0)} placed")
             item("its own sound files", rep.get("sounds", 0) >= 1, f"{rep.get('sounds', 0)} file(s)")
             item("no default look kept (lint style-*)", not rep.get("defaults_kept"), ", ".join(rep.get("defaults_kept") or []) or "none")
+    gen = game_generators.for_game(root, kind, slug)
+    if gen:
+        ok, secs, problems = game_generators.check_one(*gen, root=root)
+        item("its generator rewrites the game byte for byte", ok, f"{gen[0].name} {secs:.1f} s" if ok else "; ".join(problems)[:200])
     return items
 
 
@@ -461,10 +472,15 @@ def wiki_problems(data):
     return out
 
 
+def game_dir(kind, slug):
+    """The folder a game's own sources live in: a 3D game's scene and scores, a 2D game's generator (`examples/2d/<slug>/` beside its one JSON file)."""
+    return f"examples/{kind}/{slug}/"
+
+
 def allowed_path(path, slug, kind="2d"):
-    """The only paths a run may change: its game (a 3D game owns its folder) and its feedback file."""
+    """The only paths a run may change: its game (a 3D game owns its folder; a 2D game its file and the folder of its generator) and its feedback file."""
     prefix = game_prefix(kind, slug)
-    own = path == prefix if kind == "2d" else path.startswith(prefix)
+    own = path == prefix or path.startswith(game_dir(kind, slug))
     return own or path == wiki_file(slug) or (path.startswith(FEEDBACK_DIR + "/") and path.endswith(".md"))
 
 
@@ -610,6 +626,9 @@ def cmd_feedback(a):
         if not os.path.exists(path):
             sys.exit(f"{path} does not exist: run `feedback --init`")
         bad = check_feedback_text(rd(path))
+        gen = game_generators.for_game(root, run.get("kind", "2d"), run["slug"])
+        if gen:
+            bad += game_generators.check_one(*gen, root=root)[2]
         for b in bad:
             print("FAIL", b)
         print("feedback OK" if not bad else f"{len(bad)} problem(s)")
@@ -715,6 +734,10 @@ def measurements(run_dir, run, root):
         out.append("Friction report (`scripts/agent_bench.py summary`):\n\n```json\n" + (p.stdout.strip() or p.stderr.strip()) + "\n```")
     if os.path.exists(session):
         out.append(session_facts(session))
+        keep = game_dir(run.get("kind", "2d"), run["slug"])
+        lost = scripts_not_kept(session, root, keep)
+        if lost:
+            out.append(f"Python scripts written outside the game's folder, so not kept with it (the brief asks for `{keep}build.py`): " + ", ".join(f"`{x}`" for x in lost) + ".")
     notes = read_notes(run_dir)
     claimed = sum(n.get("cost_min", 0) for n in notes)
     line = f"Notes logged during the run: {len(notes)} ({claimed:g} minutes claimed lost)."
@@ -731,6 +754,30 @@ def measurements(run_dir, run, root):
     else:
         text += "\n## Automatic measurements\n\n" + block + "\n"
     wr(path, text)
+
+
+def scripts_not_kept(session, root, keep):
+    """The `.py` files the agent wrote (Write, or a `cat > x.py` heredoc) outside `keep` (the game's folder, relative to the worktree `root`), from the transcript:
+    a generator in /tmp is lost when the run ends, and one elsewhere in the worktree is a stray path `ship` refuses."""
+    found = []
+    for line in rd(session).splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        msg = ev.get("message") if isinstance(ev.get("message"), dict) else {}
+        for c in msg.get("content") if isinstance(msg.get("content"), list) else []:
+            if not isinstance(c, dict) or c.get("type") != "tool_use":
+                continue
+            inp = c.get("input") if isinstance(c.get("input"), dict) else {}
+            paths = [inp.get("file_path", "")] if c.get("name") == "Write" else re.findall(r"cat\s*>\s*(\S+\.py)\b", inp.get("command", "")) if c.get("name") == "Bash" else []
+            for p in paths:
+                if not p.endswith(".py") or "idea_forge" in p:
+                    continue
+                full = os.path.normpath(p if os.path.isabs(p) else os.path.join(root, p))
+                if not full.startswith(os.path.normpath(os.path.join(root, keep)) + os.sep) and full not in found:
+                    found.append(full)
+    return found
 
 
 def session_facts(session):
@@ -1186,7 +1233,8 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
     if bad:
         raise ShipRefused("the feedback is not ready:\n  " + "\n  ".join(bad))
     store_feedback(fb)
-    paths = [os.path.relpath(fb, wt)] + ([] if feedback_only else [game_file(kind, slug).rsplit("/", 1)[0] + "/" if kind == "3d" else game_file(kind, slug)])
+    own = [game_dir(kind, slug)] if kind == "3d" else [game_file(kind, slug)] + ([game_dir(kind, slug)] if os.path.isdir(os.path.join(wt, game_dir(kind, slug))) else [])
+    paths = [os.path.relpath(fb, wt)] + ([] if feedback_only else own)
     git(wt, "add", "--", *paths)
     title = f"Idea Forge {kind.upper()} run: {run['idea']['title']} (" + ("feedback only: the game did not build" if feedback_only else "feedback and a game built around one mechanic") + ")"
     msg = f"{title}\n\nGenerated by scripts/idea_forge.py from idea code {run['idea']['code']:010d}; the feedback file is {FEEDBACK_DIR}/.\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
