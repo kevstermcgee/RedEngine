@@ -103,8 +103,10 @@ class WhichJobs(unittest.TestCase):
                 self.fresh()
                 self.assertEqual(self.jobs(helper)["pytools"], True)
 
-    def test_a_python_file_anywhere_counts(self):
+    def test_a_python_file_anywhere_but_a_game_folder_counts(self):
         self.assertEqual(self.jobs("examples/external/tool/helper.py")["pytools"], True)
+        self.fresh()
+        self.assertEqual(self.jobs("recipes/helper.py")["pytools"], True)
 
     def test_a_name_git_would_quote_still_selects_the_job(self):
         # `git diff --name-only` prints "scripts/\303\274nder.py" in quotes by default: an anchored pattern never matches the opening quote.
@@ -144,8 +146,13 @@ class WhichJobs(unittest.TestCase):
     def test_a_games_change_with_an_unusable_base_runs_everything(self):
         self.assertJobs(["examples/2d/new-game.game2d.json"], True, True, True, base="")
 
-    def test_a_game_with_a_python_helper_still_gets_the_python_job(self):
-        self.assertEqual(self.jobs("examples/3d/x/make.py"), {"native": False, "docker": False, "pytools": True, "games_only": True})
+    def test_a_games_own_generator_stays_on_the_games_path(self):
+        # A game's generator is game data (the `content` job runs it through scripts/game_generators.py), not a tool: no Python job, no Windows leg.
+        self.assertEqual(self.jobs("examples/3d/x/build.py", "examples/3d/x/x.json"), {"native": False, "docker": False, "pytools": False, "games_only": True})
+        self.fresh()
+        self.assertEqual(self.jobs("examples/2d/x/build.py", "examples/2d/x/levels.py", "examples/2d/x.game2d.json"), {"native": False, "docker": False, "pytools": False, "games_only": True})
+        self.fresh()
+        self.assertEqual(self.jobs("examples/3d/x/build.py", "scripts/idea_forge.py")["pytools"], True, "a tool beside it still starts the job")
 
     def test_a_large_change_list_is_still_read_whole(self):
         # Under pipefail `echo | grep -q` can fail when grep exits early; the helper reads a here-string. A few thousand files, the match last.

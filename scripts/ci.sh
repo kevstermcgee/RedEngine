@@ -264,6 +264,13 @@ stage_content() {
   echo "== content: every scene, 2D game, prefab library, blueprint, score, ... validates =="
   # shellcheck disable=SC2086
   cargo run --locked --quiet ${RED_CI_CONTENT_FLAGS:-} --bin red_engine2 -- validate
+  # A game's generator, kept beside it (examples/2d/<slug>/, examples/3d/<slug>/build.py), still writes the committed game byte for byte.
+  local py="" p
+  for p in python3 python; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" --version >/dev/null 2>&1; then py="$p"; break; fi
+  done
+  if [ -z "$py" ]; then echo "python is not installed: the game generators cannot be checked"; exit 1; fi
+  "$py" scripts/game_generators.py check
 }
 
 stages=("$@")
