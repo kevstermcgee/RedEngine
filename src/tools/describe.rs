@@ -350,6 +350,11 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
         "a game whose point lights all keep the default lamp colour (#fff4e0 / white) -> a palette `lamp` role or style.light.lamp",
     ),
     (
+        "net-hud",
+        "error",
+        "the HUD reads more than the 16 variables a networked match sends (red_server, play-local, playtest), or a variable name over 32 bytes: online it shows 0 -> read at most 16 (fewer counters/objective variables/rows), rename to 32 bytes; offline play is unaffected",
+    ),
+    (
         "style-sky",
         "warn",
         "a game with a default sky gradient (the engine's, a recipe's, the blueprint's) and no `sky`/`clock` -> style.sky {top, bottom}",
@@ -559,6 +564,7 @@ fn ui_text() -> String {
      }\n\n\
      Everything is checked on load with a did-you-mean: variables (labels, counters, `of`, conditions, {placeholders}), `end` outcomes against the rules' `end` actions,\n\
      unknown keys, texts too long for a screen. `hud` composes: `show_rules_vars: false` hides the plain variable rows but counters and the objective stay; `enabled: false` hides all.\n\
+     Online a match sends 16 variables, the ones the HUD reads first: reading more (or a name over 32 bytes) is lint `net-hud`, as it would show 0.\n\
      Offline (`re2 scene.json`): Enter, Space, E or a click uses a card's button; a restart rebuilds the game from the scene file and skips the start card. Online: the HUD\n\
      uses the labels, counters and objective, but the cards are offline only (a shared match cannot wait for one player; it has its own lobby and results).\n\n\
      SEE IT:    red_engine2 ui-shot game-hud|game-start|game-end out.png --scene scene.json [--var delivered=3] [--outcome victory] [--size 1280x720]\n\

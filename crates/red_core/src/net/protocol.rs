@@ -54,6 +54,23 @@ pub const MAX_OUTCOME: usize = 32;
 pub const MAX_ROSTER: usize = MAX_PLAYERS_PER_SNAPSHOT;
 /// Most scene variables presented by a networked game.
 pub const MAX_RULE_VARS: usize = 16;
+
+/// Which of a scene's `count` variables a networked match sends, as indices in declaration order: the ones its HUD reads (`hud_reads`, see
+/// `ui_config::hud_reads`) first, then the others in declaration order, at most [`MAX_RULE_VARS`]. A variable travels with its name, so a client finds
+/// it wherever it sits in the list, and sending in declaration order keeps the order the HUD lists plain rows in.
+pub fn rule_vars_to_send(count: usize, hud_reads: &[usize]) -> Vec<usize> {
+    let mut pick: Vec<usize> = Vec::with_capacity(MAX_RULE_VARS.min(count));
+    for i in hud_reads.iter().copied().chain(0..count) {
+        if pick.len() == MAX_RULE_VARS {
+            break;
+        }
+        if i < count && !pick.contains(&i) {
+            pick.push(i);
+        }
+    }
+    pick.sort_unstable();
+    pick
+}
 /// Most hidden objects in a networked game's current state.
 pub const MAX_RULE_HIDDEN: usize = 256;
 /// Most objects with collision disabled by rules.
@@ -1309,6 +1326,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn the_hud_s_variables_are_sent_first_and_the_rest_fill_up_in_declaration_order() {
+        assert_eq!(rule_vars_to_send(5, &[3]), [0, 1, 2, 3, 4], "everything fits");
+        let sent = rule_vars_to_send(20, &[17, 19, 2, 18]);
+        assert_eq!(sent.len(), MAX_RULE_VARS);
+        assert_eq!(sent, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19], "the four read, then the first twelve others, in declaration order");
+        assert_eq!(rule_vars_to_send(3, &[7, 1, 1]), [0, 1, 2], "an index past the end or a repeat changes nothing");
+        assert!(rule_vars_to_send(0, &[]).is_empty());
+    }
 
     fn input(seq: u32) -> PlayerInput {
         PlayerInput {
