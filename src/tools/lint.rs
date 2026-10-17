@@ -220,7 +220,12 @@ fn check_speed_cap(world: &MapWorld, out: &mut Vec<Finding>) {
             &[],
         ));
     }
-    let Some(rules) = world.raw.get("rules").and_then(Value::as_array) else { return };
+    // The rules as they run: a `for_each` template's copies, not the template (`sim::rule_groups`).
+    let mut expanded = world.raw.clone();
+    if crate::sim::rule_groups::expand(&mut expanded).is_err() {
+        return;
+    }
+    let Some(rules) = expanded.get("rules").and_then(Value::as_array) else { return };
     for r in rules {
         let id = r.get("id").and_then(Value::as_str).unwrap_or("?");
         for a in r.get("do").and_then(Value::as_array).into_iter().flatten() {

@@ -26,12 +26,14 @@ strict_struct! {
         interest: Interest,
         checks: Checks,
         prefabs: PrefabDefs,
-        /// Game variables: name -> number or true/false.
+        /// Named sets of members a rule template repeats over (`for_each`): name -> a list of ids (`*` patterns allowed) or id -> fields.
+        groups: BTreeMap<String, Any>,
+        /// Game variables: name -> number or true/false (a name with `$group` declares one per member).
         vars: BTreeMap<String, Any>,
         /// Per-player variables: name -> number or true/false.
         player_vars: BTreeMap<String, Any>,
         persist: Vec<String>,
-        rules: Vec<Rule>,
+        rules: Vec<RuleEntry>,
         /// Named level states: name -> the rule ids assumed fired.
         phases: BTreeMap<String, Vec<String>>,
         fields: Vec<ForceField>,
@@ -170,9 +172,41 @@ strict_struct! {
 
 // ---- rules ---------------------------------------------------------------------------------------------------------------------------------
 
+/// An entry of `rules`: a rule (repeated `for_each` member of a group when it says so), or a block of rules repeated together (`sim::rule_groups`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum RuleEntry {
+    /// `{"for_each", "in"?, "rules"}`.
+    Block(RuleBlock),
+    /// A rule.
+    Rule(Box<Rule>),
+}
+
 strict_struct! {
-    /// One rule: a trigger, an optional condition, actions (`describe rules`).
-    pub struct Rule { id: String, when: When, who: String, r#if: String, once: bool, cooldown: Any, r#do: Vec<Action> }
+    /// Rules repeated together for each member, in order (nested blocks allowed).
+    pub struct RuleBlock { for_each: String, r#in: Any, rules: Vec<RuleEntry> }
+}
+
+strict_struct! {
+    /// One rule: a trigger, an optional condition, actions (`describe rules`); with `for_each` (and `in`) one copy per member.
+    pub struct Rule { id: String, for_each: String, r#in: Any, when: When, who: String, r#if: String, once: bool, cooldown: Any, r#do: Vec<ActionEntry> }
+}
+
+/// An entry of a rule's `do`: an action, or actions repeated for each member (`{"for_each", "in"?, "do"}`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum ActionEntry {
+    /// `{"for_each", "in"?, "do"}`.
+    Block(ActionBlock),
+    /// One action.
+    Action(Action),
+}
+
+strict_struct! {
+    /// Actions repeated for each member, in place.
+    pub struct ActionBlock { for_each: String, r#in: Any, r#do: Vec<ActionEntry> }
 }
 
 strict_struct! {
