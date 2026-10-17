@@ -27,7 +27,7 @@ strict_struct! {
         checks: Checks,
         prefabs: PrefabDefs,
         /// Named sets of members a rule template repeats over (`for_each`): name -> a list of ids (`*` patterns allowed) or id -> fields.
-        groups: BTreeMap<String, Any>,
+        groups: BTreeMap<String, Group>,
         /// Game variables: name -> number or true/false (a name with `$group` declares one per member).
         vars: BTreeMap<String, Any>,
         /// Per-player variables: name -> number or true/false.
@@ -171,6 +171,17 @@ strict_struct! {
 }
 
 // ---- rules ---------------------------------------------------------------------------------------------------------------------------------
+
+/// A group's members (`sim::rule_groups`): ids (`*` patterns allowed), or id -> that member's fields.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum Group {
+    /// `["door_a", "door_*"]`.
+    Ids(Vec<String>),
+    /// `{"t1": {"box": [0, 0, 0, 1, 2, 1]}}`.
+    Keyed(BTreeMap<String, BTreeMap<String, Any>>),
+}
 
 /// An entry of `rules`: a rule (repeated `for_each` member of a group when it says so), or a block of rules repeated together (`sim::rule_groups`).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -144,7 +144,9 @@
         "object",
         "null"
       ],
-      "additionalProperties": true
+      "additionalProperties": {
+        "$ref": "#/$defs/Group"
+      }
     },
     "vars": {
       "description": "Game variables: name -> number or true/false (a name with `$group` declares one per member).",
@@ -4089,6 +4091,26 @@
       "patternProperties": {
         "^(x-|x_|_)|^notes$|^\\$comment$": {}
       }
+    },
+    "Group": {
+      "description": "A group's members (`sim::rule_groups`): ids (`*` patterns allowed), or id -> that member's fields.",
+      "anyOf": [
+        {
+          "description": "`[\"door_a\", \"door_*\"]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "`{\"t1\": {\"box\": [0, 0, 0, 1, 2, 1]}}`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      ]
     },
     "RuleEntry": {
       "description": "An entry of `rules`: a rule (repeated `for_each` member of a group when it says so), or a block of rules repeated together (`sim::rule_groups`).",
