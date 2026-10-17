@@ -100,6 +100,8 @@ pub mod sim {
     pub mod ordnance;
     pub mod player;
     pub mod race;
+    pub mod rule_groups;
+    pub mod rule_timers;
     pub mod rules;
     pub mod rules_expr;
     pub mod rules_run;

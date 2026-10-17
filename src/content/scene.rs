@@ -26,12 +26,16 @@ strict_struct! {
         interest: Interest,
         checks: Checks,
         prefabs: PrefabDefs,
-        /// Game variables: name -> number or true/false.
+        /// Named sets of members a rule template repeats over (`for_each`): name -> a list of ids (`*` patterns allowed) or id -> fields.
+        groups: BTreeMap<String, Group>,
+        /// Game variables: name -> number or true/false (a name with `$group` declares one per member).
         vars: BTreeMap<String, Any>,
         /// Per-player variables: name -> number or true/false.
         player_vars: BTreeMap<String, Any>,
+        /// Per-prop variables: every loose prop has its own copy (`self.name`).
+        prop_vars: BTreeMap<String, Any>,
         persist: Vec<String>,
-        rules: Vec<Rule>,
+        rules: Vec<RuleEntry>,
         /// Named level states: name -> the rule ids assumed fired.
         phases: BTreeMap<String, Vec<String>>,
         fields: Vec<ForceField>,
@@ -170,9 +174,52 @@ strict_struct! {
 
 // ---- rules ---------------------------------------------------------------------------------------------------------------------------------
 
+/// A group's members (`sim::rule_groups`): ids (`*` patterns allowed), or id -> that member's fields.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum Group {
+    /// `["door_a", "door_*"]`.
+    Ids(Vec<String>),
+    /// `{"t1": {"box": [0, 0, 0, 1, 2, 1]}}`.
+    Keyed(BTreeMap<String, BTreeMap<String, Any>>),
+}
+
+/// An entry of `rules`: a rule (repeated `for_each` member of a group when it says so), or a block of rules repeated together (`sim::rule_groups`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum RuleEntry {
+    /// `{"for_each", "in"?, "rules"}`.
+    Block(RuleBlock),
+    /// A rule.
+    Rule(Box<Rule>),
+}
+
 strict_struct! {
-    /// One rule: a trigger, an optional condition, actions (`describe rules`).
-    pub struct Rule { id: String, when: When, who: String, r#if: String, once: bool, cooldown: Any, r#do: Vec<Action> }
+    /// Rules repeated together for each member, in order (nested blocks allowed).
+    pub struct RuleBlock { for_each: String, r#in: Any, rules: Vec<RuleEntry> }
+}
+
+strict_struct! {
+    /// One rule: a trigger, an optional condition, actions (`describe rules`); with `for_each` (and `in`) one copy per member.
+    pub struct Rule { id: String, for_each: String, r#in: Any, when: When, who: String, r#if: String, once: bool, cooldown: Any, r#do: Vec<ActionEntry> }
+}
+
+/// An entry of a rule's `do`: an action, or actions repeated for each member (`{"for_each", "in"?, "do"}`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum ActionEntry {
+    /// `{"for_each", "in"?, "do"}`.
+    Block(ActionBlock),
+    /// One action.
+    Action(Action),
+}
+
+strict_struct! {
+    /// Actions repeated for each member, in place.
+    pub struct ActionBlock { for_each: String, r#in: Any, r#do: Vec<ActionEntry> }
 }
 
 strict_struct! {
@@ -187,6 +234,8 @@ strict_struct! {
         prop_enter: Volume,
         prop_exit: Volume,
         prop_below: Any,
+        /// A timer ran out (`self.name` for the subject prop's own).
+        timer: String,
         /// With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule).
         prop: Any,
     }
@@ -205,6 +254,10 @@ pub enum Action {
     Set(Any),
     Add(Any),
     Emit(String),
+    /// `[name, secs]`: start (or restart) a timer.
+    Timer(Any),
+    /// Stop a timer.
+    Cancel(String),
     Hide(String),
     Show(String),
     Collision(Any),

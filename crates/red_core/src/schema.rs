@@ -1176,6 +1176,8 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     crate::style::resolve(&mut value)?;
     // Prefab instances (`"type": "prefab"`) expand into plain groups before anything else sees them.
     crate::prefabs::expand_scene(&mut value)?;
+    // Rule templates (`groups`, `for_each`) become the plain rules and variables they stand for; errors keep the template's address.
+    let expansion = crate::sim::rule_groups::expand(&mut value)?;
     let mut ctx = Ctx::default();
     let Some(root) = value.as_object() else {
         return Err(vec!["root: scene must be a JSON object".to_string()]);
@@ -1480,7 +1482,7 @@ fn parse_scene_text(text: &str) -> Result<Scene, Vec<String>> {
     let rules = match crate::sim::rules::parse_rules(root, &rule_refs(root, &objects)) {
         Ok(r) => r,
         Err(errs) => {
-            ctx.errors.extend(errs);
+            ctx.errors.extend(errs.iter().map(|e| expansion.relabel(e)));
             crate::sim::rules::RuleSet::default()
         }
     };
