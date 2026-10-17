@@ -232,6 +232,14 @@ impl Ctx<'_> {
     /// A scene variable's name, or an error that lists the scene's variables.
     fn var(&mut self, path: &str, name: &str) -> bool {
         let ok = self.vars.iter().any(|v| v == name);
+        if let Some(i) = self.vars.iter().position(|v| v == name).filter(|i| *i >= crate::net::protocol::MAX_RULE_VARS) {
+            let cap = crate::net::protocol::MAX_RULE_VARS;
+            self.err(
+                path,
+                format!("`{name}` is variable {} in `vars`, but a live match sends only the first {cap} to the HUD, so it would show 0; declare it among the first {cap}", i + 1),
+            );
+            return false;
+        }
         if !ok {
             let hint = self.near(name, self.vars);
             self.err(
@@ -490,6 +498,21 @@ mod tests {
         }))
         .unwrap()
         .unwrap()
+    }
+
+    #[test]
+    fn a_variable_beyond_the_hud_cap_is_an_error_not_a_silent_zero() {
+        let cap = crate::net::protocol::MAX_RULE_VARS;
+        let mut vars = serde_json::Map::new();
+        for i in 0..=cap {
+            vars.insert(format!("v{i:02}"), json!(0));
+        }
+        let scene = json!({ "vars": vars, "rules": [], "ui": {"counters": [{"var": format!("v{cap:02}")}, {"var": "v00"}]} });
+        let o = scene.as_object().unwrap();
+        let rules = crate::sim::rules::parse_rules(o, &crate::sim::rules::Refs::default()).unwrap();
+        let errs = parse_ui(o, &rules).unwrap_err();
+        assert_eq!(errs.len(), 1, "{errs:?}");
+        assert!(errs[0].starts_with("ui.counters[0].var") && errs[0].contains("would show 0"), "{errs:?}");
     }
 
     #[test]

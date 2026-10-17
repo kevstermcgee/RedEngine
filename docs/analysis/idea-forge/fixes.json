@@ -46,5 +46,11 @@
   "summary": "2D games have string tables, `pick`, `wrap` and a dialogue widget since #99 (ADR 2026-10-10-story-is-rules-and-tables-not-a-story-system).",
   "partial": true,
   "remaining": "3D scenes have no tables or `pick` (ADR 2026-10-13-the-next-phase, phase 2 item 4)"
+ },
+ {
+  "key": "hud-counter-vars-beyond-cap-show-zero",
+  "covers": [],
+  "date": "2026-10-16",
+  "summary": "A scene whose ui counters, labels, objective or card text name a var beyond the first 16 (the live HUD cap) is now a validate error that says so, instead of a silent 0."
  }
 ]

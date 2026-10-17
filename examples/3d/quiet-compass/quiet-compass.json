@@ -643,6 +643,7 @@
   "mem": 0,
   "slots": 0,
   "rooms": 0,
+  "exit_at": 1,
   "_sk_soft": 0,
   "_sk_forget": 0,
   "_sk_hush": 0,
@@ -654,7 +655,6 @@
   "_ig_w": 0,
   "carry": 0,
   "at": 0,
-  "exit_at": 1,
   "t": 0,
   "stage": 0,
   "room": 1
