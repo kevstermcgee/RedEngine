@@ -14,6 +14,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
 - Open pull requests waiting on the owner: #170 interned ids for game systems (review follow-up item 3), #173 Honeybound v2, #167 narrative foundation
   (`.story` + story system + Tidewatch), #93 Redline feedback (18 backlog findings, open since 2026-10-10). RedEngineGames: #7 (Killchain plays with its own
   client; until it merges Frameless and Killchain ship the old way), #8 (installer icons).
+- 2026-10-17: STATUS.md rewritten from current facts at c4860ce (PR #176); #92 closed as superseded
 
 ## Done
 - Phase 1 of the next phase is complete (ADR 2026-10-13-the-next-phase, #116-#153): docs read at runtime (#118), a prebuilt per build-input change on main (#119),
