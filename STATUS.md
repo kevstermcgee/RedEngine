@@ -17,6 +17,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
 - 2026-10-17: STATUS.md rewritten from current facts at c4860ce (PR #176); #92 closed as superseded
 - 2026-10-17: Phase 2 item 0 (HUD var cap, PR #179): the server sends the variables the HUD reads first (no protocol change), lint net-hud for a HUD reading >16 or a name >32 bytes; Redline (RedEngineGames, offline) reads 42 and gets the lint error; cap raise proposed as ADR 2026-10-17-rule-variables-travel-by-index (not built)
 - 2026-10-17: Item 3 (keep generators, PR #180): brief + ship paths + scripts/game_generators.py check (score, feedback --check, CI content job); 13 of 17 runs had lost a /tmp generator; a games-only PR with a generator no longer starts python-tools
+- 2026-10-17: Phase 2 item 1 step 1 (PR #181): groups + for_each expanded at load (no protocol change); Gentle Carousel 252 rules / 102,527 B -> 13 entries / 34,413 B, expansion = old RuleSet minus 3 dead rules, sim output and checksums identical; verify 0.11 s before and after. Next: per-entity vars + restartable timers
 
 ## Done
 - Phase 1 of the next phase is complete (ADR 2026-10-13-the-next-phase, #116-#153): docs read at runtime (#118), a prebuilt per build-input change on main (#119),
