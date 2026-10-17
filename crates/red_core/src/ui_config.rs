@@ -278,10 +278,10 @@ pub fn hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, vars: 
 }
 
 /// What is wrong with a HUD that could not show what it reads online: more variables than a networked match sends (`MAX_RULE_VARS`, one message naming
-/// the ones that would not arrive), or a name longer than the wire carries (`MAX_RULE_TEXT` bytes, one message each). Either used to show 0 online with
-/// no message (Quiet Compass, Idea Forge 2026-10-15); `lint` reports these as `net-hud` errors.
+/// the ones that would not arrive). It used to show 0 online with no message (Quiet Compass, Idea Forge 2026-10-15); `lint` reports it as `net-hud`.
+/// (Names do not travel since protocol v17, so their length no longer matters.)
 pub fn check_hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, vars: &[String]) -> Vec<String> {
-    use crate::net::protocol::{MAX_RULE_TEXT, MAX_RULE_VARS};
+    use crate::net::protocol::MAX_RULE_VARS;
     let reads = hud_reads(ui, hud, vars);
     let mut out = Vec::new();
     if reads.len() > MAX_RULE_VARS {
@@ -292,14 +292,6 @@ pub fn check_hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, 
             reads.len(),
             late.join(", "),
             if more > 0 { format!(" and {more} more") } else { String::new() }
-        ));
-    }
-    for r in reads.iter().filter(|r| vars[r.var].len() > MAX_RULE_TEXT) {
-        out.push(format!(
-            "`{}` ({}) is {} bytes, but a networked match sends at most {MAX_RULE_TEXT} of a variable's name (net::protocol::MAX_RULE_TEXT), so online the HUD would show 0; rename it to at most {MAX_RULE_TEXT} bytes",
-            vars[r.var],
-            r.at,
-            vars[r.var].len()
         ));
     }
     out
@@ -702,23 +694,19 @@ mod tests {
 
     #[test]
     fn a_hud_that_reads_more_than_the_wire_sends_is_an_error_that_names_the_cap_and_the_fix() {
-        let (set, names) = many(20);
-        let counters: Vec<Value> = names.iter().take(17).map(|n| json!({"var": n})).collect();
+        // 65 counters of 70 variables: one more than protocol v17's 64.
+        let (set, names) = many(70);
+        let counters: Vec<Value> = names.iter().take(65).map(|n| json!({"var": n})).collect();
         let u = parse_ui(json!({"ui": {"counters": counters}}).as_object().unwrap(), &set).unwrap().unwrap();
         let no_rows = crate::hud_config::HudConfig { show_rules_vars: false, ..Default::default() };
         let e = check_hud_reads(Some(&u), &no_rows, &names);
         assert_eq!(e.len(), 1, "{e:?}");
-        assert!(e[0].starts_with("the HUD reads 17 variables") && e[0].contains("online `v16` (ui.counters[16].var) would show 0"), "{}", e[0]);
-        for want in ["at most 16 (net::protocol::MAX_RULE_VARS)", "drop a counter", "hud.custom_vars"] {
+        assert!(e[0].starts_with("the HUD reads 65 variables") && e[0].contains("online `v64` (ui.counters[64].var) would show 0"), "{}", e[0]);
+        for want in ["at most 64 (net::protocol::MAX_RULE_VARS)", "drop a counter", "hud.custom_vars"] {
             assert!(e[0].contains(want), "missing `{want}` in {}", e[0]);
         }
         let e = check_hud_reads(Some(&u), &crate::hud_config::HudConfig::default(), &names);
-        assert!(e.len() == 1 && e[0].starts_with("the HUD reads 20 variables") && e[0].contains("`v19` (hud.show_rules_vars)"), "the rows count too: {e:?}");
-        let long = "a_variable_name_longer_than_the_wire_carries";
-        let set = crate::sim::rules::parse_rules(json!({"vars": {long: 0}}).as_object().unwrap(), &crate::sim::rules::Refs::default()).unwrap();
-        let u = parse_ui(json!({"ui": {"counters": [{"var": long, "label": "Long"}]}}).as_object().unwrap(), &set).unwrap().unwrap();
-        let e = check_hud_reads(Some(&u), &crate::hud_config::HudConfig::default(), &[long.to_string()]);
-        assert!(e.len() == 1 && e[0].contains("44 bytes") && e[0].contains("rename it to at most 32 bytes"), "{e:?}");
+        assert!(e.len() == 1 && e[0].starts_with("the HUD reads 70 variables") && e[0].contains("`v69` (hud.show_rules_vars)"), "the rows count too: {e:?}");
     }
 
     #[test]

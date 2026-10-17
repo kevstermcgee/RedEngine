@@ -1,6 +1,6 @@
 # 2026-10-17. Rule variables travel by index so a networked match can send more than sixteen
-Status: proposed
-Summary: Proposed, not built: protocol v17 sends a rule variable as its index in the scene's vars and its value (9 bytes, not up to 41), so the cap rises from 16 to 64 in the same packet and a name no longer travels
+Status: accepted
+Summary: Protocol v17 sends a rule variable as its index in the scene's own vars and its value (10 bytes, not up to 41), so a networked match presents up to 64 variables instead of 16 in less space, and a name no longer travels
 
 ## Context
 A networked match presents its rule state in one repeated `ServerMsg::RuleState` (ADR 0022, SPEC "rules online"). Each variable travels as its name
@@ -18,13 +18,14 @@ The names are redundant on the wire: a client joins only with the server's map h
 order.
 
 ## Decision
-Proposed, for the owner to accept or reject; nothing here is built.
+Proposed on 2026-10-17 and accepted by the owner the same day ("Accept cap raise").
 
-Protocol v17 (`PROTOCOL_VERSION` 16 -> 17; client and server must match, as for every bump) changes only `RuleState.vars`: each entry is `u8` index into the
-scene's own variables (declaration order, built-ins left out, the order of `RulesEngine::vars`) and the value (`u64` bits), 9 bytes. `MAX_RULE_VARS`
-becomes 64: 64 x 9 = 576 bytes, under today's 656, so the worst case shrinks to 1,304 + 8 bytes. A client turns indices back into names from its own scene
-(`RuleVar` keeps a name for the HUD code, filled on decode from the scene), so `ui`, `hud`, the state dump and the replay need no change. The server keeps
-sending what the HUD reads first; `lint`'s `net-hud` then fires above 64. A name longer than 32 bytes stops mattering, since names no longer travel.
+Protocol v17 (`PROTOCOL_VERSION` 16 -> 17; client and server must match, as for every bump) changes only `RuleState.vars`: each entry is a `u16` index into
+the scene's own variables (declaration order, built-ins left out: `RuleSet::own_var_names`, the order of `RulesEngine::vars`) and the value (`u64` bits),
+10 bytes. (A `u8`, as first proposed, would not index Redline's 227 variables.) `MAX_RULE_VARS` becomes 64: 64 x 10 = 640 bytes, under v16's 656, so the
+worst case shrinks to 1,368 + 8 bytes. A client turns indices back into names from its own scene (`RuleState::named`), so `ui`, `hud`, the state dump and the
+replay need no change. The server keeps
+sending what the HUD reads first; `lint`'s `net-hud` fires above 64, and a name longer than 32 bytes stops mattering, since names no longer travel (its half of the check is gone).
 
 Not chosen: sending every variable (a game with hundreds, like Redline's 227, does not fit any packet; the HUD reads few of them); splitting the rule state
 over several packets (it is resent whole and must be atomic for a late joiner, ADR 0022); deltas (the state is small and resent; deltas add a baseline to

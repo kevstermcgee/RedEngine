@@ -53,12 +53,25 @@ playtest its objective shows wrong lines. Lint is in every agent loop (`lint`, `
 `validate` over the repository: 96 content files, 0 problems (unchanged; the check is not a validate error). Quiet Compass as committed reads 6
 variables (positions 0-4 and 14); with this change its workaround was not needed.
 
-## Raising the cap
+## Raising the cap: protocol v17 (accepted by the owner the same day)
 
-Not built. A 17th named variable does not fit the worst-case packet (16 x 41 bytes of names and values, 256 + 64 object ids, two texts: 1,384 + 8 tag
-bytes of 1,400). Proposed in ADR 2026-10-17-rule-variables-travel-by-index-so-a-networked-match-can (status: proposed): protocol v17 sends a variable as
-its index in the scene's vars and its value (9 bytes; the client verified the map hash, so it has the names), raising the cap to 64 in less space
-(576 bytes against 656) and making the 32-byte name limit moot. That would cover Redline's 42.
+ADR 2026-10-17-rule-variables-travel-by-index-so-a-networked-match-can, accepted: a `RuleState` variable is its index among the scene's own variables
+(`u16`) and its value, 10 bytes; the client names it from its own scene (`RuleState::named`, `RuleSet::own_var_names`), which it parsed from the same
+map the server's hash names. `MAX_RULE_VARS` is 64. The `net-hud` lint fires above 64 and no longer checks name lengths (names do not travel).
+
+| scene | own vars | v16: vars sent / bytes | v17: vars sent / bytes |
+|---|---|---|---|
+| quiet-compass | 20 | 16 / 239 | 20 / 200 |
+| gentle-carousel | 30 | 16 / 232 | 30 / 300 |
+| velvet-orchestra | 7 | 7 / 95 | 7 / 70 |
+| sunken-marathon | 10 | 10 / 123 | 10 / 100 |
+| redline (RedEngineGames) | 227 | 16 / 272 | 64 / 640 |
+| worst case (the protocol test) | | 16 / 656 (whole message 1,384 + 8 tag) | 64 / 640 (whole message 1,368 + 8 tag) |
+
+Method: the var section is fixed-width, so it is computed from each scene's variable names (v16: 1 + name bytes up to 32 + 8 per variable; v17: 10).
+Every variable is cheaper; a scene with more than 16 now sends more of them, so its message grows (Gentle Carousel: 232 -> 300 bytes, all 30 sent).
+Redline's HUD reads 42, under 64: its `net-hud` lint error is gone. A v16 client and a v17 server refuse each other with the version message, as for
+every bump.
 
 ## Found along the way (not fixed here)
 

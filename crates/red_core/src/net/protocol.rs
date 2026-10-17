@@ -28,7 +28,7 @@ pub const MAGIC: u16 = 0x5244;
 /// v9: the weapon numbers on the wire (indices of `weapons::Weapon::ALL`) changed when the silver revolver left the list.
 /// v10 (ADR 0044): join proofs use a new domain (bound to the TLS exporter on QUIC), and a snapshot carries only as many props as the
 /// client's transport datagram budget allows.
-pub const PROTOCOL_VERSION: u16 = 16;
+pub const PROTOCOL_VERSION: u16 = 17;
 // v14 (ADR 2026-09-30-killchain-loadout-shooter): twelve players; inputs carry two flag bytes (aim, drop, weapon choice); a snapshot of a loadout match
 // carries an `ArenaSnap` (your kit, pickups, projectiles, smoke, explosions); players carry a team and a stance byte; the lobby chooses a team; the
 // status carries team scores and the match limits.
@@ -36,6 +36,8 @@ pub const PROTOCOL_VERSION: u16 = 16;
 // an `ArenaSnap` ends with an `ObjSnap` (capture-the-flag flags or search-and-destroy round and bomb, plus the last few objective events).
 // v16 (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or): a game's own part of a snapshot is a [`GameMsg`], tagged bytes this
 // protocol carries and does not read (the loadout shooter's arena, `net::arena_wire`, is the first); the per-player byte goes with it.
+// v17 (ADR 2026-10-17-rule-variables-travel-by-index-so-a-networked-match-can): a `RuleState` variable is its index in the scene's own vars and its value
+// (10 bytes, not up to 41): the names stay home (both sides parsed the same scene), and a match sends up to 64 instead of 16.
 /// Largest message either side accepts, and the development UDP datagram budget (under a typical 1500-byte MTU). On QUIC the budget is
 /// the connection's current `max_datagram_size` (about 1150 bytes on a fresh 1200-byte path MTU); messages above it travel on a stream.
 pub const MAX_PACKET: usize = 1400;
@@ -52,11 +54,11 @@ pub const MAX_NAME: usize = 16;
 pub const MAX_OUTCOME: usize = 32;
 /// Most roster entries in a [`Status`] (a match holds at most this many players).
 pub const MAX_ROSTER: usize = MAX_PLAYERS_PER_SNAPSHOT;
-/// Most scene variables presented by a networked game.
-pub const MAX_RULE_VARS: usize = 16;
+/// Most scene variables presented by a networked game (v17: 64; v16 sent 16 by name).
+pub const MAX_RULE_VARS: usize = 64;
 
 /// Which of a scene's `count` variables a networked match sends, as indices in declaration order: the ones its HUD reads (`hud_reads`, see
-/// `ui_config::hud_reads`) first, then the others in declaration order, at most [`MAX_RULE_VARS`]. A variable travels with its name, so a client finds
+/// `ui_config::hud_reads`) first, then the others in declaration order, at most [`MAX_RULE_VARS`]. A variable travels with its index, so a client finds
 /// it wherever it sits in the list, and sending in declaration order keeps the order the HUD lists plain rows in.
 pub fn rule_vars_to_send(count: usize, hud_reads: &[usize]) -> Vec<usize> {
     let mut pick: Vec<usize> = Vec::with_capacity(MAX_RULE_VARS.min(count));
@@ -634,11 +636,12 @@ pub struct Status {
 /// `Status::end_code` before any round has ended.
 pub const NO_END: u8 = 255;
 
-/// One scene variable in a [`RuleState`].
-#[derive(Debug, Clone, PartialEq)]
+/// One scene variable in a [`RuleState`]: its index among the scene's own variables (declaration order, the built-ins left out: the order of
+/// `RulesEngine::vars`) and its value. The name stays home: a client joins only with the server's map hash, so it parsed the same `vars` (v17).
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuleVar {
-    /// Authored variable name.
-    pub name: String,
+    /// Index among the scene's own variables.
+    pub index: u16,
     /// Authoritative value.
     pub value: f64,
 }
@@ -665,6 +668,13 @@ pub struct RuleState {
     pub event_tick: u32,
     /// Terminal rule outcome, empty while the game is running.
     pub outcome: String,
+}
+
+impl RuleState {
+    /// The variables with their names, from the scene's own variable names (`RuleSet::own_var_names`); an index past the end is skipped.
+    pub fn named<'a>(&self, names: &'a [String]) -> Vec<(&'a str, f64)> {
+        self.vars.iter().filter_map(|v| names.get(v.index as usize).map(|n| (n.as_str(), v.value))).collect()
+    }
 }
 
 /// Messages a server sends.
@@ -979,7 +989,7 @@ impl ServerMsg {
                 let nv = st.vars.len().min(MAX_RULE_VARS);
                 w.u8(nv as u8);
                 for v in &st.vars[..nv] {
-                    w.text(&v.name, MAX_RULE_TEXT);
+                    w.u16(v.index);
                     w.u64(v.value.to_bits());
                 }
                 let nh = st.hidden.len().min(MAX_RULE_HIDDEN);
@@ -1151,7 +1161,7 @@ impl ServerMsg {
                 }
                 let mut vars = Vec::with_capacity(nv);
                 for _ in 0..nv {
-                    vars.push(RuleVar { name: r.text(MAX_RULE_TEXT)?, value: f64::from_bits(r.u64()?) });
+                    vars.push(RuleVar { index: r.u16()?, value: f64::from_bits(r.u64()?) });
                 }
                 let nh = r.u16()? as usize;
                 if nh > MAX_RULE_HIDDEN {
@@ -1331,8 +1341,11 @@ mod tests {
     fn the_hud_s_variables_are_sent_first_and_the_rest_fill_up_in_declaration_order() {
         assert_eq!(rule_vars_to_send(5, &[3]), [0, 1, 2, 3, 4], "everything fits");
         let sent = rule_vars_to_send(20, &[17, 19, 2, 18]);
-        assert_eq!(sent.len(), MAX_RULE_VARS);
-        assert_eq!(sent, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19], "the four read, then the first twelve others, in declaration order");
+        let many = rule_vars_to_send(80, &[77, 79, 2, 78]);
+        assert_eq!(many.len(), MAX_RULE_VARS);
+        let want: Vec<usize> = (0..61).chain([77, 78, 79]).collect();
+        assert_eq!(many, want, "the four read, then the first sixty others, in declaration order");
+        assert_eq!(sent.len(), 20, "twenty fit");
         assert_eq!(rule_vars_to_send(3, &[7, 1, 1]), [0, 1, 2], "an index past the end or a repeat changes nothing");
         assert!(rule_vars_to_send(0, &[]).is_empty());
     }
@@ -1424,7 +1437,7 @@ mod tests {
             seq: u16::MAX,
             round: 9,
             server_tick: 123_456,
-            vars: (0..MAX_RULE_VARS).map(|i| RuleVar { name: format!("variable_{i:02}_with_long_name"), value: i as f64 + 0.5 }).collect(),
+            vars: (0..MAX_RULE_VARS).map(|i| RuleVar { index: 300 + i as u16, value: i as f64 + 0.5 }).collect(),
             hidden: (0..MAX_RULE_HIDDEN as u16).collect(),
             collision_disabled: (0..MAX_RULE_COLLISION as u16).collect(),
             event: "collected_the_last_object".into(),

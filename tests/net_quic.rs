@@ -148,7 +148,12 @@ fn two_scripted_players_finish_a_rules_game_over_quic_under_loss_and_reordering(
     for (i, b) in bots.iter().enumerate() {
         let st = b.client.rule_state().unwrap_or_else(|| panic!("bot {i} has no rule state: {:?}", b.events));
         assert_eq!(st.outcome, "victory", "bot {i}: {:?}", b.events);
-        assert_eq!(st.vars.iter().find(|v| v.name == "coins").map(|v| v.value), Some(1.0));
+        let (scene, _) = ClientWorld::load(&map).unwrap();
+        assert_eq!(
+            st.named(scene.rules.own_var_names()).into_iter().find(|(n, _)| *n == "coins").map(|(_, v)| v),
+            Some(1.0),
+            "names from the client's own scene (v17)"
+        );
         assert!(!st.hidden.is_empty(), "the coin is hidden for bot {i}");
         assert_eq!(b.client.stats().connects, 1, "bot {i} never had to reconnect: {:?}", b.events);
     }

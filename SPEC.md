@@ -624,10 +624,9 @@ authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), determin
 where each aimed field points included) is part of the match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport, impulse, reset, place
 and the field pushes, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
+state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (64 variables, by index since v17, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. Of the variables, the ones the HUD reads
-(`ui` counters and objective, then its plain rows) go first; a HUD that reads more than 16, or a name over 32 bytes, is a `lint` error (`net-hud`), since online
-it would show 0. `red_engine2 describe rules` prints this with a
+(`ui` counters and objective, then its plain rows) go first; a HUD that reads more than 64 is a `lint` error (`net-hud`), since online it would show 0. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)
@@ -837,7 +836,7 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
 strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
--127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->16<!--/fact-->.
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->17<!--/fact-->.
 Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
 neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
 
