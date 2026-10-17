@@ -1,0 +1,1663 @@
+{
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "primary": "#e0a458",
+   "secondary": "#6d8bb5",
+   "accent": "#ff6f59",
+   "wood": "#5a3d2b",
+   "metal": "#8d99ae",
+   "fabric": "#c9ada1",
+   "floor": "#2b2d42",
+   "wall": "#3d405b",
+   "trim": "#f2e9dc",
+   "foliage": "#6a994e",
+   "stone": "#5c677d",
+   "lamp": "#ffd9a0"
+  },
+  "light": {
+   "ambient": {
+    "color": "#8aa0c8",
+    "intensity": 0.7
+   },
+   "lamp": {
+    "color": "#ffd9a0",
+    "intensity": 9
+   }
+  },
+  "sky": {
+   "top": "#10121f",
+   "bottom": "#3a2f4d"
+  },
+  "fog": {
+   "color": "#1a1b2e",
+   "density": 0.015
+  },
+  "post": {
+   "ao": 0.8,
+   "outline": 0.3
+  },
+  "materials": {
+   "ember": {
+    "color": "@accent",
+    "emissive": "@accent",
+    "roughness": 0.4
+   },
+   "tideglass": {
+    "color": "@secondary",
+    "metallic": 0.5,
+    "roughness": 0.2,
+    "opacity": 0.55
+   }
+  }
+ },
+ "camera": {
+  "fov": 75,
+  "position": [
+   -7,
+   1.7,
+   -1
+  ],
+  "target": [
+   0,
+   1.4,
+   0
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 3.0,
+  "jump_speed": 1,
+  "mode": "peaceful"
+ },
+ "prefabs": {
+  "tide_ring": {
+   "desc": "floor ring marking where the listener will arrive",
+   "params": {
+    "c": {
+     "default": "#ff6f59",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "r",
+     "type": "cylinder",
+     "radius": 1.5,
+     "height": 0.04,
+     "position": [
+      0,
+      0.03,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c",
+      "opacity": 0.35
+     }
+    },
+    {
+     "id": "core",
+     "type": "cylinder",
+     "radius": 0.5,
+     "height": 0.06,
+     "position": [
+      0,
+      0.05,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "emissive": "$c"
+     }
+    }
+   ]
+  },
+  "drip_lamp": {
+   "desc": "a tall brass lamp with a tide-glass shade",
+   "params": {
+    "m": {
+     "default": "#8d99ae",
+     "palette": "metal"
+    },
+    "g": {
+     "default": "#ffd9a0",
+     "palette": "lamp"
+    }
+   },
+   "objects": [
+    {
+     "id": "pole",
+     "type": "cylinder",
+     "radius": 0.07,
+     "height": 2.6,
+     "position": [
+      0,
+      1.3,
+      0
+     ],
+     "material": {
+      "color": "$m",
+      "metallic": 0.8,
+      "roughness": 0.35
+     }
+    },
+    {
+     "id": "shade",
+     "type": "cylinder",
+     "radius": 0.3,
+     "height": 0.4,
+     "position": [
+      0,
+      2.7,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$g",
+      "emissive": "$g",
+      "opacity": 0.8
+     }
+    }
+   ]
+  },
+  "interview_desk": {
+   "desc": "a very ordinary desk with a very small dragon-sized chair",
+   "params": {
+    "w": {
+     "default": "#5a3d2b",
+     "palette": "wood"
+    },
+    "a": {
+     "default": "#ff6f59",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "top",
+     "type": "box",
+     "size": [
+      2.2,
+      0.1,
+      1.0
+     ],
+     "position": [
+      0,
+      0.8,
+      0
+     ],
+     "material": {
+      "color": "$w",
+      "roughness": 0.8
+     }
+    },
+    {
+     "id": "l1",
+     "type": "box",
+     "size": [
+      0.1,
+      0.8,
+      0.8
+     ],
+     "position": [
+      -1,
+      0.4,
+      0
+     ],
+     "material": {
+      "color": "$w"
+     }
+    },
+    {
+     "id": "l2",
+     "type": "box",
+     "size": [
+      0.1,
+      0.8,
+      0.8
+     ],
+     "position": [
+      1,
+      0.4,
+      0
+     ],
+     "material": {
+      "color": "$w"
+     }
+    },
+    {
+     "id": "form",
+     "type": "box",
+     "size": [
+      0.5,
+      0.02,
+      0.35
+     ],
+     "position": [
+      0.3,
+      0.86,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$a",
+      "emissive": "$a"
+     }
+    }
+   ]
+  }
+ },
+ "lights": [
+  {
+   "id": "lamp_0",
+   "type": "point",
+   "position": [
+    -4.5,
+    3.0,
+    -4.5
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 10
+  },
+  {
+   "id": "lamp_1",
+   "type": "point",
+   "position": [
+    4.5,
+    3.0,
+    -4.5
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 10
+  },
+  {
+   "id": "lamp_2",
+   "type": "point",
+   "position": [
+    4.5,
+    3.0,
+    4.5
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 10
+  },
+  {
+   "id": "lamp_3",
+   "type": "point",
+   "position": [
+    -4.5,
+    3.0,
+    4.5
+   ],
+   "color": "@lamp",
+   "intensity": 9,
+   "range": 10
+  }
+ ],
+ "audio": {
+  "music": {
+   "night": "audio/low_tide.json",
+   "dusk": "audio/low_tide.json",
+   "dawn": "audio/low_tide.json",
+   "day": "audio/low_tide.json"
+  },
+  "music_volume": 0.7
+ },
+ "zones": [
+  {
+   "id": "hall",
+   "rect": [
+    -9,
+    -9,
+    9,
+    9
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "q0",
+   "rect": [
+    -9,
+    -9,
+    0,
+    0
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "q1",
+   "rect": [
+    0,
+    -9,
+    9,
+    0
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "q2",
+   "rect": [
+    0,
+    0,
+    9,
+    9
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "q3",
+   "rect": [
+    -9,
+    0,
+    0,
+    9
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "arr0",
+   "rect": [
+    -6.3,
+    -6.3,
+    -2.7,
+    -2.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "arr1",
+   "rect": [
+    2.7,
+    -6.3,
+    6.3,
+    -2.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "arr2",
+   "rect": [
+    2.7,
+    2.7,
+    6.3,
+    6.3
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "arr3",
+   "rect": [
+    -6.3,
+    2.7,
+    -2.7,
+    6.3
+   ],
+   "y": 0,
+   "kind": "pad"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    -7,
+    0,
+    -1
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
+ ],
+ "vars": {
+  "_at": 0,
+  "_holding": 0,
+  "_last": 0,
+  "_learned": 0,
+  "_stale": 0,
+  "fooled": 0,
+  "lives": 3,
+  "_corner": 0
+ },
+ "fields": [
+  {
+   "id": "hunt",
+   "zone": "hall",
+   "toward": null,
+   "speed": 3,
+   "props": [
+    "listener"
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "id": "retarget_0",
+   "when": {
+    "event": "retarget"
+   },
+   "if": "_at == 0",
+   "do": [
+    {
+     "aim": [
+      "hunt",
+      "marker_0"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "retarget_1",
+   "when": {
+    "event": "retarget"
+   },
+   "if": "_at == 1",
+   "do": [
+    {
+     "aim": [
+      "hunt",
+      "marker_1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "retarget_2",
+   "when": {
+    "event": "retarget"
+   },
+   "if": "_at == 2",
+   "do": [
+    {
+     "aim": [
+      "hunt",
+      "marker_2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "retarget_3",
+   "when": {
+    "event": "retarget"
+   },
+   "if": "_at == 3",
+   "do": [
+    {
+     "aim": [
+      "hunt",
+      "marker_3"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "relocate_0",
+   "when": {
+    "event": "relocate"
+   },
+   "if": "_corner == 0",
+   "do": [
+    {
+     "place": [
+      "listener",
+      [
+       8,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "set": [
+      "_corner",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "relocate_1",
+   "when": {
+    "event": "relocate"
+   },
+   "if": "_corner == 1",
+   "do": [
+    {
+     "place": [
+      "listener",
+      [
+       -8,
+       0,
+       8
+      ]
+     ]
+    },
+    {
+     "set": [
+      "_corner",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "relocate_2",
+   "when": {
+    "event": "relocate"
+   },
+   "if": "_corner == 2",
+   "do": [
+    {
+     "place": [
+      "listener",
+      [
+       -8,
+       0,
+       -8
+      ]
+     ]
+    },
+    {
+     "set": [
+      "_corner",
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "id": "relocate_3",
+   "when": {
+    "event": "relocate"
+   },
+   "if": "_corner == 3",
+   "do": [
+    {
+     "place": [
+      "listener",
+      [
+       8,
+       0,
+       -8
+      ]
+     ]
+    },
+    {
+     "set": [
+      "_corner",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "setup",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "enter_q0",
+   "when": {
+    "enter": {
+     "zone": "q0"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_at",
+      0
+     ]
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "enter_q1",
+   "when": {
+    "enter": {
+     "zone": "q1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_at",
+      1
+     ]
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "enter_q2",
+   "when": {
+    "enter": {
+     "zone": "q2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_at",
+      2
+     ]
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "enter_q3",
+   "when": {
+    "enter": {
+     "zone": "q3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "_at",
+      3
+     ]
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "swap_into_A",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "crate_1",
+     "crate_2"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "_learned",
+      "_last == 1"
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_holding",
+      1
+     ]
+    },
+    {
+     "emit": "swapped"
+    }
+   ]
+  },
+  {
+   "id": "swap_into_B",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "barrel_1",
+     "barrel_2"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "_learned",
+      "_last == 2"
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_holding",
+      1
+     ]
+    },
+    {
+     "emit": "swapped"
+    }
+   ]
+  },
+  {
+   "id": "swap_into_C",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "fern_1",
+     "fern_2"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "_learned",
+      "_last == 3"
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_holding",
+      1
+     ]
+    },
+    {
+     "emit": "swapped"
+    }
+   ]
+  },
+  {
+   "id": "let_go",
+   "when": {
+    "event": "drop"
+   },
+   "do": [
+    {
+     "set": [
+      "_holding",
+      0
+     ]
+    },
+    {
+     "emit": "noise"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_catches_0",
+   "when": {
+    "prop_enter": {
+     "zone": "arr0"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 0 && (_holding == 0 || _learned == 1 || _stale == 1)",
+   "do": [
+    {
+     "add": [
+      "lives",
+      -1
+     ]
+    },
+    {
+     "emit": "caught"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_fooled_0",
+   "when": {
+    "prop_enter": {
+     "zone": "arr0"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 0 && _holding == 1 && _learned == 0 && _stale == 0",
+   "do": [
+    {
+     "add": [
+      "fooled",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      1
+     ]
+    },
+    {
+     "emit": "fooled"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_catches_1",
+   "when": {
+    "prop_enter": {
+     "zone": "arr1"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 1 && (_holding == 0 || _learned == 1 || _stale == 1)",
+   "do": [
+    {
+     "add": [
+      "lives",
+      -1
+     ]
+    },
+    {
+     "emit": "caught"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_fooled_1",
+   "when": {
+    "prop_enter": {
+     "zone": "arr1"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 1 && _holding == 1 && _learned == 0 && _stale == 0",
+   "do": [
+    {
+     "add": [
+      "fooled",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      1
+     ]
+    },
+    {
+     "emit": "fooled"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_catches_2",
+   "when": {
+    "prop_enter": {
+     "zone": "arr2"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 2 && (_holding == 0 || _learned == 1 || _stale == 1)",
+   "do": [
+    {
+     "add": [
+      "lives",
+      -1
+     ]
+    },
+    {
+     "emit": "caught"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_fooled_2",
+   "when": {
+    "prop_enter": {
+     "zone": "arr2"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 2 && _holding == 1 && _learned == 0 && _stale == 0",
+   "do": [
+    {
+     "add": [
+      "fooled",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      1
+     ]
+    },
+    {
+     "emit": "fooled"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_catches_3",
+   "when": {
+    "prop_enter": {
+     "zone": "arr3"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 3 && (_holding == 0 || _learned == 1 || _stale == 1)",
+   "do": [
+    {
+     "add": [
+      "lives",
+      -1
+     ]
+    },
+    {
+     "emit": "caught"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_arrives_fooled_3",
+   "when": {
+    "prop_enter": {
+     "zone": "arr3"
+    },
+    "prop": "listener"
+   },
+   "if": "_at == 3 && _holding == 1 && _learned == 0 && _stale == 0",
+   "do": [
+    {
+     "add": [
+      "fooled",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_stale",
+      1
+     ]
+    },
+    {
+     "emit": "fooled"
+    },
+    {
+     "emit": "relocate"
+    },
+    {
+     "emit": "retarget"
+    }
+   ]
+  },
+  {
+   "id": "listener_gives_up",
+   "when": {
+    "event": "fooled"
+   },
+   "if": "fooled >= 3",
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  },
+  {
+   "id": "out_of_patience",
+   "when": {
+    "event": "caught"
+   },
+   "if": "lives <= 0",
+   "do": [
+    {
+     "end": "found"
+    }
+   ]
+  }
+ ],
+ "ui": {
+  "title": "Restless Tide",
+  "labels": {
+   "fooled": "Listener fooled",
+   "lives": "Chances"
+  },
+  "counters": [
+   {
+    "var": "fooled",
+    "of": 3,
+    "label": "Listener fooled"
+   },
+   {
+    "var": "lives",
+    "label": "Chances"
+   }
+  ],
+  "objective": [
+   {
+    "if": "_holding == 1 && _stale == 1",
+    "text": "It knows this disguise. Let go (noise!) and become something else."
+   },
+   {
+    "if": "_holding == 1",
+    "text": "You are holding your breath as a thing. Hold still: it is coming."
+   },
+   {
+    "text": "Walk up to a crate, barrel or fern and press E to swap bodies. Never be the same thing twice in a row."
+   }
+  ],
+  "start": {
+   "title": "Restless Tide",
+   "text": "A very small dragon is applying for a very ordinary job, and the interviewer will not stop listening. Pick up a crate, barrel or potted fern (E) to hold your breath and BE it. The listener imitates your habits: the same disguise twice, or one it has already inspected, gives you away. Letting go makes noise, and it comes back from a new corner. Fool it three times and it gives up.",
+   "button": "Begin"
+  },
+  "end": {
+   "victory": {
+    "title": "Hired.",
+    "text": "The listener stopped chasing. Start Monday.",
+    "button": "Again"
+   },
+   "found": {
+    "title": "Found out",
+    "text": "The listener learned your habits.",
+    "button": "Again"
+   }
+  }
+ },
+ "objects": [
+  {
+   "id": "floor",
+   "type": "plane",
+   "size": [
+    18,
+    18
+   ],
+   "position": [
+    0,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "@floor",
+    "roughness": 0.5
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    19,
+    0.2,
+    19
+   ],
+   "position": [
+    0,
+    3.6,
+    0
+   ],
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_0",
+   "type": "wall",
+   "from": [
+    -9,
+    -9
+   ],
+   "to": [
+    9,
+    -9
+   ],
+   "height": 3.5,
+   "thickness": 0.3,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_1",
+   "type": "wall",
+   "from": [
+    -9,
+    9
+   ],
+   "to": [
+    9,
+    9
+   ],
+   "height": 3.5,
+   "thickness": 0.3,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_2",
+   "type": "wall",
+   "from": [
+    -9,
+    -9
+   ],
+   "to": [
+    -9,
+    9
+   ],
+   "height": 3.5,
+   "thickness": 0.3,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "wall_3",
+   "type": "wall",
+   "from": [
+    9,
+    -9
+   ],
+   "to": [
+    9,
+    9
+   ],
+   "height": 3.5,
+   "thickness": 0.3,
+   "material": {
+    "color": "@wall"
+   }
+  },
+  {
+   "id": "marker_0",
+   "type": "prefab",
+   "prefab": "tide_ring",
+   "position": [
+    -4.5,
+    0,
+    -4.5
+   ]
+  },
+  {
+   "id": "lampost_0",
+   "type": "prefab",
+   "prefab": "drip_lamp",
+   "position": [
+    -6.5249999999999995,
+    0,
+    -6.5249999999999995
+   ]
+  },
+  {
+   "id": "marker_1",
+   "type": "prefab",
+   "prefab": "tide_ring",
+   "position": [
+    4.5,
+    0,
+    -4.5
+   ]
+  },
+  {
+   "id": "lampost_1",
+   "type": "prefab",
+   "prefab": "drip_lamp",
+   "position": [
+    6.5249999999999995,
+    0,
+    -6.5249999999999995
+   ]
+  },
+  {
+   "id": "marker_2",
+   "type": "prefab",
+   "prefab": "tide_ring",
+   "position": [
+    4.5,
+    0,
+    4.5
+   ]
+  },
+  {
+   "id": "lampost_2",
+   "type": "prefab",
+   "prefab": "drip_lamp",
+   "position": [
+    6.5249999999999995,
+    0,
+    6.5249999999999995
+   ]
+  },
+  {
+   "id": "marker_3",
+   "type": "prefab",
+   "prefab": "tide_ring",
+   "position": [
+    -4.5,
+    0,
+    4.5
+   ]
+  },
+  {
+   "id": "lampost_3",
+   "type": "prefab",
+   "prefab": "drip_lamp",
+   "position": [
+    -6.5249999999999995,
+    0,
+    6.5249999999999995
+   ]
+  },
+  {
+   "id": "desk",
+   "type": "prefab",
+   "prefab": "interview_desk",
+   "position": [
+    0,
+    0,
+    -8.3
+   ]
+  },
+  {
+   "id": "crate_1",
+   "type": "prop",
+   "prop": "crate",
+   "movable": true,
+   "position": [
+    -5.5,
+    0,
+    -2.5
+   ],
+   "material": {
+    "color": "@primary"
+   }
+  },
+  {
+   "id": "barrel_1",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    5,
+    0,
+    -6
+   ],
+   "material": {
+    "color": "@secondary"
+   }
+  },
+  {
+   "id": "fern_1",
+   "type": "prop",
+   "prop": "potted_plant",
+   "movable": true,
+   "position": [
+    6,
+    0,
+    2.5
+   ],
+   "material": {
+    "color": "@foliage"
+   }
+  },
+  {
+   "id": "crate_2",
+   "type": "prop",
+   "prop": "crate",
+   "movable": true,
+   "position": [
+    -6,
+    0,
+    6
+   ],
+   "material": {
+    "color": "@primary"
+   }
+  },
+  {
+   "id": "barrel_2",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    -2.5,
+    0,
+    3
+   ],
+   "material": {
+    "color": "@secondary"
+   }
+  },
+  {
+   "id": "fern_2",
+   "type": "prop",
+   "prop": "potted_plant",
+   "movable": true,
+   "position": [
+    -3,
+    0,
+    -6.5
+   ],
+   "material": {
+    "color": "@foliage"
+   }
+  },
+  {
+   "id": "listener",
+   "type": "prop",
+   "prop": "boulder",
+   "movable": true,
+   "position": [
+    8,
+    0,
+    8
+   ],
+   "material": {
+    "color": "@accent",
+    "emissive": "@accent"
+   }
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "interest"
+   ]
+  },
+  "objects": {
+   "exist": [
+    "floor",
+    "listener",
+    "marker_0",
+    "crate_1"
+   ],
+   "min_count": 15
+  },
+  "sim": [
+   {
+    "name": "mechanic: becoming a crate fools the listener once, then it knows the disguise",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "crate_1"
+     },
+     {
+      "player": "p1",
+      "wait": 8
+     }
+    ],
+    "expect": [
+     {
+      "event": "swapped",
+      "count": 1
+     },
+     {
+      "var": "_holding",
+      "eq": 1
+     },
+     {
+      "var": "fooled",
+      "eq": 1
+     },
+     {
+      "var": "_stale",
+      "eq": 1
+     },
+     {
+      "var": "lives",
+      "gte": 1
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 60
+   },
+   {
+    "name": "win: three different bodies in turn and it gives up",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "crate_1"
+     },
+     {
+      "player": "p1",
+      "wait": 11
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "interact": "fern_2"
+     },
+     {
+      "player": "p1",
+      "wait": 11
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "interact": "barrel_2"
+     },
+     {
+      "player": "p1",
+      "wait": 14
+     }
+    ],
+    "expect": [
+     {
+      "var": "fooled",
+      "eq": 3
+     },
+     {
+      "ended": "victory"
+     },
+     {
+      "event": "noise",
+      "min": 2
+     }
+    ],
+    "max_seconds": 120
+   },
+   {
+    "name": "lose: standing in the open lets the listener find you three times",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "wait": 50
+     }
+    ],
+    "expect": [
+     {
+      "var": "lives",
+      "lte": 0
+     },
+     {
+      "ended": "found"
+     }
+    ],
+    "max_seconds": 90
+   },
+   {
+    "name": "habit: the same disguise twice is caught",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "crate_1"
+     },
+     {
+      "player": "p1",
+      "wait": 11
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "interact": "crate_2"
+     },
+     {
+      "player": "p1",
+      "wait": 11
+     }
+    ],
+    "expect": [
+     {
+      "var": "fooled",
+      "eq": 1
+     },
+     {
+      "var": "_learned",
+      "eq": 1
+     },
+     {
+      "var": "lives",
+      "lte": 2
+     }
+    ],
+    "max_seconds": 120
+   }
+  ]
+ }
+}
