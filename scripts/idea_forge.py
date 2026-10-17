@@ -7,6 +7,7 @@
   idea_forge.py daily [--next] [--no-ship] [--budget USD]          today's two games, one 2D and one 3D in a random order each day: run what is still pending, ship each as a PR
   idea_forge.py schedule [--times 09:30,17:30] [--install]         the cron entries that run `daily --next` twice a day (printed unless --install; --uninstall removes them)
   idea_forge.py note "TEXT" --area A [--cost-min N] [--fix TEXT]   (the agent) log one snag at the moment it happens
+  idea_forge.py wiki --init | --preview | --check                 (the agent) the game's wiki page: rules, story, characters, gallery, why it was made; `publish` draws its pictures
   idea_forge.py feedback --init | --check | --finalize             (the agent, then the CLI) the feedback file: draft it from the notes, validate it, add the measurements
   idea_forge.py ship [RUN] [--hold]                                commit ONLY the game and its feedback, push the branch, open a PR on RedEngine, then archive the run and remove its worktree
   idea_forge.py settle [--wait-min N]                              merge the tool's own PRs whose CI has passed (the default; `config --auto-merge off` stops it)
@@ -19,6 +20,7 @@ A game agent never changes engine code: a missing feature is a finding, not a pa
 every CI check has passed (`settle`; `config --auto-merge off` or `ship --hold` stops it).
 """
 import argparse
+import hashlib
 import datetime
 import importlib.util
 import json
@@ -224,16 +226,45 @@ You are an AI game developer working with RedEngine, a data-driven game engine. 
 - Pushback: {idea['pushback']}
 - Goal: {idea['goal']}
 {story}
-The card is a seed, not a spec. Before building, write a one-paragraph design: THE mechanic in one sentence (YOU + BUT together are the mechanic), the core loop (what the player does every few seconds), why it is fun,
-how the game is won and lost. If parts of the card clash, keep YOU and BUT and adapt the rest, and say what you adapted. The mechanic must be what the player does most, not a power-up on a generic collector or
-platformer. Finished and small beats ambitious and broken. If the mechanic cannot be built faithfully, build the nearest faithful subset and say what was cut and what the engine lacked.
+The card is a seed, not a spec, and it is random: some cards are odd. YOUR JOB IS A GAME PEOPLE WANT TO PLAY, not a faithful rendering of the card. Fun, uniqueness and clarity (the next section) beat fidelity to the card.
+Before building, write a one-paragraph design: THE mechanic in one sentence, the core loop (what the player does every few seconds), why it is fun, how a first-time player learns it, how the game is won and lost.
+Keep the spirit of YOU and the most fun reading of BUT. If the literal reading would be awkward, strange or hard to explain, reinterpret it into something a player grasps at once, soften it, or drop the BUT, and say what you changed.
+The mechanic must be what the player does most, not a power-up on a generic collector or platformer. Finished and small beats ambitious and broken.
+If the mechanic cannot be built faithfully, build the nearest fun subset and say what was cut and what the engine lacked.
+
+## Make it fun, unique and clear (this decides whether the run counts)
+
+Earlier games from this tool were judged unfun, awkward, strange and confusing. Do not repeat that. The test is a stranger who has never seen the card: in the first ten seconds they know what to do, within a minute they are enjoying it, and when it ends they want one more go.
+
+- **Fun.** One verb the player does constantly must feel good by itself (responsive, with an immediate visible and audible reaction: a sound, a flash, a shake, a number popping up). Add a small decision, risk or skill in that verb, a goal that pulls the player forward, and
+  a difficulty that ramps: an easy first success within 30 seconds, then harder. A round lasts 3 to 5 minutes. Dying or failing restarts in a second, and the player can see why they lost.
+- **Unique.** Before designing, skim what already exists (`ls examples/2d examples/3d`, and the `description` of a few) and do not rebuild a mechanic that is there. Make something that would be worth describing to a friend in one sentence, with a twist that is
+  the game, not decoration on a collect-the-coins loop. Still, one strong, simple idea beats three clever ones.
+- **Clear.** No confusing games: the player must never have to guess. Show a title and a one-sentence goal on screen at the start, the controls for the one or two buttons that matter, and keep the goal and progress (score, timer, counter) visible while playing. Teach by doing: the first screen or room
+  is safe and shows only the core mechanic, and each further rule is introduced one at a time, never two new things at once. Rules the player cannot see (invisible state, hidden timers, an unexplained meter) do not belong in the game: make every state visible and give every action visible feedback. Prefer
+  plain, familiar controls and readable art (strong contrast between the player, hazards and goals) over cleverness. Awkward camera, floaty or slippery controls, unfair deaths and walls of text are bugs: fix them.
+- **Check it as a stranger.** After it works, play it (or step through `frame` / `playtest` pictures) using ONLY what is on screen. If you had to remember something from the design paragraph to understand it, add it to the screen. Record in your feedback what you changed after this pass.
 
 ## Build it
 
 {build_steps}{polish}
 - Time: stop after roughly 90 minutes of work. Do not spend an hour on one obstacle: log it, work around it, move on.
 
-{known}## Keep a running issue log: this is the point of the run
+{known}## Write the game's wiki page (it is published with the game, and a game without a valid one is NOT published)
+
+RedEngineGames shows every game as a small wiki: what it is, the story, the rules and controls, the characters with a picture of each, a gallery of different moments, and why it exists. You write that page as data, once the game works:
+
+    {cli} wiki --init       writes `{WIKI_DIR}/{slug}.json` from a template: replace every TODO
+    {cli} wiki --preview    draws every picture to `out/wiki/`: LOOK at each PNG
+    {cli} wiki --check      must pass
+
+- Write for a stranger who has never seen the game, in plain words: no jargon, no engine terms. The overview says what the game is and what makes it different; the story gives the setting (invent one if the card has none); the rules are the real rules of YOUR game, matching what `verify` proves, one per line;
+  the controls list every input that matters.
+- `characters` are everyone and everything the player meets (the player, enemies, helpers, the key objects), each with a name, a role, a description and a `shot`. `gallery` has at least 3 pictures of DIFFERENT moments (start, mid-play, a win or a loss) with a caption.
+- A `shot` says how the engine draws a picture: `{{"t": seconds}}` plus, for a 2D game, `"scenario"` (a scenario name from the game file); for a 3D scene `"eye": "x,y,z"`, `"at": "x,y,z"` and optionally `"fov"` and `"hide"` (object ids) to put the camera on that character. A character picture must actually show that character (a 2D game has one fixed camera: pick the `t` and `scenario` where the character is on screen). Re-draw with `--preview` until each picture shows what its caption says.
+- `why_made` is YOU speaking, first person: why you chose to build this particular game from the card, what drew you to it, what you changed and why. It is published next to the game under "Why this game exists", so be honest and specific, not generic.
+
+## Keep a running issue log: this is the point of the run
 
 At the moment you hit friction (not afterwards) run
 
@@ -248,8 +279,9 @@ missing capability); and what worked well (`--area worked`). One line each, conc
 1. `{cli} feedback --init` writes `{fb}`, pre-filled from your notes, the engine's command trace and a score. Edit it: rank the findings by what would save the next run the most,
    add evidence and a proposed engine change to each, and fill in "Idea fit" and "What worked".
 2. `{cli} feedback --check` must pass.
-3. Do not `git push`, open a PR, merge or publish: the CLI does that after review. Commit locally or leave the files uncommitted.
-4. Your last message is five lines: the game path, the `verify` result, the mechanic in one sentence, and your top three findings.
+3. `{cli} wiki --check` must pass (after you have LOOKED at the `wiki --preview` pictures).
+4. Do not `git push`, open a PR, merge or publish: the CLI does that after review. Commit locally or leave the files uncommitted.
+5. Your last message is six lines: the game path, the `verify` result, the mechanic in one sentence, why a stranger would find it fun, how a first-time player learns it, and your top three findings (one line).
 """
 
 
@@ -376,11 +408,64 @@ def changed_paths(root, base="origin/main"):
     return sorted(out)
 
 
+WIKI_DIR = FEEDBACK_DIR + "/wiki"
+
+
+def wiki_file(slug):
+    """The game's wiki page as its agent writes it: data with `shot` specs instead of pictures; `publish` draws the pictures (RedEngineGames' site/wiki.py defines the page)."""
+    return f"{WIKI_DIR}/{slug}.json"
+
+
+SHOT_KEYS = {"t", "scenario", "eye", "at", "fov", "hide", "hour"}
+WIKI_TEXT_MIN = {"overview": 200, "story": 150, "why_made": 100}
+
+
+def wiki_problems(data):
+    """What is wrong with an agent's wiki file, as sentences it can act on (RedEngineGames' site/wiki.py checks the finished page again, with pictures)."""
+    if not isinstance(data, dict):
+        return ["the wiki file must be a JSON object"]
+    ok = lambda v, n=1: isinstance(v, str) and len(v.strip()) >= n   # noqa: E731
+    out = [f"`{k}` is missing" + (f" or shorter than {WIKI_TEXT_MIN[k]} characters" if k in WIKI_TEXT_MIN else "") for k in ("tagline", "overview", "story", "goal", "why_made") if not ok(data.get(k), WIKI_TEXT_MIN.get(k, 1))]
+    if not (isinstance(data.get("rules"), list) and len(data["rules"]) >= 3 and all(ok(r) for r in data["rules"])):
+        out.append("`rules` needs at least 3 non-empty rules")
+    c = data.get("controls")
+    if not (isinstance(c, list) and c and all(isinstance(x, dict) and ok(x.get("input")) and ok(x.get("action")) for x in c)):
+        out.append("`controls` needs at least one {input, action}")
+
+    def shot_bad(x):
+        sh = x.get("shot") if isinstance(x, dict) else None
+        if not isinstance(sh, dict):
+            return "needs a `shot` (how to draw it: {t, scenario, eye, at, fov, hide, hour}; `{}` for the default view)"
+        extra = set(sh) - SHOT_KEYS
+        return f"has unknown shot keys {sorted(extra)}" if extra else ""
+    chars = data.get("characters")
+    if not (isinstance(chars, list) and chars):
+        out.append("`characters` needs at least one entry: everyone and everything you meet (the player, enemies, helpers, key objects)")
+    else:
+        for i, x in enumerate(chars):
+            if not (isinstance(x, dict) and all(ok(x.get(k)) for k in ("name", "role", "description"))):
+                out.append(f"character {i + 1} needs name, role and description")
+            elif shot_bad(x):
+                out.append(f"character `{x['name']}` {shot_bad(x)}")
+    gal = data.get("gallery")
+    if not (isinstance(gal, list) and len(gal) >= 3):
+        out.append("`gallery` needs at least 3 pictures of different moments")
+    else:
+        for i, x in enumerate(gal):
+            if not (isinstance(x, dict) and ok(x.get("caption"))):
+                out.append(f"gallery picture {i + 1} needs a caption")
+            elif shot_bad(x):
+                out.append(f"gallery picture {i + 1} {shot_bad(x)}")
+        if len({json.dumps(x.get("shot"), sort_keys=True) for x in gal if isinstance(x, dict)}) < len(gal):
+            out.append("`gallery` repeats a view: each picture needs a different shot")
+    return out
+
+
 def allowed_path(path, slug, kind="2d"):
     """The only paths a run may change: its game (a 3D game owns its folder) and its feedback file."""
     prefix = game_prefix(kind, slug)
     own = path == prefix if kind == "2d" else path.startswith(prefix)
-    return own or (path.startswith(FEEDBACK_DIR + "/") and path.endswith(".md"))
+    return own or path == wiki_file(slug) or (path.startswith(FEEDBACK_DIR + "/") and path.endswith(".md"))
 
 
 # ---- the feedback file ----------------------------------------------------------------------------------------------------------------------------
@@ -532,6 +617,89 @@ def cmd_feedback(a):
     elif a.finalize:
         measurements(run_dir, run, root)
         print("measurements written")
+
+
+def shot_args(shot, kind):
+    """`frame` options for one wiki shot."""
+    a = []
+    if kind == "2d":
+        a += ["--t", str(shot.get("t", 1))] + (["--scenario", str(shot["scenario"])] if shot.get("scenario") else [])
+    else:
+        for k in ("t", "hour", "eye", "at", "fov"):
+            if shot.get(k) is not None:
+                a += [f"--{k}", str(shot[k])]
+        for h in ([shot["hide"]] if isinstance(shot.get("hide"), str) else shot.get("hide") or []):
+            a += ["--hide", str(h)]
+    return a
+
+
+def draw_shot(root, scene, out, shot, kind, size):
+    """One wiki picture as the engine draws it; True only for a real PNG with something in it (see `render_thumbnail`)."""
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if os.path.exists(out):
+        os.remove(out)
+    try:
+        run_engine(root, ["frame", scene, out, "--size", size] + shot_args(shot, kind), timeout=300)
+    except subprocess.TimeoutExpired:
+        pass
+    if os.path.isfile(out) and open(out, "rb").read(8) == PNG_MAGIC and os.path.getsize(out) > 2000:
+        return True
+    if os.path.exists(out):
+        os.remove(out)
+    return False
+
+
+GALLERY_SIZE, CHARACTER_SIZE = "960x540", "480x360"
+
+
+def cmd_wiki(a):
+    run_dir = find_run_dir(a.run)
+    run = load_run(run_dir)
+    root, kind, slug = os.path.dirname(run_dir), run.get("kind", "2d"), run["slug"]
+    path = os.path.join(root, wiki_file(slug))
+    if a.init:
+        if os.path.exists(path):
+            sys.exit(f"{wiki_file(slug)} exists; edit it")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        jdump(WIKI_TEMPLATE, path)
+        print(f"wrote {wiki_file(slug)}: replace every TODO, then `wiki --preview` (LOOK at the pictures) and `wiki --check`")
+        return
+    if not os.path.exists(path):
+        sys.exit(f"{wiki_file(slug)} does not exist: run `wiki --init`")
+    try:
+        data = jload(path)
+    except ValueError as e:
+        sys.exit(f"{wiki_file(slug)} is not valid JSON: {e}")
+    bad = wiki_problems(data) + [f"`{k}` still says TODO" for k, v in data.items() if "TODO" in json.dumps(v)]
+    if a.preview:
+        scene, out = os.path.join(root, game_file(kind, slug)), os.path.join(root, "out", "wiki")
+        shots = [(f"character-{i + 1}-{x.get('name', '')}", x, CHARACTER_SIZE) for i, x in enumerate(data.get("characters") or []) if isinstance(x, dict)] + \
+                [(f"gallery-{i + 1}", x, GALLERY_SIZE) for i, x in enumerate(data.get("gallery") or []) if isinstance(x, dict)]
+        for name, x, size in shots:
+            f = os.path.join(out, re.sub(r"[^A-Za-z0-9_.-]+", "-", name) + ".png")
+            ok = isinstance(x.get("shot"), dict) and draw_shot(root, scene, f, x["shot"], kind, size)
+            print(("drew " + os.path.relpath(f, root)) if ok else f"FAIL {name}: the engine drew nothing (a blank or missing picture)")
+            if not ok:
+                bad.append(f"{name} cannot be drawn")
+        print("now LOOK at each PNG: a character picture must show that character, and each gallery picture a different moment")
+    for b in bad:
+        print("FAIL", b)
+    print("wiki OK" if not bad else f"{len(bad)} problem(s)")
+    sys.exit(1 if bad else 0)
+
+
+WIKI_TEMPLATE = {
+    "tagline": "TODO one sentence: what you do in this game",
+    "overview": "TODO what the game is, what makes it different, why it is fun (200+ characters; plain words for someone who has never seen it)",
+    "story": "TODO the setting and what is going on (150+ characters)",
+    "goal": "TODO how you win and how you lose",
+    "rules": ["TODO rule 1", "TODO rule 2", "TODO rule 3"],
+    "controls": [{"input": "TODO key or button", "action": "TODO what it does"}],
+    "characters": [{"name": "TODO", "role": "TODO player / enemy / helper / key object", "description": "TODO what it is and does", "shot": {}}],
+    "tips": ["TODO optional tip"],
+    "gallery": [{"caption": "TODO a moment of play", "shot": {"t": 1}}, {"caption": "TODO another moment", "shot": {"t": 6}}, {"caption": "TODO a third moment", "shot": {"t": 12}}],
+    "why_made": "TODO why YOU chose to make this particular game from the card: what you found interesting or fun in it, what you changed and why (100+ characters, first person)",
+}
 
 
 def measurements(run_dir, run, root):
@@ -1523,10 +1691,67 @@ def stage_games(root, clone, items, ref="origin/main"):
             shutil.rmtree(os.path.join(clone, "projects", slug), ignore_errors=True)
             failed.append((r, "the engine could not draw a screenshot of it"))
             continue
+        why = build_wiki(root, clone, r, entry, ref)
+        if why:
+            shutil.rmtree(os.path.join(clone, "projects", slug), ignore_errors=True)
+            shutil.rmtree(os.path.join(clone, "site", "wiki", slug), ignore_errors=True)
+            failed.append((r, why))
+            continue
         staged.append(r)
     if staged:
         wr(manifest_path, add_playables(text, [playable_entry(r) for r in staged]))
+        mark_authors(clone, [r["slug"] for r in staged], "ai")
     return staged, skipped, failed
+
+
+GAMES_META = "site/games-meta.json"
+
+
+def build_wiki(root, clone, r, entry, ref="origin/main"):
+    """The game's wiki page for RedEngineGames: its agent's data from `ref`, every `shot` drawn by the engine into `site/wiki/<slug>/`, then RedEngineGames' own `site/wiki.py` as the judge.
+    Returns "" when the page is in the clone, else why the game cannot be published yet (a game without a complete page is not listed: the site refuses it)."""
+    slug, kind = r["slug"], r.get("kind", "2d")
+    blob = subprocess.run(["git", "-C", root, "show", f"{ref}:{wiki_file(slug)}"], capture_output=True)
+    if blob.returncode:
+        return f"no wiki page ({wiki_file(slug)} is not on main)"
+    try:
+        data = json.loads(blob.stdout)
+    except ValueError as e:
+        return f"its wiki page is not valid JSON: {e}"
+    bad = wiki_problems(data)
+    if bad:
+        return "its wiki page is incomplete: " + "; ".join(bad[:3])
+    scene, folder = playable_scene(clone, entry), os.path.join(clone, "site", "wiki", slug)
+    shutil.rmtree(folder, ignore_errors=True)
+    seen = set()
+    for key, prefix, size in (("characters", "c", CHARACTER_SIZE), ("gallery", "g", GALLERY_SIZE)):
+        for i, x in enumerate(data[key]):
+            name = f"{prefix}{i + 1}.png"
+            if not draw_shot(root, scene, os.path.join(folder, name), x.pop("shot"), kind, size):
+                return f"the engine could not draw wiki picture {name} ({x.get('caption') or x.get('name')})"
+            x["image"] = name
+            if key == "gallery":
+                digest = hashlib.sha256(open(os.path.join(folder, name), "rb").read()).hexdigest()
+                if digest in seen:
+                    return f"wiki picture {name} is identical to an earlier gallery picture: the shots must show different moments"
+                seen.add(digest)
+    wr(os.path.join(folder, "wiki.json"), json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    if os.path.exists(os.path.join(clone, "site", "wiki.py")):
+        check = "import sys, json, pathlib; sys.path.insert(0, 'site'); import wiki; f = pathlib.Path(sys.argv[1]); p = wiki.problems(json.loads((f / 'wiki.json').read_text()), 'ai', f); print('\\n'.join(p)); sys.exit(1 if p else 0)"
+        p = subprocess.run([sys.executable, "-c", check, folder], cwd=clone, capture_output=True, text=True)
+        if p.returncode:
+            return "RedEngineGames would reject its wiki page: " + (p.stdout + p.stderr).strip()[-300:]
+    return ""
+
+
+def mark_authors(clone, slugs, author):
+    """Record who designed each game in RedEngineGames' `site/games-meta.json` (`"author": "ai"`), which the site reads to badge a game and to filter AI-designed from human-designed ones.
+    Every game this tool publishes is AI-designed; a slug without an author is a human's. The file is rewritten with its other entries untouched."""
+    path = os.path.join(clone, GAMES_META)
+    meta = jload(path) if os.path.exists(path) else {}
+    for slug in slugs:
+        meta.setdefault(slug, {})["author"] = author
+    wr(path, json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
 
 
 def check_release_manifest(clone):
@@ -1539,7 +1764,7 @@ def check_release_manifest(clone):
 
 def push_games(clone, message):
     """Commit and push to RedEngineGames main; returns the commit id. A rejected push (the publish workflow committed meanwhile) is rebased and retried."""
-    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST)   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
+    git(clone, "add", "--", "projects", "site/thumbs", GAMES_MANIFEST, *[x for x in (GAMES_META, "site/wiki") if os.path.exists(os.path.join(clone, x))])   # only what was staged: RedEngineGames tracks files (a .pyc) that running its own tools rewrites
     p = subprocess.run(["git", "-C", clone, "commit", "-q", "-m", message], capture_output=True, text=True)
     if p.returncode:
         raise RuntimeError("git commit failed (is user.name / user.email set?): " + (p.stderr or p.stdout).strip())
@@ -2097,6 +2322,14 @@ def main(argv=None):
     s.add_argument("--force", action="store_true")
     s.add_argument("--run")
     s.set_defaults(f=cmd_feedback)
+
+    s = sub.add_parser("wiki", help="(the agent) the game's wiki page: --init a template, --preview draws its pictures to look at, --check validates")
+    g = s.add_mutually_exclusive_group(required=True)
+    g.add_argument("--init", action="store_true")
+    g.add_argument("--preview", action="store_true")
+    g.add_argument("--check", action="store_true")
+    s.add_argument("--run")
+    s.set_defaults(f=cmd_wiki)
 
     s = sub.add_parser("ship")
     s.add_argument("run", help="the slug, kind/slug or worktree of a run in the ledger")
