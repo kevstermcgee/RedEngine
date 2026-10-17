@@ -3,103 +3,67 @@
 _Handoff file for whoever (human or AI) resumes this work. Keep it short and current: update it at every checkpoint with
 `red_engine2 status --note "what changed" --section done|now|next|blocked|notes`. `scripts/dev preflight` warns when it is more than 20 commits behind main._
 
+_Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, `gh release list`, the CI runs on main). The per-PR history it replaced is in git
+(`git log -p STATUS.md`) and in each PR._
+
 ## Now (in flight)
-- 2026-10-09: HARDENING PASS (the review of 2026-10-09: stale docs, a cold compile as the first step, scope drift). One pull request per item, merged on the owner's instruction after hosted CI passed:
-  (1) entry docs true and consistent, (2) prebuilt binaries instead of a cold compile, (3) hermetic Idea Forge tests, (4) this file, (5) Killchain out of the engine crate, (6) browser leftovers, (7) bad input is an error, (8) CI growth and the rules-language gaps written down.
-  All ten pull requests are merged (#74-#83); main was green on hosted CI after the last one. What each changed is in its PR and ADR.
-- 2026-10-09 cleanup pass: #90 reverted #89 (a CI-measurement probe base, author `probe@example.invalid`, merged into main by mistake; main's tree returned to 11f1bcb); #85 and #88 merged after hosted CI, on the owner's yes.
-- Reviewed, not merged (review comments on the PRs): #37 `savedata` (worth merging after three textual conflicts; the id `new-game` derives from the name can collide), #53 `hot-reload` (the browser half has no target since #55; the native `re2` half still builds and its tests pass on main: re-cut it as a smaller PR or close).
-- Merged #85: joining by the relay's six-character code carries the host's admission key (ADR 2026-10-09) and the relay's keepalive, goodbye and lease are fixed; the launchpad reads git as NUL-delimited data;
-  Idea Forge agents run under a deadline; a `python-tools` CI job runs the Python tools on Linux and Windows. **The deployed `red_relay` is still the old build** until it is redeployed (the live unit is the user service `red-relay`, binary `~/.local/share/red-relay/bin/red_relay`; `deploy/red-relay.service` is the system-wide template).
-- Multiplayer stabilization brief (`docs/feedback-2026-10-07-stabilization-brief.md`, filed against f58e15d): not implemented as a whole. Item 1 (short-code join with a key, relay lease) and the source-fingerprint half of item 2 are merged (#85);
-  git shows no commits for the rest of item 1 (map retry through the relay, search-and-destroy reconnect, duel capacity after replacement), item 2's executable-selection and discovery parts, item 3 (replay coverage of the objective modes) or item 5.
-  Item 4 (native 2D delivery) is partly there (`re2d` and the native publish route, #55); the packaged-executable walk-through it asks for has not been done.
-- Idea Forge (`docs/IDEA_FORGE.md`) runs nightly on the owner's machine, opens up to two game PRs a night and merges them when CI is green (#58-#73 so far); its backlog of engine findings is in `docs/analysis/idea-forge/`.
-- 2026-10-11: Agent loop trace phase 1: three tasks traced (docs/analysis/agent-loop-trace.md); top sinks: launchpad routing, affected false green (describe guard tests unowned), 3D search domain; awaiting review before phase 2
-- 2026-10-13: Phase 0 of the next phase: the outside review of b5b458f verified at 4c45d86 (docs/analysis/2026-10-13-next-phase-review-verified.md) and ADR 2026-10-13-the-next-phase sequencing phases 1-3 with measured done criteria; accepted by the owner; Phase 1 item 1 next
+- 2026-10-17: Phase 2 of ADR 2026-10-13-the-next-phase starts, in this order, one PR each: (0) a client-read rule var past the 16 the server sends is a validate
+  error (Quiet Compass F1); keep the rule generators Idea Forge agents write; (1) per-entity rules: `groups` + `for_each` as parse-time expansion, then per-entity
+  vars and restartable timers. Done = Gentle Carousel (252 rules, 30 vars today) in well under 100 rules with its board intact. Out of scope until (1) merges:
+  game systems/Workshop, Phase 3, new games or genres.
+- Open pull requests waiting on the owner: #170 interned ids for game systems (review follow-up item 3), #173 Honeybound v2, #167 narrative foundation
+  (`.story` + story system + Tidewatch), #93 Redline feedback (18 backlog findings, open since 2026-10-10). RedEngineGames: #7 (Killchain plays with its own
+  client; until it merges Frameless and Killchain ship the old way), #8 (installer icons).
+- 2026-10-17: STATUS.md rewritten from current facts at c4860ce (PR #176); #92 closed as superseded
+- 2026-10-17: Phase 2 item 0 (HUD var cap, PR #179): the server sends the variables the HUD reads first (no protocol change), lint net-hud for a HUD reading >16 or a name >32 bytes; Redline (RedEngineGames, offline) reads 42 and gets the lint error; cap raise proposed as ADR 2026-10-17-rule-variables-travel-by-index (not built)
+- 2026-10-17: Item 3 (keep generators, PR #180): brief + ship paths + scripts/game_generators.py check (score, feedback --check, CI content job); 13 of 17 runs had lost a /tmp generator; a games-only PR with a generator no longer starts python-tools
+- 2026-10-17: Phase 2 item 1 step 1 (PR #181): groups + for_each expanded at load (no protocol change); Gentle Carousel 252 rules / 102,527 B -> 13 entries / 34,413 B, expansion = old RuleSet minus 3 dead rules, sim output and checksums identical; verify 0.11 s before and after. Next: per-entity vars + restartable timers
+- 2026-10-17: Phase 2 item 1 step 2 (PR #182, stacked on #181): restartable timers (timer/cancel/when timer; self.name per prop) and prop_vars (self.name), server state in the checksum only when used, protocol stays v16; affected --quick green. Merge order: #176, #179, #180, #181, #182. Open PRs: #170 conflicts with these only in STATUS.md; #173 is clean and its Honeybound generator passes #180's check; #167 already conflicts with main (systems.rs)
 
 ## Done
-- 2026-10-09: Idea Forge runs Midnight Engine (#72) and Salted Choir (#73, feedback only: the game did not build).
-- 2026-10-08: Idea Forge (#58-#71): the idea generator, the CLI pipeline (idea, AI builds, feedback), daily and nightly jobs, auto-merge, a settle log, test isolation; `start` now says up front that a missing executable means a cold build (#62).
-- 2026-10-07: S4, browser removal, done: a native 2D player (`re2d`, `play2d`) and the browser target removed (#55), leftovers cleaned (#56, more in hardening item 6); CI on Node 24 actions (#57); the server loop blocks on the transport (1271001).
-  Killchain game modes (free for all, capture the flag, search and destroy, duels; protocol v15) were pushed straight to main in f58e15d, after the simplification baseline.
-- 2026-10-06: the AI launchpad `scripts/dev start|next|resume` (#51), a native MCP server (#52), core-first orientation (#49), per-player rule variables (#50), the development efficiency pass (#46), browser reliability (#47; the browser itself was removed on 10-07).
-- 2026-10-06: simplification stages S1 (native 2D honest boundary, publish kind 2d), S2 (`mcp` feature), S3 (`video` feature).
-- 2026-10-07: the RedEngineGames branch `native-2d-downloads` has landed there; RedEngineGames syncs from RedEngine main at every push.
-- 2026-10-10: 2026-10-10: CI wall-clock 23.1 -> 4.6 min per PR (#97: Windows build+Direct3D on PRs, nextest, 5+3 shards); Idea Forge publishes merged games with screenshots to RedEngineGames (#96); style block, style lint, style-report, voxels (#98); story primitives next (#99)
-- 2026-10-11: Agent-loop phases 2+3: fixes #103 (affected includes), #104 (start routing), #105 (search domain); uniqueness: no own asset unprompted, own prefab ~20x a library prop; proposal = lint style-own + recipe own_prefab (not built)
-- 2026-10-11: Agent-loop fix 3 (search domain): lead lane holds 2D mechanics and 3D recipes by the domain a query names; ADR 2026-10-11-search-leads-with-the-domain-a-query-names
-- 2026-10-11: Agent-loop fix 2 (start routing): scene route, new-2D-game cue, owners by file/command, directory names; ADR 2026-10-11-the-launchpad-routes-by-what-a-task-names
-- 2026-10-11: Agent-loop fix 1 (affected false green): compile-time includes are planned as changes; ADR 2026-10-11-compile-time-includes-are-changes
-- 2026-10-11: Wormhole (examples/wormhole): sky.shader, audio.journey, player.still added; feedback in docs/analysis/2026-10-11-wormhole-feedback.md
-- 2026-10-11: Chroma (examples/chroma): audio.playlist (picker, drag and drop, symphonia), sky hears music, frame --song/--seed; feedback docs/analysis/2026-10-11-chroma-feedback.md
-- 2026-10-13: Aimed fields + the rule's subject prop (ADR 2026-10-13-aimed-fields-and-the-rule-s-subject-prop): fields[].toward/speed/props, aim action, self + prop lists on prop triggers and pickup/drop/prop_hit; field pushes computed in RulesEngine so offline re2 now applies fields too (it never did); Velvet Orchestra 94 generated rules -> 33 + 1 field with the card's real mechanic; recipe whistle_herd reuses it. Report: docs/analysis/2026-10-13-aimed-fields-and-subject-props.md
-- 2026-10-13: Phase 1 item 1 (docs at runtime): tools::own_docs reads SPEC/AGENTS/REFERENCE/PLAY_2D/GLOSSARY/ADRs/analysis/features.json from the checkout; build.rs embeds only for release-type builds; a doc edit 86-108 s -> 0.3 s, no compile (docs/analysis/2026-10-13-docs-read-at-runtime.md)
-- 2026-10-13: Phase 1 item 2 (prebuilts): release.yml publishes prebuilt-<fingerprint> pre-releases on every main push whose fingerprint has none (skips docs/games-only commits), keeps 10; prebuilt.py no longer counts the engine's own docs as inputs
-- 2026-10-13: Phase 1 items 1-2 merged (#118 docs at runtime, #119 prebuilts). First prebuilt-a7c3e49c9bcf published from main in 773 s; a fresh clone reaches describe --brief in 3.9 s + 0.09 s with no compile (docs/analysis/2026-10-13-prebuilt-on-main-measured.md). Next: item 3, red_core
-- 2026-10-13: Phase 1 item 3, step 1: crates/red_core holds the ten files red2d shared by #[path] (synth, dsp, audio_fx, audio_analysis, voice_spec, score, fields, suggest, font_glyphs, sim::rules_expr); engine re-exports them at their old paths; red2d 127 -> 69 tests (58 no longer compiled twice); ADR 2026-10-13-red-core-is-one-crate-the-engine-and-its-games-share
-- 2026-10-13: Phase 1 item 3, step 2: red_core takes color, easing, crypto, sim::{clock,scratch,components,change,entities,snapshot,statics,spawns,approach}, net::{limits,netsim,upnp,join_code,auth,relay} (+DEFAULT_PORT); [workspace.dependencies] gives every crate one spec per shared dependency; core sim/net deny unwrap/panic like the engine's
-- 2026-10-13: item 3 step 2: PR #122 open (sim foundations, crypto, net pieces into red_core; [workspace.dependencies]); local CI OK except split_render timing under load (passes alone); waiting on hosted CI
-- 2026-10-13: item 3: #123 merged (src deps --cycles/--core/--reach); cut plan: server reaches 102 modules, 7 crossings, 70 modules to move; cut 1 portmap PR open
-- 2026-10-13: item 3: cuts 1-3 merged (#124 portmap, #125 font, #126 shader-check); scene-block seam built, parity 10/10 identical; full CI next
-- 2026-10-14: item 3: move 2 merged (#129): ring of 55 + ground/checksum into red_core (96 modules, 47k lines), parity identical, tests 1659->1660 (+1 new); next: edge-reader fix, move 3 (network layer + quic feature), then red_server from core
-- 2026-10-14: item 3: moves 1-3 merged (#128,#129,#131), red_core = server tree but the binary; iterate core-aware: sim edit 9-14 s warm (was ~50); next: red_server crate
-- 2026-10-14: item 3 closed: ADR 2026-10-14-the-server-binary-stays-in-the-engine-crate-while-red (measures met but the headless-build clause, deferred to item 5's game servers); next: item 4 CI
-- 2026-10-14: item 4: #134 (compile once: Rust PR 57.0 -> 32.8 job-min), #135 (docs-only PRs from main's archive), #136 (split_render flake) merged; this docs-only PR measures the docs path
-- 2026-10-14: item 5 started (owner: go ahead): ADR a-game-ships-as-its-own-binary; steps 5.1 client to library, 5.2 GameMode, 5.3 WorldLayer, 5.4 game binaries, 5.5 Frameless to games/frameless, 5.6 audit
-- 2026-10-14: item 5.2: client::GameMode seam + MuseumMode (branch game-mode); parity: frameless_visit + the same dump and saves as main for the same script (door-event print order varies in main too); affected green
-- 2026-10-14: item 5.3: world_layer::WorldLayer (PR #147); renderers hold layers, museum types out of render.rs/viewer.rs; parity scripts/picture_parity.py: offline 9/9 byte-identical, live within old run-to-run spread; 5.2 merged (#146)
-- 2026-10-14: item 5.4: game.json "binary" (PR game-binary): play-local/publish/package/scripts/red know a game's own client; checked on Killchain's project (KC_SCRIPT run via scripts/red play-local); RedEngineGames PR follows for the owner; 5.3 merged (#147)
-- 2026-10-14: item 5.5a: BlockDef art_file/endless/describe (branch frameless-seams); core no longer names museum in code; 5.4 merged (#148), RedEngineGames PR #7 for the owner
-- 2026-10-14: item 5.5a merged (#149: BlockDef art_file/endless/describe); 5.5b-pre: validate leaves games/<crate> content to the crate (PR)
-- 2026-10-14: item 5.5: Frameless moved to games/frameless (own crate, binary, tool, tests, content; PR). Parity: offline pictures identical, visit dump/save identical, old re2 save loads in frameless. Ships from its crate once RedEngineGames PR #7 merges
-- 2026-10-14: item 5.5 merged (#151: src/museum gone; Frameless ships from its crate once RedEngineGames PR #7 merges). 5.6: audit + ADR a-system-stays-in-the-engine-when-two-games-use-it-or (PR): loadout shooter moves to Killchain, wire structs first
-- 2026-10-14: item 5.6 merged (#152 audit + ADR); protocol v16 GameMsg + net::arena_wire (PR): the loadout shooter's first step out
-- 2026-10-14: shooter move step 1: loadout parity harness + ADR a-game-plugs-into-the-server-s-match-simulation-the (PR); 6 steps planned
-- 2026-10-14: shooter move step 2: sim::game::MatchGame + ShooterGame (PR); parity fingerprints unchanged
-- 2026-10-14: shooter move step 3: bot minds (MatchGame::bot_mind, ShooterBot) (PR); step 2 merged (#155); parity unchanged
-- 2026-10-14: shooter move step 4a: server flow + snapshots via MatchGame hooks (PR); step 3 merged (#156); parity unchanged
-- 2026-10-14: shooter move step 4b: shooter block + GameDef registry (PR); 4a merged (#157)
-- 2026-10-14: shooter move step 5: server_app library + HostOptions::scene_text (PR); 4b merged (#158)
-- 2026-10-14: shooter move step 6a: client game part + decoder, snapshot History, killcam cuts from it (PR); step 5 merged (#159)
-- 2026-10-14: shooter move step 6b: public match door + ShooterSim + uniforms hook (PR); step 6a merged (#160)
-- 2026-10-14: CLI is a library (ADR a-game-runs-the-engine-s-commands, step 1) (PR); step 6b merged (#161)
-- 2026-10-14: game systems milestone (ADR game-systems-compose-under-one-match-authority): sim::defs/ledger/systems, Workshop reference game (games/workshop), ability reuse fixture, sim game expectations + --inspect, describe systems; fresh-agent trial passed (69.5K tokens, 19 calls, 325 s, 1 tool-caused error)
-- 2026-10-14: game systems milestone: evidence ledger, update-path audit and dependency-ordered roadmap in docs/analysis/2026-10-14-game-systems-milestone.md (PR); #165 merged
-- 2026-10-15: Review follow-up item 1 (branch dismantle-atomic): a refused ws:dismantle with room for the input but not the output changed the hash (tick 2160); fixed with Ledger::remove_stores (one transaction) and Systems::command restoring ledger, system state, rng and queue on Err; probe_dismantle.rs + partial-room case + host unit test
-- 2026-10-15: Review follow-up item 2 (branch ledger-props): ledger property tests, 60k seeded steps vs a model, 0.47 s, two mutations caught; docs/analysis/2026-10-14-ledger-properties.md
+- Phase 1 of the next phase is complete (ADR 2026-10-13-the-next-phase, #116-#153): docs read at runtime (#118), a prebuilt per build-input change on main (#119),
+  `red_core` holds the headless server's tree (#121-#133), CI compiles the tests once (#134-#136), game crates ship their own binary and Frameless lives in
+  `games/frameless` (#143-#151), the system audit (#152), protocol v16 `GameMsg` (#153); alongside: AGENTS.md split with byte budgets, the file-length check,
+  the ADR bar, stale claims (#138-#142). Measurements are in `docs/analysis/2026-10-13-*` and `2026-10-14-*`.
+- Shooter move to Killchain (ADR 2026-10-14-a-game-plugs-into-the-server-s-match-simulation-the): steps 1-6b and the CLI library merged (#154-#164).
+- Game systems (ADR 2026-10-14-game-systems-compose-under-one-match-authority): `sim::defs`/`ledger`/`systems` and the Workshop reference game (#165, #166);
+  review follow-ups 1 (a refused command changes nothing, #168) and 2 (ledger property tests, #169).
+- Idea Forge: 17 runs, two a night from 06:00 on the owner's machine, merged and published by the tool when CI passes; latest Quiet Compass (#171), Final
+  Staircase (#172), Sunken Marathon (#174), Electric Carousel (#175). Findings: `docs/analysis/idea-forge/`, backlog `fixes.json`.
+- Carried over from #92 (closed unmerged 2026-10-17, superseded by this file): #37 `savedata` merged 2026-10-10 (a game's settings and progress are filed under
+  the `id` in its `game.json`); #53 `hot-reload` closed 2026-10-10 (branch kept; its native `re2` half could be re-cut); the live relay was redeployed with #85's
+  code on 2026-10-10 (old binary `red_relay.prev-20261010` beside it).
+- Earlier milestones (hardening #74-#84, CI wall-clock #97, content formats #100-#106, agent loop #102-#105, aimed fields #115, the games) are in git and
+  `docs/analysis/`.
 
 ## Next
-- 2026-10-13: **The next phase** (ADR 2026-10-13-the-next-phase, accepted by the owner 2026-10-13): the review of b5b458f verified in `docs/analysis/2026-10-13-next-phase-review-verified.md`.
-  Phase 1, structural, in order: (1) [done, #118] docs read at runtime in dev builds (done: a doc edit rebuilds nothing; `search` sees a new ADR); (2) [done, #119; measured] a prebuilt for every build-input
-  change on main, enabled by the owner 2026-10-13 (done: a fresh clone reaches `describe --brief` with no compile; a doc-only PR compiles nothing in CI); (3) `red_core` (done: headless build/clippy/tests compile only it, no
-  `#[path]`, a sim edit through `iterate` under 20 s warm); (4) CI archive fan-out, headless PR shard, cache and Docker (done: measured against #115's 59 job-minutes);
-  (5) shippable game crates + the generated-world and `GameMode` seams, Frameless out of the engine crate, the 30K-line audit (done: `src/museum` gone, parity kept).
-  Alongside: AGENTS.md budget and split, file-length preflight, ADR bar, stale claims. Phase 2: 16-var lint, per-entity vars, restartable timers, fall-out height,
-  movement/scale/body-swap rules, 3D strings, 3D spawn/destroy if needed (done: Gentle Carousel well under 100 rules; Prop Hunt with no engine Rust). Phase 3: shape ops,
-  procedural materials, palette roles, `catalog --template`, own_prefab, style-own, scaffold text, the import ADR (done: own prefab at most 2x a library prop; two Idea
-  Forge games in a row unlike each other). The bullets below are folded into it.
-- Simplification S7 (offline `re2` orchestration through MatchSim/LocalSession): not done in the hardening pass on purpose; the offline loop (`src/bin/re2/frame.rs`) also does bat swings, carried props, the rules HUD and its own prop physics that `LocalSession` lacks, so it needs a design and a parity plan first. S5 (#80) and S6 (#79) are done with parity runs recorded in their PRs and ADRs.
-- Killchain downstream: `red_engine2 package` / `game play` know only `re2`; the Killchain project in RedEngineGames must build and run `killchain` (games/killchain) instead.
-- The rules-language gaps from the Idea Forge notes (per-entity state and timers, a fall-out height, rules that change player movement, gravity or scale): ranked and designed in `docs/RULES_LANGUAGE_GAPS.md` (#83); the prop-subject piece of gap 1 (`self`, `prop` lists) and aimed fields were built on 2026-10-13, the rest is not.
-- Bounding the engine's CI time: 58% of CI job-minutes since Oct 7 went to Idea Forge (about 59 job-minutes a game). A games-only path filter (#88, merged: `games_only` in `ci.yml`'s `changes` job, `scripts/ci.sh games`) skips the Windows leg, the headless build and the image for a PR whose files are all under `examples/2d`, `examples/3d` or `docs/analysis/idea-forge`; one probe pair measured about 43 job-minutes (22 wall-clock) against about 2. Proposals 2-4 of `docs/analysis/2026-10-09-engine-ci-growth.md` (move generated games out, cap them, nightly measurement) are not built.
-- 2026-10-13: Rules gaps after aimed fields: per-entity vars and restartable timers (RULES_LANGUAGE_GAPS rank 1) are the next milestone; the museum boundary proposal (procedural-model layer, game-neutral surface hook, a release route for a game crate) is in docs/analysis/2026-10-13-aimed-fields-and-subject-props.md section 5
-- 2026-10-14: friction: `scripts/dev start` routes a task that says "migration" to the upgrade workflow (an engine-work task about save migration got `game upgrade plan`)
-- 2026-10-14: friction (fresh agent): `validate` with no paths, run in a game folder outside a checkout, checks the engine repo's 90 files instead of the folder
-- 2026-10-14: friction (fresh agent): `validate defs/x.json` reads a game's definitions file as a scene and gives misleading errors: a block that reads files has no way to declare their kind to `validate`
-- 2026-10-14: friction: `sim --json --inspect` returns the whole scenario result (14 KB) to answer one question; an inspect-only output would be about 2 KB
-- 2026-10-14: friction (fresh agent): `sim --only` matches a substring, so 'lever' also picked 'without the lever'
-- 2026-10-14: next (measured bottleneck): compile game content into indexed runtime data: string-keyed lookups and per-tick allocation are about half of Workshop's tick at 1000 machines (perf)
-- 2026-10-14: next (measured bottleneck): replication relevance/deltas for a game's part: a whole-state part is 8 bytes per machine and is left out of snapshots above about 170 machines
+- Phase 2 after the items in Now: (2) a fall-out height, (3) rules that change movement, gravity and scale, and a body swap, (4) 3D string tables, (5) 3D
+  spawn/destroy only if needed. Phase 2 is done when Gentle Carousel is well under 100 rules and a Prop Hunt PR touches no file under `src/` or `crates/`.
+- Phase 3 (uniqueness as the cheap path: shape ops, palette roles, `catalog --template`, `own_prefab`, `style-own`) after Phase 2.
+- Review follow-ups 4-7 of 2026-10-14 (headless `workshop_server` without red2d, feeding-order ADR, fresh-agent trial of the Rust path, the TUF/save-backup
+  page): not started. Shooter move step 6c (the move itself): paused.
+- Measured bottleneck: a game's snapshot part is whole-state (8 bytes per machine) and is left out of snapshots above about 170 machines: replication
+  relevance or deltas. (The other one, string-keyed lookups and per-tick allocation, is what #170 addresses.)
+- Killchain downstream: the Killchain project in RedEngineGames runs `killchain` once RedEngineGames #7 merges.
+- Friction still reproducing on 2026-10-17: `scripts/dev start` routes a task that says "migration" to the upgrade workflow; `sim --only` matches a substring
+  ("lever" picks "without the lever"). Not re-checked: `validate` with no paths outside a checkout, `validate defs/x.json` reading definitions as a scene,
+  `sim --json --inspect` returning the whole 14 KB result.
+- Simplification S7 (offline `re2` through MatchSim/LocalSession): parked; it needs a design and a parity plan.
+- CI growth from generated games: proposals 2-4 of `docs/analysis/2026-10-09-engine-ci-growth.md` are not built.
 
 ## Failing / blocked
-- Main was green at 30bb4e5 (CI run of 2026-10-09 13:41). Not failing on main, but `scripts/test_idea_forge.py` failed on any machine with under 20 GB free (fixed in hardening item 3).
-- Prebuilts: the owner chose (2026-10-10) to publish a prebuilt for every `main` commit that changes a build input, and on 2026-10-13 told the agent to enable it
-  (Phase 1 item 2). Still no release exists, so `start`/`scripts/dev red` always build from source. Phase 1 item 2 of ADR 2026-10-13-the-next-phase.
+- Nothing failing on main: CI, Release (Linux binaries) and Publish games passed at c4860ce (2026-10-16).
+- Prebuilts exist: the newest is `prebuilt-e4f91efe9590` (main f23b763, 2026-10-15; the commits since are games and docs, so no new one). On this checkout
+  `scripts/dev start` fetched it, verified its checksum and needed no compile (4.5 s, 2026-10-17).
+- `red_server --key auto` prints a 32-hex key (`net::auth::random_key`, `src/server_app.rs`), not the 12-character readable key `docs/HOSTING.md` promises
+  (`net::relay::generate_join_key`), so its relay code is long; not fixed.
+- The game servers are asleep at the owner's request since 2026-10-17: `red-relay`, `red-game@killchain`, the health and portmap timers are stopped and
+  disabled. Do not restart them as a side effect of other work.
 
 ## Decisions & gotchas
 - The front door: README is a pointer, `AGENTS.md` is the single entry point (ADR 2026-10-09-the-front-door-documents-are-a-pointer-one-entry-point, hardening item 1); the claims in the docs are checked by `red_engine2 preflight`.
-- Killchain's reusable shooter (arsenal, ordnance, killcam, `sim::shooter`, the objective modes) is engine by design (`docs/features.json`, ADR 2026-09-30-killchain-loadout-shooter); the Killchain game itself (client, screens, branding) is what S6 moves out.
+- The loadout shooter (arsenal, ordnance, killcam, `sim::shooter`, the objective modes) moves to Killchain: no second game uses it (ADR 2026-10-14-a-system-stays-in-the-engine-when-two-games-use-it-or, `docs/analysis/2026-10-14-system-audit.md`).
+- Merging: `main` has no branch protection or required checks, so `gh pr merge --auto` merges at once; wait for hosted CI and merge by hand. The owner merges engine PRs (Idea Forge's own PRs merge themselves when CI passes).
 - `cargo` is not on the default non-interactive PATH (`scripts/dev` adds it); a fresh worktree needs `scripts/dev worktree NAME` (seeded dependencies) or `CARGO_TARGET_DIR` pointing at a built tree, or its first build takes 7 minutes on four cores.
 - The user's own `RedEngine` checkout has uncommitted work: agents work in worktrees and fresh clones.
 - CI measurements: a probe PR targets a throwaway branch, never `main`, and the throwaway base branch is deleted right after; a pushed branch off `main` invites a "Compare & pull request" click (that is how #89 reached main). Close probes and delete their branches when done.
