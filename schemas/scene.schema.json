@@ -138,8 +138,16 @@
         }
       ]
     },
+    "groups": {
+      "description": "Named sets of members a rule template repeats over (`for_each`): name -> a list of ids (`*` patterns allowed) or id -> fields.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "vars": {
-      "description": "Game variables: name -> number or true/false.",
+      "description": "Game variables: name -> number or true/false (a name with `$group` declares one per member).",
       "type": [
         "object",
         "null"
@@ -169,7 +177,7 @@
         "null"
       ],
       "items": {
-        "$ref": "#/$defs/Rule"
+        "$ref": "#/$defs/RuleEntry"
       }
     },
     "phases": {
@@ -4082,8 +4090,47 @@
         "^(x-|x_|_)|^notes$|^\\$comment$": {}
       }
     },
+    "RuleEntry": {
+      "description": "An entry of `rules`: a rule (repeated `for_each` member of a group when it says so), or a block of rules repeated together (`sim::rule_groups`).",
+      "anyOf": [
+        {
+          "description": "`{\"for_each\", \"in\"?, \"rules\"}`.",
+          "$ref": "#/$defs/RuleBlock"
+        },
+        {
+          "description": "A rule.",
+          "$ref": "#/$defs/Rule"
+        }
+      ]
+    },
+    "RuleBlock": {
+      "description": "Rules repeated together for each member, in order (nested blocks allowed).",
+      "type": "object",
+      "properties": {
+        "for_each": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in": true,
+        "rules": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RuleEntry"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
     "Rule": {
-      "description": "One rule: a trigger, an optional condition, actions (`describe rules`).",
+      "description": "One rule: a trigger, an optional condition, actions (`describe rules`); with `for_each` (and `in`) one copy per member.",
       "type": "object",
       "properties": {
         "id": {
@@ -4092,6 +4139,13 @@
             "null"
           ]
         },
+        "for_each": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in": true,
         "when": {
           "anyOf": [
             {
@@ -4127,7 +4181,7 @@
             "null"
           ],
           "items": {
-            "$ref": "#/$defs/Action"
+            "$ref": "#/$defs/ActionEntry"
           }
         }
       },
@@ -4223,6 +4277,45 @@
         "box": true,
         "pad": true,
         "height": true
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(x-|x_|_)|^notes$|^\\$comment$": {}
+      }
+    },
+    "ActionEntry": {
+      "description": "An entry of a rule's `do`: an action, or actions repeated for each member (`{\"for_each\", \"in\"?, \"do\"}`).",
+      "anyOf": [
+        {
+          "description": "`{\"for_each\", \"in\"?, \"do\"}`.",
+          "$ref": "#/$defs/ActionBlock"
+        },
+        {
+          "description": "One action.",
+          "$ref": "#/$defs/Action"
+        }
+      ]
+    },
+    "ActionBlock": {
+      "description": "Actions repeated for each member, in place.",
+      "type": "object",
+      "properties": {
+        "for_each": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in": true,
+        "do": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ActionEntry"
+          }
+        }
       },
       "additionalProperties": false,
       "patternProperties": {
