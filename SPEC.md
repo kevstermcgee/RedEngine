@@ -627,6 +627,12 @@ variable named `"_s_$tile"` is declared once per member. This is expanded when t
 checksum, replays and the wire see exactly the rules written out by hand. A template's id must hold its placeholder; an error keeps the template's
 path and names the member (`rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`). `examples/3d/gentle-carousel` is 13 entries for 249 rules.
 
+**Timers and per-prop variables.** `{"timer": ["close", 2]}` starts a timer, or restarts it if it is running; `{"cancel": "close"}` stops it; a rule
+with `"when": {"timer": "close"}` fires once when it runs out. `secs` may be an expression; a timer only started or only waited for is an error.
+`"prop_vars": {"heat": 0}` gives every loose prop its own copy, read and written as `self.heat` by a rule whose subject is a prop, and `self.fuse` is
+each prop's own timer (its trigger fires once per prop, as the subject). One per static object comes from a template (`"close_$door"`). Both are
+server state: in the match checksum, never on the wire (`sim::rule_timers`; checked with `{"prop_var": "heat", "of": "crate", "eq": 1}`).
+
 Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy and

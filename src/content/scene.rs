@@ -32,6 +32,8 @@ strict_struct! {
         vars: BTreeMap<String, Any>,
         /// Per-player variables: name -> number or true/false.
         player_vars: BTreeMap<String, Any>,
+        /// Per-prop variables: every loose prop has its own copy (`self.name`).
+        prop_vars: BTreeMap<String, Any>,
         persist: Vec<String>,
         rules: Vec<RuleEntry>,
         /// Named level states: name -> the rule ids assumed fired.
@@ -232,6 +234,8 @@ strict_struct! {
         prop_enter: Volume,
         prop_exit: Volume,
         prop_below: Any,
+        /// A timer ran out (`self.name` for the subject prop's own).
+        timer: String,
         /// With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule).
         prop: Any,
     }
@@ -250,6 +254,10 @@ pub enum Action {
     Set(Any),
     Add(Any),
     Emit(String),
+    /// `[name, secs]`: start (or restart) a timer.
+    Timer(Any),
+    /// Stop a timer.
+    Cancel(String),
     Hide(String),
     Show(String),
     Collision(Any),

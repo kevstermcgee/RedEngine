@@ -35,6 +35,7 @@
 //! expression built-ins `prop_y(id)`, `tilt(id)`, `held(id)`, `mass(id)`, `moved(id)`, `props_in(zone)`, `in_zone(id, zone)` in `if` and values.
 
 use super::clock::secs_to_ticks;
+use super::rule_timers::TimerRef;
 use super::rules_expr::{self, Expr, Op, Scope};
 use crate::strict::{check_keys, describe_value};
 use glam::Vec3;
@@ -46,6 +47,8 @@ pub const BUILTIN_VARS: &[&str] = &["time", "tick", "players"];
 
 /// The most per-player variables a scene may declare (each player has a copy; the count is bounded so a snapshot of them stays small).
 pub const MAX_PLAYER_VARS: usize = 8;
+/// The most per-prop variables a scene may declare (each loose prop has a copy, `self.name`).
+pub const MAX_PROP_VARS: usize = 8;
 
 /// Events the engine itself raises (a rule can react with `when: {event: name}` without any rule emitting them):
 /// `pickup` / `drop` (a player took / released a prop), `shot` (a firearm was fired), `hit` (a player was damaged),
@@ -58,6 +61,8 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("set", "[var, value]  set a variable to a number, true/false, or an expression string"),
     ("add", "[var, n]      add a number (or expression) to a variable"),
     ("emit", "name         record a game event; other rules can react with `when: {event: name}`"),
+    ("timer", "[name, secs]  start (or restart) a timer; `when: {timer: name}` fires once when it runs out; `self.name` is the subject prop's own"),
+    ("cancel", "name         stop a timer before it runs out (nothing happens when it is not running)"),
     ("hide", "object_id    mark an object hidden (state only: renderers/clients decide what that means)"),
     ("show", "object_id    the opposite of hide"),
     ("collision", "[object_id, bool]   enable/disable a top-level object's collision for PLAYERS (movement and standing); loose props still collide with it, and props resting on it are not woken"),
@@ -234,6 +239,8 @@ pub enum When {
     PropEnter(Volume),
     /// A loose prop leaves the volume.
     PropExit(Volume),
+    /// A timer ran out (`sim::rule_timers`); a per-prop timer fires once for each prop whose own ran out, as its subject.
+    Timer(TimerRef),
     /// A loose prop's origin drops below a height (index into [`RuleSet::prop_ids`]).
     PropBelow {
         /// The prop.
@@ -280,6 +287,22 @@ pub enum Action {
         /// The new value.
         value: Expr,
     },
+    /// `self.name = value` for the rule's subject prop (an `add` is compiled to a `SetIts` of `self.name + n`). Does nothing without a subject.
+    SetIts {
+        /// Index in [`RuleSet::prop_var_names`].
+        var: usize,
+        /// The new value.
+        value: Expr,
+    },
+    /// Start (or restart) a timer to run out after `secs` seconds.
+    Timer {
+        /// Which.
+        timer: TimerRef,
+        /// Seconds (an expression; negative counts as 0).
+        secs: Expr,
+    },
+    /// Stop a timer before it runs out.
+    Cancel(TimerRef),
     /// Record an event.
     Emit(String),
     /// Mark an object hidden.
@@ -360,6 +383,14 @@ pub struct RuleSet {
     pub player_var_names: Vec<String>,
     /// Initial value of every per-player variable (a player's copy starts here when they join).
     pub player_var_init: Vec<f64>,
+    /// Per-prop variable names (`prop_vars`): every loose prop has its own copy, read and written as `self.name` by a rule with a subject prop.
+    pub prop_var_names: Vec<String>,
+    /// Initial value of every per-prop variable.
+    pub prop_var_init: Vec<f64>,
+    /// The scene's timers (`sim::rule_timers`), in the order the rules first name them.
+    pub timers: Vec<String>,
+    /// The per-prop timers (`self.name`; the name without `self.`): every loose prop has its own.
+    pub prop_timers: Vec<String>,
     /// The rules, in evaluation order.
     pub rules: Vec<Rule>,
     /// Every loose prop of the scene, by object id, sorted: prop triggers, `reset`/`place` and the expression
@@ -397,6 +428,10 @@ impl Default for RuleSet {
             var_init: vec![0.0; BUILTIN_VARS.len()],
             player_var_names: Vec::new(),
             player_var_init: Vec::new(),
+            prop_var_names: Vec::new(),
+            prop_var_init: Vec::new(),
+            timers: Vec::new(),
+            prop_timers: Vec::new(),
             rules: Vec::new(),
             prop_ids: Vec::new(),
             zone_ids: Vec::new(),
@@ -449,7 +484,7 @@ impl RuleSet {
 
     /// The expression scope: the loose props and zones a built-in function may name.
     pub fn scope(&self) -> Scope<'_> {
-        Scope { props: &self.prop_ids, zones: &self.zone_ids, player_vars: &self.player_var_names }
+        Scope { props: &self.prop_ids, zones: &self.zone_ids, player_vars: &self.player_var_names, prop_vars: &self.prop_var_names }
     }
 }
 
@@ -473,9 +508,9 @@ pub struct Refs {
 
 const RULE_KEYS: &[&str] = &["id", "when", "who", "if", "once", "cooldown", "do"];
 /// The trigger keys (exactly one per `when`).
-const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below"];
+const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer"];
 /// Everything a `when` may contain: a trigger plus the optional `prop` filter of `prop_enter` / `prop_exit`.
-const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "prop"];
+const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer", "prop"];
 const VOLUME_KEYS: &[&str] = &["zone", "object", "box", "pad", "height"];
 const FIELD_KEYS: &[&str] = &["id", "zone", "object", "box", "pad", "height", "velocity", "lift", "rate", "toward", "speed", "props"];
 const ZONE_HEIGHT: f32 = 3.0;
@@ -824,6 +859,7 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
                 return None;
             }
         },
+        "timer" => When::Timer(timer_ref(o[key].as_str(), set, &sub, errs)?),
         "every" => When::Every(secs(&o[key], &sub, errs)),
         "after" => When::After(secs(&o[key], &sub, errs)),
         "prop_enter" => When::PropEnter(parse_volume(&o[key], refs, &sub, errs)?),
@@ -843,6 +879,18 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
         }
     };
     Some((when, props))
+}
+
+/// A timer by name (`self.name` for a prop's own), as the rules named it (`rule_timers::names` collected them before the rules were parsed).
+fn timer_ref(name: Option<&str>, set: &RuleSet, path: &str, errs: &mut Vec<String>) -> Option<TimerRef> {
+    let Some(name) = name.filter(|n| !n.is_empty()) else {
+        errs.push(format!("{path}: must be a timer's name, like \"fuse\" (or \"self.fuse\" for the subject prop's own)"));
+        return None;
+    };
+    match name.strip_prefix("self.") {
+        Some(n) => set.prop_timers.iter().position(|t| t == n).map(TimerRef::Prop),
+        None => set.timers.iter().position(|t| t == name).map(TimerRef::Global),
+    }
 }
 
 /// A number, a bool, or an expression string, compiled against the set's variables, loose props and zones.
@@ -899,6 +947,15 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
                 errs.push(format!("{sub}: must be [variable, value]"));
                 return None;
             };
+            if let Some(its) = p[0].as_str().and_then(|n| n.strip_prefix("self.")) {
+                let Some(var) = set.prop_var_names.iter().position(|n| n == its) else {
+                    errs.push(format!("{sub}[0]: {}", rules_expr::unknown_prop_var(its, &set.prop_var_names)));
+                    return None;
+                };
+                let value = parse_value(&p[1], set, &format!("{sub}[1]"), errs)?;
+                let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Its(var)), Box::new(value)) } else { value };
+                return Some(Action::SetIts { var, value });
+            }
             if let Some(me) = p[0].as_str().and_then(|n| n.strip_prefix("me.")) {
                 let Some(var) = set.player_var_names.iter().position(|n| n == me) else {
                     errs.push(format!("{sub}[0]: {}", rules_expr::unknown_player_var(me, &set.player_var_names)));
@@ -913,6 +970,19 @@ fn parse_action(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Ve
             let value = if key.as_str() == "add" { Expr::Bin(Op::Add, Box::new(Expr::Var(var)), Box::new(value)) } else { value };
             Some(Action::Set { var, value })
         }
+        "timer" => {
+            let Some(p) = pair() else {
+                errs.push(format!("{sub}: must be [name, seconds], like [\"fuse\", 2]"));
+                return None;
+            };
+            if p[1].as_f64().is_some_and(|x| x < 0.0) {
+                errs.push(format!("{sub}[1]: must be 0 seconds or more (got {})", p[1]));
+                return None;
+            }
+            let timer = timer_ref(p[0].as_str(), set, &format!("{sub}[0]"), errs)?;
+            Some(Action::Timer { timer, secs: parse_value(&p[1], set, &format!("{sub}[1]"), errs)? })
+        }
+        "cancel" => Some(Action::Cancel(timer_ref(val.as_str(), set, &sub, errs)?)),
         "emit" | "end" => match val.as_str().filter(|s| !s.is_empty()) {
             Some(s) if key.as_str() == "emit" => Some(Action::Emit(s.to_string())),
             Some(s) => Some(Action::End(s.to_string())),
@@ -1156,6 +1226,39 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             }
         }
     }
+    if let Some(pv) = root.get("prop_vars") {
+        match pv.as_object() {
+            None => errs.push("prop_vars: must be an object like {\"hp\": 3} (every loose prop gets its own copy, `self.hp`)".to_string()),
+            Some(_) if set.prop_ids.is_empty() => errs.push("prop_vars: the scene has no loose props (`\"movable\": true`) to give them to".to_string()),
+            Some(o) => {
+                for (name, v) in o.iter().filter(|(k, _)| !crate::strict::is_extension_key(k)) {
+                    let init = match v {
+                        Value::Number(n) => n.as_f64(),
+                        Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+                        _ => None,
+                    };
+                    if !name.chars().all(|c| c.is_alphanumeric() || c == '_') || name.starts_with(|c: char| c.is_ascii_digit()) {
+                        errs.push(format!("prop_vars.{name}: a variable name is letters, digits and `_`, not starting with a digit"));
+                    } else if set.prop_var_names.len() >= MAX_PROP_VARS {
+                        errs.push(format!("prop_vars.{name}: at most {MAX_PROP_VARS} per-prop variables (each loose prop has a copy)"));
+                    } else if let Some(x) = init {
+                        set.prop_var_names.push(name.clone());
+                        set.prop_var_init.push(x);
+                    } else {
+                        errs.push(format!("prop_vars.{name}: must be a number or true/false"));
+                    }
+                }
+            }
+        }
+    }
+    let (timers, prop_timers, timer_errs) = super::rule_timers::names(root.get("rules"));
+    for n in timers.iter().chain(&prop_timers) {
+        if !super::rule_timers::valid(n) {
+            errs.push(format!("rules: `{n}` is not a timer name (letters, digits and `_`, with `self.` for a prop's own)"));
+        }
+    }
+    (set.timers, set.prop_timers) = (timers, prop_timers);
+    errs.extend(timer_errs);
     if let Some(p) = root.get("persist") {
         match p.as_array() {
             None => errs.push("persist: must be a list of variable names like [\"days_lived\"]".to_string()),
@@ -1255,12 +1358,13 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 When::PropEnter { .. } => Some("prop_enter"),
                 When::PropExit { .. } => Some("prop_exit"),
                 When::PropBelow { .. } => Some("prop_below"),
+                When::Timer(_) => Some("timer"),
                 _ => None,
             };
             let uses_me = cond.as_ref().is_some_and(Expr::uses_me)
                 || actions.iter().any(|a| match a {
                     Action::SetMe { .. } => true,
-                    Action::Set { value, .. } => value.uses_me(),
+                    Action::Set { value, .. } | Action::SetIts { value, .. } | Action::Timer { secs: value, .. } => value.uses_me(),
                     _ => false,
                 });
             if let (Some(kind), true) = (slotless, uses_me) {
@@ -1281,6 +1385,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 When::After(_) => Some("an `after` trigger".to_string()),
                 When::Enter(_) => Some("an `enter` trigger (a player, not a prop)".to_string()),
                 When::Exit(_) => Some("an `exit` trigger (a player, not a prop)".to_string()),
+                When::Timer(TimerRef::Global(_)) => Some("a scene timer's trigger (only a `self.` timer belongs to a prop)".to_string()),
                 When::Event(e) if ENGINE_EVENTS.contains(&e.as_str()) && !SUBJECT_EVENTS.contains(&e.as_str()) => {
                     Some(format!("the engine event `{e}` (it is about no prop; {} are)", SUBJECT_EVENTS.join(", ")))
                 }
@@ -1289,6 +1394,8 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             let uses_self = cond.as_ref().is_some_and(Expr::uses_subject)
                 || actions.iter().any(|a| match a {
                     Action::Set { value, .. } | Action::SetMe { value, .. } => value.uses_subject(),
+                    Action::SetIts { .. } | Action::Timer { timer: TimerRef::Prop(_), .. } | Action::Cancel(TimerRef::Prop(_)) => true,
+                    Action::Timer { secs, .. } => secs.uses_subject(),
                     Action::Hide(Obj::Subject) | Action::Show(Obj::Subject) | Action::Reset(ResetTarget::Subject) => true,
                     Action::Impulse { object: Obj::Subject, .. } | Action::Place { prop: PropSel::Subject, .. } | Action::Aim { to: AimTo::Subject, .. } => {
                         true

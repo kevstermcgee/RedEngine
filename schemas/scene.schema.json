@@ -164,6 +164,14 @@
       ],
       "additionalProperties": true
     },
+    "prop_vars": {
+      "description": "Per-prop variables: every loose prop has its own copy (`self.name`).",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
     "persist": {
       "type": [
         "array",
@@ -4271,6 +4279,13 @@
           ]
         },
         "prop_below": true,
+        "timer": {
+          "description": "A timer ran out (`self.name` for the subject prop's own).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "prop": {
           "description": "With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule)."
         }
@@ -4382,6 +4397,36 @@
           },
           "required": [
             "emit"
+          ],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "`[name, secs]`: start (or restart) a timer.",
+          "type": "object",
+          "properties": {
+            "timer": true
+          },
+          "required": [
+            "timer"
+          ],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(x-|x_|_)|^notes$|^\\$comment$": {}
+          }
+        },
+        {
+          "description": "Stop a timer.",
+          "type": "object",
+          "properties": {
+            "cancel": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "cancel"
           ],
           "additionalProperties": false,
           "patternProperties": {
