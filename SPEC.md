@@ -618,6 +618,15 @@ condition holds, and then **does** its actions:
   `enter` rule's work (key on `enter`, or use one variable per volume). A player or prop that starts inside a volume gets no `enter`
   (use a `start` rule). A variable whose name starts with `_` is internal: the generic HUD does not show it.
 
+**Rules that repeat (`groups`, `for_each`).** A rule per tile, door or lane is written once. `"groups"` names members: a list of ids
+(`"door": ["door_*"]`, `*` matching top-level object ids in scene order) or id -> fields (`"tile": {"t1": {"box": [...], "near": ["t2"]}}`). A rule with
+`"for_each": "door"` becomes one rule per member, with `$door` replaced by the member's id and `$door.field` by its field (a string that is one
+placeholder becomes the value: `"box": "$tile.box"`); `{"for_each": "tile", "rules": [...]}` repeats a block of rules per member, in order, and nests;
+`"in"` gives the range (a group, a list, or a field such as `$tile.near`); `{"for_each": ..., "do": [...]}` inside a `do` repeats actions in place; a
+variable named `"_s_$tile"` is declared once per member. This is expanded when the scene loads (`sim::rule_groups`), so the simulation, the match
+checksum, replays and the wire see exactly the rules written out by hand. A template's id must hold its placeholder; an error keeps the template's
+path and names the member (`rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`). `examples/3d/gentle-carousel` is 13 entries for 249 rules.
+
 Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy and

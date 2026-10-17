@@ -590,6 +590,15 @@ fn rules_text() -> String {
          copy of the player that triggered the rule (enter/exit, or an event a player caused: kill, pickup, or an `emit` from such a rule),\n\
          and `{\"add\": [\"me.laps\", 1]}` / `set` write it; `me.` in a start/every/after rule is a validate error. Prove it in `sim` with\n\
          `{\"player_var\": \"laps\", \"of\": \"p1\", \"gte\": 3}`.\n\
+         GROUPS AND for_each (a rule per tile, door or lane, written once; expanded when the scene loads, so it runs exactly like hand copies):\n\
+         \x20 \"groups\": {\"door\": [\"door_*\"], \"tile\": {\"t1\": {\"box\": [0,0,0,1,2,1], \"near\": [\"t2\"]}, \"t2\": {...}}}   ids (`*` = object ids) or id -> fields\n\
+         \x20 \"vars\": {\"_s_$tile\": 0}                                   one variable per member (`\"$tile.start\"` as the value reads a field)\n\
+         \x20 {\"id\": \"open_$door\", \"for_each\": \"door\", \"when\": {\"enter\": {\"object\": \"$door\"}}, \"do\": [{\"deactivate\": \"$door\"}]}   one rule per member\n\
+         \x20 {\"for_each\": \"tile\", \"rules\": [ ...rules... ]}             a block: each member's rules together, in order (nest blocks freely)\n\
+         \x20 {\"id\": \"wake_$tile_$n\", \"for_each\": \"n\", \"in\": \"$tile.near\", ...}   `in`: a group's name, a list, or a field that holds one\n\
+         \x20 \"do\": [{\"for_each\": \"door\", \"do\": [{\"hide\": \"$door\"}]}]      actions repeated in place\n\
+         `$name` is the member's id, `$name.field` its field (a whole-string placeholder is the value itself: `\"box\": \"$tile.box\"`); the longest name in scope\n\
+         wins (`$tile_$n`). A template's id must hold its placeholder. An error names the template and the member: `rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`.\n\
          Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
     );
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {
