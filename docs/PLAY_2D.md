@@ -17,6 +17,7 @@ A platformer's reach depends on jumps, speed and moving enemies, so `checks.reac
 - The picture is the same CPU renderer `verify` and `frame` use, scaled to the window with the aspect ratio kept (whole-number scaling for games that ask for `integer`). F11 toggles fullscreen.
 - 60 simulation ticks a second from a fixed clock. A stall never turns into a burst of more than five ticks, and losing focus releases every held key.
 - Keys: arrows or WASD move, Space/Z/J is `action`, Shift/X/K is `secondary`, Escape/P is `pause`; the mouse is the pointer and left click is a click. Games read the same names the rules use (`KeyA`, `ArrowLeft`, `Space`).
+- Started by a player (`RE2_PLAYER=1`, which the game's `Play-<slug>.exe` and the RedEngine Games app set; `--fullscreen --intro` by hand), the window opens in borderless fullscreen and the "RedEngine Games" title card (`ui::title_card`) plays for about two and a half seconds before the first tick; any key or click skips it. `F11` toggles fullscreen.
 - Progress is written atomically every two seconds while it changes and on exit, to `progress.json` under the per-game save directory (`RE2_SAVE_DIR`, else the user config directory keyed by the game id).
 
 ## Not built yet

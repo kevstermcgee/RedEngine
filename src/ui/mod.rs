@@ -20,6 +20,8 @@ pub mod rules;
 pub mod screens;
 #[cfg(feature = "render")]
 pub mod serif;
+#[cfg(feature = "render")]
+pub mod title_card;
 
 use crate::tools::font::{glyph, GLYPH_H, GLYPH_W};
 use image::{Rgb, RgbImage};
