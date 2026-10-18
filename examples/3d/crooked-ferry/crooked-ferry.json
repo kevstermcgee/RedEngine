@@ -1,0 +1,4624 @@
+{
+ "camera": {
+  "position": [
+   -2,
+   4.2,
+   0
+  ],
+  "target": [
+   10,
+   3.5,
+   0
+  ]
+ },
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    -1.4,
+    2.5,
+    0
+   ],
+   "yaw_deg": 90,
+   "group": "solo"
+  }
+ ],
+ "player": {
+  "character": "human"
+ },
+ "weapons": {
+  "starting": "bat"
+ },
+ "style": {
+  "palette": {
+   "primary": "#e9b872",
+   "secondary": "#4f5d8a",
+   "accent": "#6fe3d1",
+   "wood": "#6b4a35",
+   "metal": "#9aa3b2",
+   "stone": "#9b9aa8",
+   "floor": "#2a2d4a",
+   "lamp": "#ffcf94",
+   "trim": "#cdb79a"
+  },
+  "materials": {
+   "pier": {
+    "roughness": 0.9
+   },
+   "ink": {
+    "color": "#0c0618",
+    "emissive": "#1a0d33",
+    "roughness": 0.15,
+    "metallic": 0.3
+   },
+   "echoglow": {
+    "color": "@accent",
+    "emissive": "@accent",
+    "opacity": 0.45
+   }
+  },
+  "light": {
+   "sun": {
+    "color": "#7f8fd0",
+    "intensity": 0.5,
+    "direction": [
+     -0.4,
+     -1,
+     -0.3
+    ]
+   },
+   "ambient": {
+    "color": "#6d78b8",
+    "intensity": 0.35
+   },
+   "lamp": {
+    "color": "#ffcf94",
+    "intensity": 8
+   }
+  },
+  "sky": {
+   "top": "#070816",
+   "bottom": "#2a2250"
+  },
+  "fog": {
+   "color": "#15122b",
+   "density": 0.012
+  },
+  "post": {
+   "ao": 0.8,
+   "outline": 0.25
+  }
+ },
+ "music": false,
+ "vars": {
+  "ink": 1,
+  "_nxt": 1,
+  "_last": -1,
+  "_can": 0,
+  "_echo_t": 0,
+  "_echo_pend": 0
+ },
+ "zones": [
+  {
+   "id": "ledge_0",
+   "rect": [
+    -2.0,
+    -1.5,
+    2.8,
+    1.5
+   ],
+   "y": 2.5,
+   "kind": "pad"
+  },
+  {
+   "id": "ledge_1",
+   "rect": [
+    7.0,
+    -1.5,
+    11.8,
+    1.5
+   ],
+   "y": 3.7,
+   "kind": "pad"
+  },
+  {
+   "id": "ledge_2",
+   "rect": [
+    16.0,
+    -1.5,
+    20.8,
+    1.5
+   ],
+   "y": 4.9,
+   "kind": "pad"
+  },
+  {
+   "id": "ledge_3",
+   "rect": [
+    25.0,
+    -1.5,
+    29.8,
+    1.5
+   ],
+   "y": 6.1,
+   "kind": "pad"
+  },
+  {
+   "id": "ledge_4",
+   "rect": [
+    34.0,
+    -1.5,
+    38.8,
+    1.5
+   ],
+   "y": 7.3,
+   "kind": "pad"
+  },
+  {
+   "id": "ledge_5",
+   "rect": [
+    43.0,
+    -1.5,
+    47.8,
+    1.5
+   ],
+   "y": 8.5,
+   "kind": "pad"
+  }
+ ],
+ "lights": [
+  {
+   "id": "lamp_0",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    0.4,
+    5.5,
+    0
+   ]
+  },
+  {
+   "id": "lamp_1",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    9.4,
+    6.7,
+    0
+   ]
+  },
+  {
+   "id": "lamp_2",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    18.4,
+    7.9,
+    0
+   ]
+  },
+  {
+   "id": "lamp_3",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    27.4,
+    9.1,
+    0
+   ]
+  },
+  {
+   "id": "lamp_4",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    36.4,
+    10.3,
+    0
+   ]
+  },
+  {
+   "id": "lamp_5",
+   "type": "point",
+   "color": "@lamp",
+   "intensity": 8,
+   "range": 9,
+   "position": [
+    45.4,
+    11.5,
+    0
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "id": "start_hide",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "deck_5"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "stub_4"
+    },
+    {
+     "deactivate": "stub_5"
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "show": "ink_1"
+    },
+    {
+     "hide": "ink_2"
+    },
+    {
+     "hide": "ink_3"
+    },
+    {
+     "hide": "ink_4"
+    },
+    {
+     "hide": "ink_5"
+    },
+    {
+     "hide": "ink_6"
+    },
+    {
+     "hide": "ink_7"
+    },
+    {
+     "hide": "ink_8"
+    },
+    {
+     "hide": "ink_9"
+    },
+    {
+     "hide": "ink_10"
+    },
+    {
+     "hide": "ink_11"
+    }
+   ]
+  },
+  {
+   "id": "use_oar_1",
+   "when": {
+    "prop_enter": {
+     "box": [
+      1.7999999999999998,
+      0,
+      -1.5,
+      6.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "oar"
+   },
+   "if": "_nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "deck_1"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "oar",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "plank",
+      [
+       8.8,
+       4.0,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_plank_1",
+   "when": {
+    "prop_enter": {
+     "box": [
+      1.7999999999999998,
+      0,
+      -1.5,
+      6.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "plank"
+   },
+   "if": "_nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "stub_1"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "plank",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "peg",
+      [
+       8.8,
+       4.0,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_peg_1",
+   "when": {
+    "prop_enter": {
+     "box": [
+      1.7999999999999998,
+      0,
+      -1.5,
+      6.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "peg"
+   },
+   "if": "_nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "stub_1"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "peg",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_oar_2",
+   "when": {
+    "prop_enter": {
+     "box": [
+      10.8,
+      0,
+      -1.5,
+      15.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "oar"
+   },
+   "if": "_nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "deck_2"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "oar",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "plank",
+      [
+       17.8,
+       5.2,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_plank_2",
+   "when": {
+    "prop_enter": {
+     "box": [
+      10.8,
+      0,
+      -1.5,
+      15.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "plank"
+   },
+   "if": "_nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "stub_2"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "plank",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "peg",
+      [
+       17.8,
+       5.2,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_peg_2",
+   "when": {
+    "prop_enter": {
+     "box": [
+      10.8,
+      0,
+      -1.5,
+      15.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "peg"
+   },
+   "if": "_nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "stub_2"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "peg",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_oar_3",
+   "when": {
+    "prop_enter": {
+     "box": [
+      19.8,
+      0,
+      -1.5,
+      24.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "oar"
+   },
+   "if": "_nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "deck_3"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "oar",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "plank",
+      [
+       26.8,
+       6.4,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_plank_3",
+   "when": {
+    "prop_enter": {
+     "box": [
+      19.8,
+      0,
+      -1.5,
+      24.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "plank"
+   },
+   "if": "_nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "deck_3"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "plank",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "peg",
+      [
+       26.8,
+       6.4,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_peg_3",
+   "when": {
+    "prop_enter": {
+     "box": [
+      19.8,
+      0,
+      -1.5,
+      24.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "peg"
+   },
+   "if": "_nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "stub_3"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "peg",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_oar_4",
+   "when": {
+    "prop_enter": {
+     "box": [
+      28.8,
+      0,
+      -1.5,
+      33.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "oar"
+   },
+   "if": "_nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "deck_4"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "oar",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "plank",
+      [
+       35.8,
+       7.6,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_plank_4",
+   "when": {
+    "prop_enter": {
+     "box": [
+      28.8,
+      0,
+      -1.5,
+      33.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "plank"
+   },
+   "if": "_nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "deck_4"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "plank",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "peg",
+      [
+       35.8,
+       7.6,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_peg_4",
+   "when": {
+    "prop_enter": {
+     "box": [
+      28.8,
+      0,
+      -1.5,
+      33.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "peg"
+   },
+   "if": "_nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "stub_4"
+    },
+    {
+     "emit": "built_short"
+    },
+    {
+     "place": [
+      "peg",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_oar_5",
+   "when": {
+    "prop_enter": {
+     "box": [
+      37.8,
+      0,
+      -1.5,
+      42.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "oar"
+   },
+   "if": "_nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "oar",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "plank",
+      [
+       44.8,
+       8.8,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_plank_5",
+   "when": {
+    "prop_enter": {
+     "box": [
+      37.8,
+      0,
+      -1.5,
+      42.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "plank"
+   },
+   "if": "_nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      1
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "plank",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    },
+    {
+     "place": [
+      "peg",
+      [
+       44.8,
+       8.8,
+       0
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "use_peg_5",
+   "when": {
+    "prop_enter": {
+     "box": [
+      37.8,
+      0,
+      -1.5,
+      42.6,
+      30,
+      1.5
+     ]
+    },
+    "prop": "peg"
+   },
+   "if": "_nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "set": [
+      "_last",
+      2
+     ]
+    },
+    {
+     "set": [
+      "_can",
+      1
+     ]
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    },
+    {
+     "place": [
+      "peg",
+      [
+       60,
+       5.1,
+       60
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "whistle_1",
+   "when": {
+    "event": "swing"
+   },
+   "if": "_can == 1 && _last >= 0 && _nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_can",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_echo_t",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_echo_pend",
+      1
+     ]
+    },
+    {
+     "show": "ghost_1"
+    },
+    {
+     "emit": "whistle"
+    }
+   ]
+  },
+  {
+   "id": "whistle_2",
+   "when": {
+    "event": "swing"
+   },
+   "if": "_can == 1 && _last >= 0 && _nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_can",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_echo_t",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_echo_pend",
+      1
+     ]
+    },
+    {
+     "show": "ghost_2"
+    },
+    {
+     "emit": "whistle"
+    }
+   ]
+  },
+  {
+   "id": "whistle_3",
+   "when": {
+    "event": "swing"
+   },
+   "if": "_can == 1 && _last >= 0 && _nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_can",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_echo_t",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_echo_pend",
+      1
+     ]
+    },
+    {
+     "show": "ghost_3"
+    },
+    {
+     "emit": "whistle"
+    }
+   ]
+  },
+  {
+   "id": "whistle_4",
+   "when": {
+    "event": "swing"
+   },
+   "if": "_can == 1 && _last >= 0 && _nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_can",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_echo_t",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_echo_pend",
+      1
+     ]
+    },
+    {
+     "show": "ghost_4"
+    },
+    {
+     "emit": "whistle"
+    }
+   ]
+  },
+  {
+   "id": "whistle_5",
+   "when": {
+    "event": "swing"
+   },
+   "if": "_can == 1 && _last >= 0 && _nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_can",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_echo_t",
+      3
+     ]
+    },
+    {
+     "set": [
+      "_echo_pend",
+      1
+     ]
+    },
+    {
+     "show": "ghost_5"
+    },
+    {
+     "emit": "whistle"
+    }
+   ]
+  },
+  {
+   "id": "echo_tick",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_t > 0",
+   "do": [
+    {
+     "add": [
+      "_echo_t",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "echo_oar_1",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 0 && _nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "deck_1"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_plank_1",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 1 && _nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "stub_1"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_peg_1",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 2 && _nxt == 1",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      2
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_1"
+    },
+    {
+     "activate": "stub_1"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_oar_2",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 0 && _nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "deck_2"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_plank_2",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 1 && _nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "stub_2"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_peg_2",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 2 && _nxt == 2",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      3
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_2"
+    },
+    {
+     "activate": "stub_2"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_oar_3",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 0 && _nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "deck_3"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_plank_3",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 1 && _nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "deck_3"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_peg_3",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 2 && _nxt == 3",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      4
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_3"
+    },
+    {
+     "activate": "stub_3"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_oar_4",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 0 && _nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "deck_4"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_plank_4",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 1 && _nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "deck_4"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_peg_4",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 2 && _nxt == 4",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      5
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_4"
+    },
+    {
+     "activate": "stub_4"
+    },
+    {
+     "emit": "built_short"
+    }
+   ]
+  },
+  {
+   "id": "echo_oar_5",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 0 && _nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_plank_5",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 1 && _nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "echo_peg_5",
+   "when": {
+    "every": 0.5
+   },
+   "if": "_echo_pend == 1 && _echo_t == 0 && _last == 2 && _nxt == 5",
+   "do": [
+    {
+     "set": [
+      "_echo_pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "_nxt",
+      6
+     ]
+    },
+    {
+     "emit": "echo"
+    },
+    {
+     "hide": "ghost_5"
+    },
+    {
+     "activate": "deck_5"
+    },
+    {
+     "emit": "built"
+    }
+   ]
+  },
+  {
+   "id": "return_oar",
+   "when": {
+    "prop_below": [
+     "oar",
+     1.5
+    ]
+   },
+   "do": [
+    {
+     "place": [
+      "oar",
+      [
+       -0.2,
+       2.8,
+       0
+      ]
+     ]
+    },
+    {
+     "emit": "tool_returned"
+    }
+   ]
+  },
+  {
+   "id": "return_plank",
+   "when": {
+    "prop_below": [
+     "plank",
+     1.5
+    ]
+   },
+   "do": [
+    {
+     "place": [
+      "plank",
+      [
+       8.8,
+       4.0,
+       0
+      ]
+     ]
+    },
+    {
+     "emit": "tool_returned"
+    }
+   ]
+  },
+  {
+   "id": "return_peg",
+   "when": {
+    "prop_below": [
+     "peg",
+     1.5
+    ]
+   },
+   "do": [
+    {
+     "place": [
+      "peg",
+      [
+       26.8,
+       6.4,
+       0
+      ]
+     ]
+    },
+    {
+     "emit": "tool_returned"
+    }
+   ]
+  },
+  {
+   "id": "ink_rise",
+   "when": {
+    "every": 8
+   },
+   "if": "time > 8 && ink < 11",
+   "do": [
+    {
+     "add": [
+      "ink",
+      1
+     ]
+    },
+    {
+     "emit": "ink_up"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_3",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 3",
+   "do": [
+    {
+     "show": "ink_3"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_4",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 4",
+   "do": [
+    {
+     "show": "ink_4"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_5",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 5",
+   "do": [
+    {
+     "show": "ink_5"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_6",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 6",
+   "do": [
+    {
+     "show": "ink_6"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_7",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 7",
+   "do": [
+    {
+     "show": "ink_7"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "pier_3_0"
+    },
+    {
+     "deactivate": "pier_3_1"
+    },
+    {
+     "deactivate": "pier_3_2"
+    },
+    {
+     "deactivate": "pier_3_3"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "stub_4"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_8",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 8",
+   "do": [
+    {
+     "show": "ink_8"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "pier_3_0"
+    },
+    {
+     "deactivate": "pier_3_1"
+    },
+    {
+     "deactivate": "pier_3_2"
+    },
+    {
+     "deactivate": "pier_3_3"
+    },
+    {
+     "deactivate": "pier_4_0"
+    },
+    {
+     "deactivate": "pier_4_1"
+    },
+    {
+     "deactivate": "pier_4_2"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "stub_4"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_9",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 9",
+   "do": [
+    {
+     "show": "ink_9"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "pier_3_0"
+    },
+    {
+     "deactivate": "pier_3_1"
+    },
+    {
+     "deactivate": "pier_3_2"
+    },
+    {
+     "deactivate": "pier_3_3"
+    },
+    {
+     "deactivate": "pier_4_0"
+    },
+    {
+     "deactivate": "pier_4_1"
+    },
+    {
+     "deactivate": "pier_4_2"
+    },
+    {
+     "deactivate": "pier_4_3"
+    },
+    {
+     "deactivate": "pier_5_0"
+    },
+    {
+     "deactivate": "pier_5_1"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "stub_4"
+    },
+    {
+     "deactivate": "deck_5"
+    },
+    {
+     "deactivate": "stub_5"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_10",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 10",
+   "do": [
+    {
+     "show": "ink_10"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "pier_3_0"
+    },
+    {
+     "deactivate": "pier_3_1"
+    },
+    {
+     "deactivate": "pier_3_2"
+    },
+    {
+     "deactivate": "pier_3_3"
+    },
+    {
+     "deactivate": "pier_4_0"
+    },
+    {
+     "deactivate": "pier_4_1"
+    },
+    {
+     "deactivate": "pier_4_2"
+    },
+    {
+     "deactivate": "pier_4_3"
+    },
+    {
+     "deactivate": "pier_5_0"
+    },
+    {
+     "deactivate": "pier_5_1"
+    },
+    {
+     "deactivate": "pier_5_2"
+    },
+    {
+     "deactivate": "pier_5_3"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "stub_4"
+    },
+    {
+     "deactivate": "deck_5"
+    },
+    {
+     "deactivate": "stub_5"
+    }
+   ]
+  },
+  {
+   "id": "ink_at_11",
+   "when": {
+    "event": "ink_up"
+   },
+   "if": "ink == 11",
+   "do": [
+    {
+     "show": "ink_11"
+    },
+    {
+     "deactivate": "pier_0_0"
+    },
+    {
+     "deactivate": "pier_0_1"
+    },
+    {
+     "deactivate": "pier_0_2"
+    },
+    {
+     "deactivate": "pier_0_3"
+    },
+    {
+     "deactivate": "pier_1_0"
+    },
+    {
+     "deactivate": "pier_1_1"
+    },
+    {
+     "deactivate": "pier_1_2"
+    },
+    {
+     "deactivate": "pier_1_3"
+    },
+    {
+     "deactivate": "pier_2_0"
+    },
+    {
+     "deactivate": "pier_2_1"
+    },
+    {
+     "deactivate": "pier_2_2"
+    },
+    {
+     "deactivate": "pier_2_3"
+    },
+    {
+     "deactivate": "pier_3_0"
+    },
+    {
+     "deactivate": "pier_3_1"
+    },
+    {
+     "deactivate": "pier_3_2"
+    },
+    {
+     "deactivate": "pier_3_3"
+    },
+    {
+     "deactivate": "pier_4_0"
+    },
+    {
+     "deactivate": "pier_4_1"
+    },
+    {
+     "deactivate": "pier_4_2"
+    },
+    {
+     "deactivate": "pier_4_3"
+    },
+    {
+     "deactivate": "pier_5_0"
+    },
+    {
+     "deactivate": "pier_5_1"
+    },
+    {
+     "deactivate": "pier_5_2"
+    },
+    {
+     "deactivate": "pier_5_3"
+    },
+    {
+     "deactivate": "deck_1"
+    },
+    {
+     "deactivate": "stub_1"
+    },
+    {
+     "deactivate": "deck_2"
+    },
+    {
+     "deactivate": "stub_2"
+    },
+    {
+     "deactivate": "deck_3"
+    },
+    {
+     "deactivate": "stub_3"
+    },
+    {
+     "deactivate": "deck_4"
+    },
+    {
+     "deactivate": "stub_4"
+    },
+    {
+     "deactivate": "deck_5"
+    },
+    {
+     "deactivate": "stub_5"
+    }
+   ]
+  },
+  {
+   "id": "summit",
+   "when": {
+    "enter": {
+     "box": [
+      45.4,
+      8.5,
+      -1.5,
+      48.3,
+      12.4,
+      1.5
+     ]
+    }
+   },
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  },
+  {
+   "id": "drowned",
+   "when": {
+    "enter": {
+     "box": [
+      -30,
+      -2,
+      -20,
+      150,
+      1.0,
+      20
+     ]
+    }
+   },
+   "do": [
+    {
+     "emit": "inked"
+    },
+    {
+     "end": "inked"
+    }
+   ]
+  }
+ ],
+ "objects": [
+  {
+   "id": "pier_0_0",
+   "type": "box",
+   "size": [
+    1.2,
+    2.5,
+    3.0
+   ],
+   "position": [
+    -1.4,
+    1.25,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_0_1",
+   "type": "box",
+   "size": [
+    1.2,
+    2.8,
+    3.0
+   ],
+   "position": [
+    -0.2,
+    1.4,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_0_2",
+   "type": "box",
+   "size": [
+    1.2,
+    3.1,
+    3.0
+   ],
+   "position": [
+    1.0,
+    1.55,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_0_3",
+   "type": "box",
+   "size": [
+    1.2,
+    3.4,
+    3.0
+   ],
+   "position": [
+    2.2,
+    1.7,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_0",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    -1.7,
+    2.5,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    0,
+    9
+   ]
+  },
+  {
+   "id": "lean2_0",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    2.5,
+    3.4,
+    1.7
+   ],
+   "rotation": [
+    0,
+    0,
+    -7
+   ]
+  },
+  {
+   "id": "pier_1_0",
+   "type": "box",
+   "size": [
+    1.2,
+    3.7,
+    3.0
+   ],
+   "position": [
+    7.6,
+    1.85,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_1_1",
+   "type": "box",
+   "size": [
+    1.2,
+    4.0,
+    3.0
+   ],
+   "position": [
+    8.8,
+    2.0,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_1_2",
+   "type": "box",
+   "size": [
+    1.2,
+    4.3,
+    3.0
+   ],
+   "position": [
+    10.0,
+    2.15,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_1_3",
+   "type": "box",
+   "size": [
+    1.2,
+    4.6,
+    3.0
+   ],
+   "position": [
+    11.2,
+    2.3,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_1",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    7.3,
+    3.7,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    40,
+    -9
+   ]
+  },
+  {
+   "id": "lean2_1",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    11.5,
+    4.6,
+    1.7
+   ],
+   "rotation": [
+    0,
+    70,
+    7
+   ]
+  },
+  {
+   "id": "pier_2_0",
+   "type": "box",
+   "size": [
+    1.2,
+    4.9,
+    3.0
+   ],
+   "position": [
+    16.6,
+    2.45,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_2_1",
+   "type": "box",
+   "size": [
+    1.2,
+    5.2,
+    3.0
+   ],
+   "position": [
+    17.8,
+    2.6,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_2_2",
+   "type": "box",
+   "size": [
+    1.2,
+    5.5,
+    3.0
+   ],
+   "position": [
+    19.0,
+    2.75,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_2_3",
+   "type": "box",
+   "size": [
+    1.2,
+    5.8,
+    3.0
+   ],
+   "position": [
+    20.2,
+    2.9,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_2",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    16.3,
+    4.9,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    80,
+    9
+   ]
+  },
+  {
+   "id": "lean2_2",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    20.5,
+    5.8,
+    1.7
+   ],
+   "rotation": [
+    0,
+    140,
+    -7
+   ]
+  },
+  {
+   "id": "pier_3_0",
+   "type": "box",
+   "size": [
+    1.2,
+    6.1,
+    3.0
+   ],
+   "position": [
+    25.6,
+    3.05,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_3_1",
+   "type": "box",
+   "size": [
+    1.2,
+    6.4,
+    3.0
+   ],
+   "position": [
+    26.8,
+    3.2,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_3_2",
+   "type": "box",
+   "size": [
+    1.2,
+    6.7,
+    3.0
+   ],
+   "position": [
+    28.0,
+    3.35,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_3_3",
+   "type": "box",
+   "size": [
+    1.2,
+    7.0,
+    3.0
+   ],
+   "position": [
+    29.2,
+    3.5,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_3",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    25.3,
+    6.1,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    120,
+    -9
+   ]
+  },
+  {
+   "id": "lean2_3",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    29.5,
+    7.0,
+    1.7
+   ],
+   "rotation": [
+    0,
+    210,
+    7
+   ]
+  },
+  {
+   "id": "pier_4_0",
+   "type": "box",
+   "size": [
+    1.2,
+    7.3,
+    3.0
+   ],
+   "position": [
+    34.6,
+    3.65,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_4_1",
+   "type": "box",
+   "size": [
+    1.2,
+    7.6,
+    3.0
+   ],
+   "position": [
+    35.8,
+    3.8,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_4_2",
+   "type": "box",
+   "size": [
+    1.2,
+    7.9,
+    3.0
+   ],
+   "position": [
+    37.0,
+    3.95,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_4_3",
+   "type": "box",
+   "size": [
+    1.2,
+    8.2,
+    3.0
+   ],
+   "position": [
+    38.2,
+    4.1,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_4",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    34.3,
+    7.3,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    160,
+    9
+   ]
+  },
+  {
+   "id": "lean2_4",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    38.5,
+    8.2,
+    1.7
+   ],
+   "rotation": [
+    0,
+    280,
+    -7
+   ]
+  },
+  {
+   "id": "pier_5_0",
+   "type": "box",
+   "size": [
+    1.2,
+    8.5,
+    3.0
+   ],
+   "position": [
+    43.6,
+    4.25,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_5_1",
+   "type": "box",
+   "size": [
+    1.2,
+    8.8,
+    3.0
+   ],
+   "position": [
+    44.8,
+    4.4,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "pier_5_2",
+   "type": "box",
+   "size": [
+    1.2,
+    9.1,
+    3.0
+   ],
+   "position": [
+    46.0,
+    4.55,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@wood"
+   }
+  },
+  {
+   "id": "pier_5_3",
+   "type": "box",
+   "size": [
+    1.2,
+    9.4,
+    3.0
+   ],
+   "position": [
+    47.2,
+    4.7,
+    0
+   ],
+   "material": {
+    "preset": "pier",
+    "color": "@floor"
+   }
+  },
+  {
+   "id": "lean_5",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    43.3,
+    8.5,
+    -1.7
+   ],
+   "rotation": [
+    0,
+    200,
+    -9
+   ]
+  },
+  {
+   "id": "lean2_5",
+   "type": "prefab",
+   "prefab": "leaning_post",
+   "position": [
+    47.5,
+    9.4,
+    1.7
+   ],
+   "rotation": [
+    0,
+    350,
+    7
+   ]
+  },
+  {
+   "id": "deck_1",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    4.9,
+    3.3,
+    0
+   ],
+   "params": {
+    "len": 4.4
+   },
+   "collide": true
+  },
+  {
+   "id": "stub_1",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    3.5,
+    3.3,
+    0
+   ],
+   "params": {
+    "len": 1.4,
+    "c": "@trim"
+   },
+   "collide": true
+  },
+  {
+   "id": "ghost_1",
+   "type": "prefab",
+   "prefab": "echo_marker",
+   "position": [
+    2.6,
+    3.4,
+    0
+   ],
+   "params": {
+    "len": 4.2
+   }
+  },
+  {
+   "id": "deck_2",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    13.9,
+    4.5,
+    0
+   ],
+   "params": {
+    "len": 4.4
+   },
+   "collide": true
+  },
+  {
+   "id": "stub_2",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    12.5,
+    4.5,
+    0
+   ],
+   "params": {
+    "len": 1.4,
+    "c": "@trim"
+   },
+   "collide": true
+  },
+  {
+   "id": "ghost_2",
+   "type": "prefab",
+   "prefab": "echo_marker",
+   "position": [
+    11.6,
+    4.6,
+    0
+   ],
+   "params": {
+    "len": 4.2
+   }
+  },
+  {
+   "id": "deck_3",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    22.9,
+    5.7,
+    0
+   ],
+   "params": {
+    "len": 4.4
+   },
+   "collide": true
+  },
+  {
+   "id": "stub_3",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    21.5,
+    5.7,
+    0
+   ],
+   "params": {
+    "len": 1.4,
+    "c": "@trim"
+   },
+   "collide": true
+  },
+  {
+   "id": "ghost_3",
+   "type": "prefab",
+   "prefab": "echo_marker",
+   "position": [
+    20.6,
+    5.8,
+    0
+   ],
+   "params": {
+    "len": 4.2
+   }
+  },
+  {
+   "id": "deck_4",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    31.9,
+    6.9,
+    0
+   ],
+   "params": {
+    "len": 4.4
+   },
+   "collide": true
+  },
+  {
+   "id": "stub_4",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    30.5,
+    6.9,
+    0
+   ],
+   "params": {
+    "len": 1.4,
+    "c": "@trim"
+   },
+   "collide": true
+  },
+  {
+   "id": "ghost_4",
+   "type": "prefab",
+   "prefab": "echo_marker",
+   "position": [
+    29.6,
+    7.0,
+    0
+   ],
+   "params": {
+    "len": 4.2
+   }
+  },
+  {
+   "id": "deck_5",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    40.9,
+    8.1,
+    0
+   ],
+   "params": {
+    "len": 4.4
+   },
+   "collide": true
+  },
+  {
+   "id": "stub_5",
+   "type": "prefab",
+   "prefab": "span_deck",
+   "position": [
+    39.5,
+    8.1,
+    0
+   ],
+   "params": {
+    "len": 1.4,
+    "c": "@trim"
+   },
+   "collide": true
+  },
+  {
+   "id": "ghost_5",
+   "type": "prefab",
+   "prefab": "echo_marker",
+   "position": [
+    38.6,
+    8.2,
+    0
+   ],
+   "params": {
+    "len": 4.2
+   }
+  },
+  {
+   "id": "oar",
+   "type": "prefab",
+   "prefab": "oar_tool",
+   "position": [
+    -0.2,
+    2.8,
+    0
+   ],
+   "movable": true
+  },
+  {
+   "id": "plank",
+   "type": "prefab",
+   "prefab": "plank_tool",
+   "position": [
+    62,
+    5.1,
+    60
+   ],
+   "movable": true
+  },
+  {
+   "id": "peg",
+   "type": "prefab",
+   "prefab": "peg_tool",
+   "position": [
+    64,
+    5.1,
+    60
+   ],
+   "movable": true
+  },
+  {
+   "id": "stash_deck",
+   "type": "box",
+   "size": [
+    12,
+    0.2,
+    6
+   ],
+   "position": [
+    62,
+    5,
+    60
+   ]
+  },
+  {
+   "id": "plinth",
+   "type": "prefab",
+   "prefab": "echo_statue",
+   "position": [
+    47.2,
+    9.4,
+    0
+   ],
+   "params": {
+    "c": "@stone",
+    "e": "@accent"
+   },
+   "collide": false
+  },
+  {
+   "id": "ink_1",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    0.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_2",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    1.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_3",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    2.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_4",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    3.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_5",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    4.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_6",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    5.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_7",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    6.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_8",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    7.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_9",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    8.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_10",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    9.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ink_11",
+   "type": "box",
+   "size": [
+    200,
+    1.0,
+    60
+   ],
+   "position": [
+    40,
+    10.5,
+    0
+   ],
+   "collide": false,
+   "material": {
+    "preset": "ink"
+   }
+  },
+  {
+   "id": "ground",
+   "type": "plane",
+   "size": [
+    300,
+    60
+   ],
+   "position": [
+    40,
+    0.01,
+    0
+   ],
+   "material": {
+    "color": "@floor"
+   }
+  }
+ ],
+ "prefabs": {
+  "span_deck": {
+   "desc": "a bridge deck of lashed boards: the tool you laid, as a walkable span",
+   "params": {
+    "len": {
+     "default": 4.0
+    },
+    "c": {
+     "default": "#6b4a35",
+     "palette": "wood"
+    }
+   },
+   "objects": [
+    {
+     "id": "boards",
+     "type": "box",
+     "size": [
+      "$len",
+      0.2,
+      2.4
+     ],
+     "material": {
+      "color": "$c",
+      "roughness": 0.9
+     }
+    },
+    {
+     "id": "lash",
+     "type": "box",
+     "size": [
+      0.1,
+      0.24,
+      2.5
+     ],
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "@primary",
+      "emissive": "@primary"
+     }
+    }
+   ]
+  },
+  "echo_marker": {
+   "desc": "the echo's ghost: a pale statue repeating your last move at the next gap, and the span it will lay",
+   "params": {
+    "len": {
+     "default": 4.0
+    }
+   },
+   "objects": [
+    {
+     "id": "span",
+     "type": "box",
+     "size": [
+      "$len",
+      0.1,
+      2.2
+     ],
+     "position": [
+      "=$len/2+0.2",
+      -0.1,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "preset": "echoglow"
+     }
+    },
+    {
+     "id": "body",
+     "type": "box",
+     "size": [
+      0.5,
+      1.2,
+      0.35
+     ],
+     "position": [
+      0,
+      0.6,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "preset": "echoglow"
+     }
+    },
+    {
+     "id": "head",
+     "type": "sphere",
+     "radius": 0.2,
+     "position": [
+      0,
+      1.4,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "preset": "echoglow"
+     }
+    }
+   ]
+  },
+  "echo_statue": {
+   "desc": "the forgotten statue on its plinth: where the night ends",
+   "params": {
+    "c": {
+     "default": "#9b9aa8",
+     "palette": "stone"
+    },
+    "e": {
+     "default": "#6fe3d1",
+     "palette": "accent"
+    }
+   },
+   "objects": [
+    {
+     "id": "plinth",
+     "type": "box",
+     "size": [
+      1.4,
+      0.5,
+      1.4
+     ],
+     "position": [
+      0,
+      0.25,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "roughness": 0.95
+     }
+    },
+    {
+     "id": "body",
+     "type": "box",
+     "size": [
+      0.6,
+      1.3,
+      0.4
+     ],
+     "position": [
+      0,
+      1.15,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c",
+      "roughness": 0.9
+     }
+    },
+    {
+     "id": "head",
+     "type": "sphere",
+     "radius": 0.24,
+     "position": [
+      0,
+      2.0,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$c"
+     }
+    },
+    {
+     "id": "eye",
+     "type": "sphere",
+     "radius": 0.05,
+     "position": [
+      0,
+      2.02,
+      0.2
+     ],
+     "collide": false,
+     "material": {
+      "color": "$e",
+      "emissive": "$e"
+     }
+    }
+   ]
+  },
+  "leaning_post": {
+   "desc": "a pier post that has leaned for a hundred years",
+   "params": {
+    "w": {
+     "default": "#6b4a35",
+     "palette": "wood"
+    }
+   },
+   "objects": [
+    {
+     "id": "post",
+     "type": "box",
+     "size": [
+      0.18,
+      2.2,
+      0.18
+     ],
+     "position": [
+      0,
+      1.1,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$w",
+      "roughness": 0.95
+     }
+    },
+    {
+     "id": "knot",
+     "type": "sphere",
+     "radius": 0.13,
+     "position": [
+      0,
+      2.2,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "@metal",
+      "metallic": 0.6
+     }
+    }
+   ]
+  },
+  "oar_tool": {
+   "desc": "the ferryman's oar: the longest reach, one good span",
+   "params": {
+    "w": {
+     "default": "#6b4a35",
+     "palette": "wood"
+    },
+    "a": {
+     "default": "#e9b872",
+     "palette": "primary"
+    }
+   },
+   "objects": [
+    {
+     "id": "shaft",
+     "type": "box",
+     "size": [
+      0.1,
+      0.1,
+      1.0
+     ],
+     "position": [
+      0,
+      0.05,
+      0
+     ],
+     "material": {
+      "color": "$w"
+     }
+    },
+    {
+     "id": "blade",
+     "type": "box",
+     "size": [
+      0.3,
+      0.06,
+      0.4
+     ],
+     "position": [
+      0,
+      0.05,
+      0.4
+     ],
+     "material": {
+      "color": "$a"
+     }
+    }
+   ]
+  },
+  "plank_tool": {
+   "desc": "what is left of the oar: a plank, a shorter reach",
+   "params": {
+    "w": {
+     "default": "#6b4a35",
+     "palette": "wood"
+    },
+    "a": {
+     "default": "#e9b872",
+     "palette": "primary"
+    }
+   },
+   "objects": [
+    {
+     "id": "board",
+     "type": "box",
+     "size": [
+      0.4,
+      0.07,
+      1.0
+     ],
+     "position": [
+      0,
+      0.035,
+      0
+     ],
+     "material": {
+      "color": "$w"
+     }
+    },
+    {
+     "id": "nail",
+     "type": "box",
+     "size": [
+      0.06,
+      0.09,
+      0.06
+     ],
+     "position": [
+      0,
+      0.05,
+      0.4
+     ],
+     "material": {
+      "color": "$a",
+      "emissive": "$a"
+     }
+    }
+   ]
+  },
+  "peg_tool": {
+   "desc": "what is left of the plank: a mooring peg, the last use",
+   "params": {
+    "a": {
+     "default": "#e9b872",
+     "palette": "primary"
+    },
+    "w": {
+     "default": "#6b4a35",
+     "palette": "wood"
+    }
+   },
+   "objects": [
+    {
+     "id": "peg",
+     "type": "box",
+     "size": [
+      0.14,
+      0.4,
+      0.14
+     ],
+     "position": [
+      0,
+      0.2,
+      0
+     ],
+     "material": {
+      "color": "$w"
+     }
+    },
+    {
+     "id": "cap",
+     "type": "box",
+     "size": [
+      0.18,
+      0.05,
+      0.18
+     ],
+     "position": [
+      0,
+      0.42,
+      0
+     ],
+     "material": {
+      "color": "$a",
+      "emissive": "$a"
+     }
+    }
+   ]
+  }
+ },
+ "audio": {
+  "music": {
+   "night": "audio/ferry_night.json",
+   "dusk": "audio/ferry_night.json",
+   "dawn": "audio/ferry_night.json",
+   "day": "audio/ferry_night.json"
+  },
+  "music_volume": 0.6
+ },
+ "ui": {
+  "title": "Crooked Ferry",
+  "labels": {
+   "ink": "Ink (m)"
+  },
+  "counters": [
+   {
+    "var": "ink",
+    "of": 11,
+    "label": "Ink rising"
+   }
+  ],
+  "objective": [
+   {
+    "if": "_echo_pend == 1",
+    "text": "Your echo is crossing a beat behind you..."
+   },
+   {
+    "if": "_can == 1",
+    "text": "Hands empty? SWING (click) to whistle: an echo copies your _last move at the next gap."
+   },
+   {
+    "if": "_last == 2",
+    "text": "Only the peg is left. Lay it at the _last gap."
+   },
+   {
+    "text": "Pick up the tool (E), carry it to the gap's edge and set it down. Climb. Never go down."
+   }
+  ],
+  "start": {
+   "title": "Crooked Ferry",
+   "text": "One night a year the forgotten statue may move. The ink is rising and it erases whatever it touches. Lay your oar across the gap (E to pick up and put down), then swing to WHISTLE: an echo copies your last move at the next gap, a beat later. Every tool you use wears into a smaller one: oar, plank, peg. Reach the plinth at the top. Never go down.",
+   "button": "Move"
+  },
+  "end": {
+   "victory": {
+    "title": "The statue stands at the top",
+    "text": "Dawn. The ink never reached it.",
+    "button": "Another night"
+   },
+   "inked": {
+    "title": "Erased",
+    "text": "The ink took the stone and everything under it.",
+    "button": "Again"
+   }
+  }
+ },
+ "hud": {
+  "show_crosshair": true
+ },
+ "phases": {
+  "bridged": [
+   "use_oar_1",
+   "use_oar_2",
+   "use_plank_3",
+   "use_plank_4",
+   "use_peg_5"
+  ]
+ },
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "leak",
+    "interest",
+    "drop",
+    "floating",
+    "sunk",
+    "carry"
+   ]
+  },
+  "objects": {
+   "exist": [
+    "oar",
+    "plank",
+    "peg",
+    "deck_1",
+    "ink_1",
+    "plinth"
+   ],
+   "min_count": 40
+  },
+  "sim": [
+   {
+    "name": "mechanic: lay the oar, whistle, the echo lays it again at the next gap and the oar wears into a plank",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "oar"
+     },
+     {
+      "player": "p1",
+      "walk": "2.0,0"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -20,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 1.0
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 2.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "built",
+      "count": 2
+     },
+     {
+      "event": "whistle",
+      "count": 1
+     },
+     {
+      "event": "echo",
+      "count": 1
+     },
+     {
+      "var": "_nxt",
+      "eq": 3
+     },
+     {
+      "var": "_last",
+      "eq": 0
+     },
+     {
+      "shown": "deck_1"
+     },
+     {
+      "shown": "deck_2"
+     },
+     {
+      "prop": "plank",
+      "not_in_zone": "ledge_0"
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "win: oar, echo, plank, echo, peg, plinth",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "oar"
+     },
+     {
+      "player": "p1",
+      "walk": "2.0,0"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -20,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 1.0
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 2.5
+     },
+     {
+      "player": "p1",
+      "walk": "16.6,0"
+     },
+     {
+      "player": "p1",
+      "interact": "plank"
+     },
+     {
+      "player": "p1",
+      "walk": "20.0,0"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -20,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 1.0
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 2.5
+     },
+     {
+      "player": "p1",
+      "walk": "34.6,0"
+     },
+     {
+      "player": "p1",
+      "interact": "peg"
+     },
+     {
+      "player": "p1",
+      "walk": "38.0,0"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "yaw_deg": 90,
+       "pitch_deg": -20,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 1.0
+     },
+     {
+      "player": "p1",
+      "walk": "46.8,0"
+     },
+     {
+      "player": "p1",
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "event": "echo",
+      "count": 2
+     },
+     {
+      "event": "built_short",
+      "count": 0
+     },
+     {
+      "ended": "victory"
+     }
+    ],
+    "max_seconds": 90
+   },
+   {
+    "name": "lose: stand still and the ink erases the pier",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "wait": 60
+     }
+    ],
+    "expect": [
+     {
+      "ended": "inked"
+     }
+    ],
+    "max_seconds": 70
+   }
+  ],
+  "walk": [
+   {
+    "name": "with every span laid the pier climbs to the plinth",
+    "phase": "bridged",
+    "path": "-1.4,0; 46.0,0",
+    "ends_near": [
+     46.0,
+     0
+    ],
+    "tol": 0.5,
+    "floor_y": 9.1
+   }
+  ],
+  "reach": [
+   {
+    "why": "summit unreachable before any span is laid",
+    "to": [
+     46.0,
+     0
+    ],
+    "reachable": false
+   }
+  ]
+ }
+}
