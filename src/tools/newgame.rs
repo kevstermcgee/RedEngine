@@ -707,6 +707,8 @@ mod tests {
                 .args(["check", "--views"])
                 .env("HOME", &dir)
                 .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+                // The wrapper looks for engine binaries in CARGO_TARGET_DIR when it is set: the caller's would find a real, stale build.
+                .env_remove("CARGO_TARGET_DIR")
                 .output()
                 .unwrap();
             let _ = std::fs::remove_dir_all(&dir);
