@@ -139,5 +139,58 @@ The prebuilt fetch (no compile), `describe 2d`, validate messages with did-you-m
 ## Automatic measurements
 
 <!-- automatic-measurements:begin -->
-(the CLI fills this in after the run: command trace, failures, repair cycles, documentation read, engine source read)
+Friction report (`scripts/agent_bench.py summary`):
+
+```json
+{
+ "commands": 23,
+ "failed": 5,
+ "documentation_topics_read": [
+  "2d",
+  "audio"
+ ],
+ "searches": [
+  "become every prefab with a tag change solid collision at runtime",
+  "levels next level on touch goal persist best",
+  "conditional action inside a do list if branch"
+ ],
+ "cli_source_exploration": 0,
+ "retries_of_a_failed_command_without_a_success_between": 2,
+ "repair_cycles": 3,
+ "first_failures": [
+  {
+   "command": "validate examples/2d/copper-choir.game2d.json",
+   "error": "6 error(s)"
+  },
+  {
+   "command": "verify examples/2d/copper-choir.game2d.json",
+   "error": "FAIL  [simulation] scenario `carry_all_ten`: held right for 8 s and it never became true: expected p_x gte 306, found 52"
+  },
+  {
+   "command": "sim examples/2d/copper-choir.game2d.json --only same_surface_twice",
+   "error": "FAIL  scenario `same_surface_twice`: 519 ticks (8.7 s), ended not, hash 1a3b54b51659f714"
+  },
+  {
+   "command": "verify examples/2d/copper-choir.game2d.json",
+   "error": "FAIL  [simulation] scenario `carry_all_ten`: held right for 8 s and it never became true: expected p_x gte 306, found 52"
+  },
+  {
+   "command": "sim examples/2d/copper-choir.game2d.json --only carry_all_ten",
+   "error": "FAIL  scenario `carry_all_ten`: 841 ticks (14.0 s), ended not, hash c589416169daa607"
+  }
+ ],
+ "used_verify": true,
+ "minutes": 4.2,
+ "transcript": {
+  "engine_files_read_with_tools": 0,
+  "engine_files_read_with_the_shell": 0,
+  "examples": [],
+  "edits": 0
+ }
+}
+```
+
+Agent session: 45 assistant turns; tools {"Bash": 22, "Read": 3}; cost $0.62; wall 4.5 min.
+
+Notes logged during the run: 9 (26 minutes claimed lost). Measured wall time 4.5 min. **The claimed minutes exceed the measured wall time: read `cost_min` as a relative weight, not as minutes.**
 <!-- automatic-measurements:end -->
