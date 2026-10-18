@@ -1,0 +1,2 @@
+# Reviews kept off every page (public.json, SUMMARY.md, the Idea Forge brief): one review id per line, `# why` after it.
+# Then run `python3 scripts/player_reviews.py build` and commit. The review stays in reviews.jsonl as the record.

@@ -33,3 +33,10 @@ fn the_idea_forge_pipeline_passes_its_checks() {
 fn a_supervised_process_respects_its_deadline_whatever_it_prints_and_leaves_nothing_running() {
     run_python_tests("scripts/test_proc_supervisor.py", &[]);
 }
+
+/// Player reviews (`scripts/player_reviews.py`, docs/player-reviews/README.md): only valid reviews of real games are kept, each once; hidden ones leave every page; the Idea Forge
+/// brief quotes the best- and worst-liked games.
+#[test]
+fn player_reviews_keep_only_valid_reviews_and_reach_the_idea_forge() {
+    run_python_tests("scripts/test_player_reviews.py", &[]);
+}
