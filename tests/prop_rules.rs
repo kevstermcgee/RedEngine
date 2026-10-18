@@ -194,6 +194,8 @@ fn a_crate_keeps_its_own_heat_and_fuse_and_a_restarted_timer_runs_out_once() {
              "expect": [{"var": "steps", "eq": 2}, {"event": "shut", "count": 1}, {"var": "shut", "eq": 1}]}
         ]).as_array().unwrap().clone();
     });
+    let scene: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    red_engine2::content::typed::<red_engine2::content::scene::Scene>(&scene).expect("the typed definition knows `prop_vars`, `timer` and `prop_var` checks");
     let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 60 };
     let (report, trace) = simrun::run(&path, None, Some("fuse:"), Some(opts)).expect("run");
     assert!(report.all_passed(), "{}", report.render());

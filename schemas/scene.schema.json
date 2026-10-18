@@ -1308,6 +1308,12 @@
             "null"
           ]
         },
+        "prop_var": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "of": {
           "type": [
             "string",
@@ -1394,7 +1400,19 @@
             "null"
           ]
         },
-        "aimed_at": true
+        "aimed_at": true,
+        "game": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
       "additionalProperties": false,
       "patternProperties": {

@@ -10,6 +10,9 @@
 use super::clock::TICK_RATE_HZ;
 use serde_json::Value;
 
+/// The longest a timer runs: a day of match time. A longer `secs` counts as this.
+pub const MAX_TIMER_SECS: f64 = 86_400.0;
+
 /// A timer a rule names: one of the scene's (index into [`super::rules::RuleSet::timers`]) or every loose prop's own copy of one
 /// (index into [`super::rules::RuleSet::prop_timers`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,11 +99,12 @@ impl Timers {
     }
 
     /// Starts (or restarts) `t` (for the prop at set index `prop`, a per-prop timer) to run out `secs` from `tick`: at least one tick later, so a
-    /// timer restarted by its own rule fires again on a later tick, never in a loop. A negative or non-finite `secs` counts as 0.
+    /// timer restarted by its own rule fires again on a later tick, never in a loop. A negative or non-finite `secs` counts as 0, and more than
+    /// [`MAX_TIMER_SECS`] counts as that (a huge `secs` used to overflow the deadline).
     pub fn start(&mut self, t: TimerRef, prop: Option<usize>, tick: u64, secs: f64) {
-        let ticks = if secs.is_finite() { (secs.max(0.0) * TICK_RATE_HZ as f64).round() as u64 } else { 0 };
+        let ticks = if secs.is_finite() { (secs.clamp(0.0, MAX_TIMER_SECS) * TICK_RATE_HZ as f64).round() as u64 } else { 0 };
         if let Some(s) = self.slot(t, prop) {
-            self.deadline[s] = Some(tick + ticks.max(1));
+            self.deadline[s] = Some(tick.saturating_add(ticks.max(1)));
         }
     }
 
@@ -297,6 +301,65 @@ mod tests {
         t.cancel(g, None);
         t.advance(200);
         assert!(!t.rang(g, None, 200));
+    }
+
+    /// The rules of a scene with one loose prop, `crate`.
+    fn parse_one(v: serde_json::Value) -> Result<crate::sim::rules::RuleSet, Vec<String>> {
+        let mut refs = Refs::default();
+        refs.prop_ids.insert("crate".to_string());
+        refs.object_ids.insert("crate".to_string());
+        parse_rules(v.as_object().unwrap(), &refs)
+    }
+
+    #[test]
+    fn a_prop_variable_or_a_timer_that_reads_a_prop_asks_for_the_prop_views() {
+        // Nothing else here looks at a prop: without views `prop_y(self)` read 0.
+        for action in [json!({"set": ["self.h", "prop_y(self)"]}), json!({"timer": ["self.fuse", "prop_y(self)"]})] {
+            let set = parse_one(json!({
+                "prop_vars": {"h": 0},
+                "rules": [
+                    {"id": "took", "when": {"event": "pickup", "prop": "crate"}, "do": [action.clone()]},
+                    {"id": "fuse", "when": {"timer": "self.fuse"}, "do": [{"emit": "boom"}]},
+                    {"id": "lit", "when": {"event": "pickup", "prop": "crate"}, "do": [{"timer": ["self.fuse", 1]}]}
+                ]
+            }))
+            .unwrap();
+            assert!(set.needs_props, "{action}");
+        }
+        let set =
+            parse_one(json!({"prop_vars": {"h": 0}, "rules": [{"id": "took", "when": {"event": "pickup", "prop": "crate"}, "do": [{"set": ["self.h", 2]}]}]}))
+                .unwrap();
+        assert!(!set.needs_props, "a constant reads nothing");
+    }
+
+    #[test]
+    fn a_prop_variable_named_with_an_underscore_is_kept_and_an_empty_name_is_an_error() {
+        let set = parse_one(json!({"prop_vars": {"_heat": 1, "x-why": "a note", "$comment": "so is this"}, "rules": [
+            {"id": "warm", "when": {"event": "pickup", "prop": "crate"}, "do": [{"add": ["self._heat", 1]}]}
+        ]}))
+        .unwrap();
+        assert_eq!((set.prop_var_names.as_slice(), set.prop_var_init.as_slice()), (["_heat".to_string()].as_slice(), [1.0].as_slice()));
+        let e = parse_one(json!({"prop_vars": {"": 0}})).unwrap_err().join("\n");
+        assert!(e.contains("prop_vars.: a variable name is letters"), "{e}");
+    }
+
+    #[test]
+    fn a_huge_or_endless_duration_is_capped_not_an_overflow() {
+        let mut t = Timers::new(1, 0, 0);
+        let g = TimerRef::Global(0);
+        let cap = MAX_TIMER_SECS * TICK_RATE_HZ as f64;
+        for secs in [1e300, f64::MAX, MAX_TIMER_SECS * 2.0] {
+            t.start(g, None, u64::MAX - 10, secs);
+            assert_eq!(t.left(g, None, u64::MAX - 10), Some(10.0 / TICK_RATE_HZ as f64), "{secs}: saturates at the last tick, never wraps into the past");
+            t.start(g, None, 100, secs);
+            assert_eq!(t.left(g, None, 100), Some(MAX_TIMER_SECS), "{secs}: capped");
+            t.advance(100 + cap as u64 - 1);
+            assert!(!t.rang(g, None, 100 + cap as u64 - 1));
+            t.advance(100 + cap as u64);
+            assert!(t.rang(g, None, 100 + cap as u64), "{secs}: runs out after the cap");
+        }
+        t.start(g, None, 5, f64::INFINITY);
+        assert_eq!(t.left(g, None, 5), Some(1.0 / TICK_RATE_HZ as f64), "not finite counts as 0: the next tick");
     }
 
     #[test]

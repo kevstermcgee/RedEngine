@@ -1237,13 +1237,14 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             None => errs.push("prop_vars: must be an object like {\"hp\": 3} (every loose prop gets its own copy, `self.hp`)".to_string()),
             Some(_) if set.prop_ids.is_empty() => errs.push("prop_vars: the scene has no loose props (`\"movable\": true`) to give them to".to_string()),
             Some(o) => {
-                for (name, v) in o.iter().filter(|(k, _)| !crate::strict::is_extension_key(k)) {
+                // As in `vars`: `_name` is a variable, only `x-*` / `$comment` / `notes` are notes (a `_` name used to be dropped silently).
+                for (name, v) in o.iter().filter(|(k, _)| !(k.starts_with("x-") || *k == "$comment" || *k == "notes")) {
                     let init = match v {
                         Value::Number(n) => n.as_f64(),
                         Value::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
                         _ => None,
                     };
-                    if !name.chars().all(|c| c.is_alphanumeric() || c == '_') || name.starts_with(|c: char| c.is_ascii_digit()) {
+                    if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_') || name.starts_with(|c: char| c.is_ascii_digit()) {
                         errs.push(format!("prop_vars.{name}: a variable name is letters, digits and `_`, not starting with a digit"));
                     } else if set.prop_var_names.len() >= MAX_PROP_VARS {
                         errs.push(format!("prop_vars.{name}: at most {MAX_PROP_VARS} per-prop variables (each loose prop has a copy)"));
@@ -1442,7 +1443,9 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
             matches!(r.when, When::PropEnter(_) | When::PropExit(_) | When::PropBelow { .. })
                 || r.cond.as_ref().is_some_and(Expr::reads_world)
                 || r.actions.iter().any(|a| match a {
-                    Action::Set { value, .. } | Action::SetMe { value, .. } => value.reads_world(),
+                    Action::Set { value, .. } | Action::SetMe { value, .. } | Action::SetIts { value, .. } | Action::Timer { secs: value, .. } => {
+                        value.reads_world()
+                    }
                     Action::Reset(_) | Action::Place { .. } => true,
                     _ => false,
                 })
