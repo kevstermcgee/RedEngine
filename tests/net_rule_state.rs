@@ -144,3 +144,41 @@ fn a_hud_counter_on_a_variable_declared_after_the_cap_counts_online() {
     let old = texts(&everything[..MAX_RULE_VARS]);
     assert!(old.iter().any(|t| t.contains("0 / 9")) && old.iter().any(|t| t == "WAIT"), "{old:?}");
 }
+
+/// The online HUD names the server's variables by index, so the names must come from the map that was hashed when joining. The client reads the
+/// file again to join (`ClientWorld::load`); a scene it parsed at startup may be older (here a variable was added in front since), and naming
+/// from that one put `deaths`' value under `score`. `ClientWorld::rule_var_names` comes from the hashed file.
+#[test]
+fn a_client_names_the_rule_variables_from_the_map_it_joined_with() {
+    let dir = std::env::temp_dir().join(format!("net_rule_state_names_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("lab.json");
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&source).unwrap();
+    value["rules"] = json!([{"id": "finish", "when": {"after": 0.05}, "once": true, "do": [{"add": ["score", 3]}, {"end": "victory"}]}]);
+    value["vars"] = json!({"score": 0});
+    std::fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
+    let at_startup = red_engine2::load_scene(&path).unwrap();
+    value["vars"] = json!({"deaths": 0, "score": 0});
+    let text = serde_json::to_string(&value).unwrap();
+    std::fs::write(&path, &text).unwrap();
+
+    let (_scene, world) = red_engine2::net::bot::ClientWorld::load(&path).unwrap();
+    assert_eq!(world.rule_var_names, ["deaths", "score"]);
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
+    let mut server =
+        Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), world.map_hash), MatchSim::new(&scene, parse_spawns(&text).unwrap())).unwrap();
+    server.set_logger(|_| {});
+    let addr = server.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop2 = stop.clone();
+    let handle = std::thread::spawn(move || server.run(&stop2));
+    let mut client = NetClient::connect(addr, 0, world.map_hash, 0).unwrap();
+    wait_for_finished_state(&mut [&mut client]);
+    let state = client.rule_state().unwrap();
+    assert_eq!(state.named(&world.rule_var_names), [("deaths", 0.0), ("score", 3.0)]);
+    assert_ne!(state.named(at_startup.rules.own_var_names()), [("score", 3.0)], "the startup scene's names are the wrong ones for this match");
+    stop.store(true, Ordering::Relaxed);
+    handle.join().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}

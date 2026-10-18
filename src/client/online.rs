@@ -109,8 +109,9 @@ impl App {
             OnlineScreen::Hud => hud_layout(w, h, &view, &self.scene.hud),
         };
         if screen == OnlineScreen::Hud && self.rules.has_rules() {
-            if let Some(state) = self.net.as_ref().and_then(|n| n.client.rule_state()) {
-                let vars = state.named(self.scene.rules.own_var_names());
+            if let Some((net, state)) = self.net.as_ref().and_then(|n| n.client.rule_state().map(|s| (n, s))) {
+                // Named from the map that was hashed when joining (`try_connect` reads the file again), not from `self.scene`, parsed at startup.
+                let vars = state.named(&net.world.rule_var_names);
                 let event = (!state.event.is_empty() && state.server_tick.saturating_sub(state.event_tick) <= 120).then_some(state.event.as_str());
                 let outcome = (!state.outcome.is_empty()).then_some(state.outcome.as_str());
                 let mut rules = self.rules_overlay(w, h, &vars, event, outcome);
