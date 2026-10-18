@@ -114,10 +114,12 @@ fn run(command: Command) -> Result<(), String> {
             Ok(())
         }
         #[cfg(feature = "gfx")]
-        Command::Play2d { game, seed, save, mute, max_ticks } => {
+        Command::Play2d { game, seed, save, mute, max_ticks, fullscreen, intro } => {
             let seed = crate::play2d::launch_seed(seed);
             eprintln!("seed {seed} (replay this run's random draws with --seed {seed})");
-            crate::play2d::run(crate::play2d::Options { game, seed, save, mute, max_ticks })
+            let player = crate::ui::title_card::for_player();
+            let (fullscreen, intro) = (fullscreen || player, intro || player);
+            crate::play2d::run(crate::play2d::Options { game, seed, save, mute, max_ticks, fullscreen, intro })
         }
         #[cfg(not(feature = "gfx"))]
         Command::Play2d { .. } => Err(

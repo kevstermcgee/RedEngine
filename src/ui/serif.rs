@@ -52,6 +52,21 @@ const ITALIC: &[&str] = &[
     "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
 ];
 
+/// A bold sans face for display type (the "RedEngine Games" title card): the site's brand is set in the system's bold UI sans.
+const SANS_BOLD: &[&str] = &[
+    "C:\\Windows\\Fonts\\segoeuib.ttf",
+    "C:\\Windows\\Fonts\\arialbd.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+    "/usr/share/fonts/noto/NotoSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/opentype/urw-base35/NimbusSans-Bold.otf",
+];
+
 fn open(path: &str) -> Option<FontVec> {
     let bytes = std::fs::read(path).ok()?;
     FontVec::try_from_vec_and_index(bytes, 0).ok()
@@ -141,6 +156,13 @@ impl Serif {
         }
         let italic = ITALIC.iter().find_map(|p| open(p));
         Serif { regular, italic, source }
+    }
+
+    /// The first bold sans face found on this machine (Segoe UI Bold on Windows), drawn as [`Face::Regular`]; the bitmap capitals without one.
+    pub fn sans_bold() -> Serif {
+        let found = SANS_BOLD.iter().find_map(|p| open(p).map(|f| (f, p.to_string())));
+        let (regular, source) = found.map_or((None, None), |(f, p)| (Some(f), Some(p)));
+        Serif { regular, italic: None, source }
     }
 
     /// No system font: only the bitmap capitals (tests use this for pixels that do not depend on the machine).

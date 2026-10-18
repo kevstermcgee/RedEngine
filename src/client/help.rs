@@ -22,6 +22,7 @@ pub(crate) const SWITCHES: &[(&str, &str)] = &[
         "folder: keep this game's settings and saved variables there, whatever folder the game runs from (an installed game sets it to `Saved Games\\<game>`)",
     ),
     ("RE2_RELAY", "HOST:PORT (a hostname works): the red_relay to register with when hosting, so a friend joins with a short code instead of port forwarding; the project relay is used when this is unset, `off` disables relays"),
+    ("RE2_PLAYER", "1: a player started the game (its Play-<slug>.exe and the RedEngine Games app set it): open in fullscreen and play the \"RedEngine Games\" title card first, as --fullscreen --intro"),
     ("RE2_SEED", "N: the launch seed (a `\"seed\": \"launch\"` sky, music journey or museum): the same number repeats a run"),
     ("RE2_FONT", "path: the serif typeface a museum's labels and map are set in (a .ttf or .otf); otherwise the first of Georgia, Palatino, P052, Noto, Liberation or DejaVu Serif found"),
     ("RE2_SONGS", "music files to queue in a game that plays the player's own music (`audio.playlist`), separated like PATH (: on Linux, ; on Windows); the picker then does not open"),

@@ -3,7 +3,11 @@
 //! [`red2d::host::Host`] is the whole game as plain calls (ticks in, RGBA frame / sound requests / save text out); this module is the platform around it: a `winit` window,
 //! `softbuffer` to show the CPU-rendered frame, `rodio` for the synthesized sounds and music, and a fixed 60 Hz tick clock. The game's rules, physics and picture are the
 //! same code the headless checks run, so what `verify` proves is what is played.
+//!
+//! Launched for a player (`RE2_PLAYER=1`, or `--fullscreen` / `--intro`), the window opens in borderless fullscreen and the "RedEngine Games" title card
+//! ([`crate::ui::title_card`]) plays before the first tick; the game waits for it, and any key or click skips it.
 
+use crate::ui::title_card::TitleCard;
 use red2d::host::{Host, SAVE_LOADED};
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
@@ -37,6 +41,10 @@ pub struct Options {
     pub mute: bool,
     /// Quit after this many ticks (a smoke test).
     pub max_ticks: Option<u64>,
+    /// Open in borderless fullscreen (`F11` toggles it).
+    pub fullscreen: bool,
+    /// Play the "RedEngine Games" title card before the game starts.
+    pub intro: bool,
 }
 
 /// The seed of one launch: `given` when the player asked for one (`--seed N`, to replay a run), otherwise a new one from the clock, so a shipped game does
@@ -82,6 +90,9 @@ pub fn run(opts: Options) -> Result<(), String> {
         last_save: Instant::now(),
         pointer: None,
         error: None,
+        fullscreen: opts.fullscreen,
+        intro: opts.intro.then(|| (TitleCard::default(), Instant::now())),
+        card_px: Vec::new(),
     };
     event_loop.run_app(&mut app).map_err(|e| e.to_string())?;
     app.write_save();
@@ -167,6 +178,10 @@ struct App {
     last_save: Instant,
     pointer: Option<[f32; 2]>,
     error: Option<String>,
+    fullscreen: bool,
+    /// The title card and when it started (the clock starts when the window opens); `None` once the game runs.
+    intro: Option<(TitleCard, Instant)>,
+    card_px: Vec<u8>,
 }
 
 impl App {
@@ -186,7 +201,48 @@ impl App {
         self.acc = Duration::ZERO;
     }
 
+    /// Shows the title card while it plays; false once it is over (or skipped).
+    fn draw_intro(&mut self) -> bool {
+        let Some((card, start)) = self.intro.as_mut() else { return false };
+        let (Some(window), Some(surface)) = (self.window.as_ref(), self.surface.as_mut()) else { return true };
+        let size = window.inner_size();
+        let (Some(w), Some(h)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) else { return true };
+        let (cw, ch) = TitleCard::size_for(size.width, size.height);
+        if !card.paint(cw, ch, start.elapsed().as_secs_f32(), &mut self.card_px) {
+            return false;
+        }
+        if surface.resize(w, h).is_err() {
+            return true;
+        }
+        let Ok(mut buf) = surface.buffer_mut() else { return true };
+        let px = &self.card_px;
+        for y in 0..size.height as usize {
+            let sy = y * ch as usize / size.height as usize;
+            let row = y * size.width as usize;
+            for x in 0..size.width as usize {
+                let p = (sy * cw as usize + x * cw as usize / size.width as usize) * 4;
+                buf[row + x] = u32::from(px[p]) << 16 | u32::from(px[p + 1]) << 8 | u32::from(px[p + 2]);
+            }
+        }
+        window.pre_present_notify();
+        let _ = buf.present();
+        true
+    }
+
+    /// The game begins: the card is gone and the clock starts from now (no burst of catch-up ticks).
+    fn end_intro(&mut self) {
+        self.intro = None;
+        self.last = Instant::now();
+        self.acc = Duration::ZERO;
+    }
+
     fn frame(&mut self, el: &ActiveEventLoop) {
+        if self.intro.is_some() {
+            if self.draw_intro() {
+                return;
+            }
+            self.end_intro();
+        }
         let now = Instant::now();
         self.acc += now - self.last;
         self.last = now;
@@ -256,7 +312,8 @@ impl ApplicationHandler for App {
         let attrs = Window::default_attributes()
             .with_title(self.title.clone())
             .with_inner_size(LogicalSize::new(vw * k, vh * k))
-            .with_min_inner_size(LogicalSize::new(vw.min(320), vh.min(200)));
+            .with_min_inner_size(LogicalSize::new(vw.min(320), vh.min(200)))
+            .with_fullscreen(self.fullscreen.then_some(winit::window::Fullscreen::Borderless(None)));
         let made = el.create_window(attrs).map_err(|e| e.to_string()).and_then(|w| {
             let w = Rc::new(w);
             let ctx = softbuffer::Context::new(w.clone()).map_err(|e| e.to_string())?;
@@ -268,6 +325,9 @@ impl ApplicationHandler for App {
                 self.window = Some(w);
                 self.surface = Some(s);
                 self.last = Instant::now();
+                if let Some((_, start)) = self.intro.as_mut() {
+                    *start = Instant::now();
+                }
             }
             Err(e) => {
                 self.error = Some(format!("could not open a window: {e}"));
@@ -277,6 +337,24 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, el: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+        // While the title card plays, a key (other than F11) or a click skips it, and no input reaches the game.
+        if self.intro.is_some() {
+            match &event {
+                WindowEvent::KeyboardInput { event: k, .. } if k.physical_key != PhysicalKey::Code(KeyCode::F11) => {
+                    if k.state == ElementState::Pressed && !k.repeat {
+                        self.end_intro();
+                    }
+                    return;
+                }
+                WindowEvent::MouseInput { state, .. } => {
+                    if *state == ElementState::Pressed {
+                        self.end_intro();
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
         match event {
             WindowEvent::CloseRequested => el.exit(),
             WindowEvent::Focused(false) => self.release_all(),

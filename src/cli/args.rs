@@ -901,6 +901,12 @@ pub(crate) enum Command {
         /// Quit after this many ticks (a smoke test).
         #[arg(long)]
         max_ticks: Option<u64>,
+        /// Open in borderless fullscreen (F11 toggles it).
+        #[arg(long)]
+        fullscreen: bool,
+        /// Play the "RedEngine Games" title card first (as a game started by a player does: `RE2_PLAYER=1` implies this and `--fullscreen`).
+        #[arg(long)]
+        intro: bool,
     },
     /// Scaffold a game project that USES the engine (pinned in game.json) instead of forking it: a starter blueprint and the map it builds,
     /// CLAUDE.md, STATUS.md, `scripts/red` (finds/builds the pinned engine) and a CI workflow. The result already passes `game check`.

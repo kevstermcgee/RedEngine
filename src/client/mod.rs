@@ -65,6 +65,7 @@ mod feedback;
 mod frame;
 mod headless;
 mod help;
+mod intro;
 mod listen;
 mod mode;
 mod online;
@@ -271,6 +272,9 @@ struct App {
     regrab: bool,
     /// `--fullscreen`: enter borderless fullscreen as soon as the window exists.
     start_fullscreen: bool,
+    /// `--intro`: play the "RedEngine Games" title card when the window opens (`intro::Intro` while it plays).
+    start_intro: bool,
+    intro: Option<intro::Intro>,
     /// When the mouse was last captured. Capturing recenters the cursor, which delivers one big
     /// spurious motion delta — without ignoring input briefly the camera spins away from the
     /// spawn heading the moment the window opens.
@@ -596,6 +600,8 @@ impl App {
             grabbed: false,
             regrab: false,
             start_fullscreen: false,
+            start_intro: false,
+            intro: None,
             grabbed_at: Instant::now(),
             sprint_held: false,
             jump_queued: false,
@@ -749,6 +755,7 @@ struct Args {
     debug_help: bool,
     transport: TransportChoice,
     fullscreen: bool,
+    intro: bool,
     players: usize,
     pads_only: bool,
 }
@@ -821,6 +828,10 @@ struct CliArgs {
     /// Open in borderless fullscreen (F or F11 toggles it while playing; the pause menu has a button).
     #[arg(long)]
     fullscreen: bool,
+    /// Play the "RedEngine Games" title card first. A game started by a player (`RE2_PLAYER=1`, set by its `Play-<slug>.exe` and the
+    /// RedEngine Games app) does this and opens in fullscreen without being asked.
+    #[arg(long)]
+    intro: bool,
     /// The server's identity fingerprint (`sha256:...`, printed by `red_server`): join over QUIC + TLS 1.3 (or RE2_SERVER_FINGERPRINT).
     #[arg(long, value_name = "SHA256")]
     server_fingerprint: Option<String>,
@@ -903,7 +914,8 @@ fn parse_args() -> Args {
         headless,
         debug_help: cli.debug_help,
         transport,
-        fullscreen: cli.fullscreen,
+        fullscreen: cli.fullscreen || crate::ui::title_card::for_player(),
+        intro: cli.intro || crate::ui::title_card::for_player(),
         players: if cli.players > 1 { cli.players } else { std::env::var("RE2_PLAYERS").ok().and_then(|v| v.parse().ok()).unwrap_or(1) }.clamp(1, 4),
         pads_only: cli.pads_only,
     }
@@ -949,6 +961,7 @@ pub fn run(factory: ModeFactory) {
         debug_help,
         transport,
         fullscreen,
+        intro,
         players,
         pads_only,
     } = parse_args();
@@ -1049,6 +1062,7 @@ pub fn run(factory: ModeFactory) {
     app.host_pause = local_host.as_ref().map(|h| h.pause_flag());
     app.transport = transport;
     app.start_fullscreen = fullscreen;
+    app.start_intro = intro;
     app.want_players = if connect.is_some() || host { 1 } else { players };
     app.pads_only = pads_only;
     if key.is_some() {

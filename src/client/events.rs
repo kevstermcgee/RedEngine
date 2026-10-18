@@ -71,6 +71,10 @@ impl ApplicationHandler for App {
         if let Some(who) = self.start_character() {
             self.start_game(who);
         }
+        // After the scene has loaded, so the card's clock is the time the player sees it.
+        if self.start_intro {
+            self.start_intro();
+        }
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -86,6 +90,9 @@ impl ApplicationHandler for App {
                     return;
                 }
             }
+        }
+        if self.intro_input(&event) {
+            return;
         }
         // The game's mode first (a museum's pause menu, map, interact clicks and map key; see `museum.rs`).
         match self.with_mode(|m, cx| m.window_event(cx, &event)) {
@@ -338,6 +345,14 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Focused(true) => self.focused = true,
             WindowEvent::RedrawRequested => {
+                // The title card plays first: nothing else updates or draws until it is over.
+                if self.intro_frame() {
+                    self.last_frame = Instant::now();
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    return;
+                }
                 let now = Instant::now();
                 let raw_dt = (now - self.last_frame).as_secs_f32();
                 let dt = raw_dt.min(0.1);
