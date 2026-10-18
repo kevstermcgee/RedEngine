@@ -1,0 +1,41 @@
+name: Player reviews
+
+# Reviews players leave on RedEngineGames (website and app) arrive on a public relay that keeps them 12 hours. Every half hour this keeps the
+# valid new ones in docs/player-reviews/ (scripts/player_reviews.py) and commits them to main. The commit uses the workflow token, so it starts
+# no other workflow.
+on:
+  schedule:
+    - cron: "11,41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: player-reviews
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Keep the new reviews
+        id: pull
+        run: python3 scripts/player_reviews.py pull
+
+      - name: Commit them
+        if: steps.pull.outputs.new != '0'
+        run: |
+          git add docs/player-reviews
+          git diff --cached --quiet && exit 0
+          n="${{ steps.pull.outputs.new }}"
+          git -c user.name="RedEngine player reviews" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Player reviews: $n new" -m "From the RedEngineGames website and app, via scripts/player_reviews.py."
+          for try in 1 2 3; do
+            git push -q origin HEAD:main && exit 0
+            git pull -q --rebase origin main
+          done
+          exit 1

@@ -1085,6 +1085,11 @@ def do_run(a, kind, code=None):
     except Exception as e:   # the backlog is a help, never a reason not to run
         print(f"(no known-issues list: {e})", file=sys.stderr)
         known = ""
+    try:   # what players said about the published games (docs/player-reviews), so the next game does more of what they enjoyed
+        import player_reviews
+        known += player_reviews.players_section(ROOT)
+    except Exception as e:
+        print(f"(no player reviews: {e})", file=sys.stderr)
     prompt = brief(idea, today, f"python3 {os.path.abspath(__file__)}", kind, known)
     run = {"idea": idea, "slug": idea["slug"], "kind": kind, "date": today, "branch": branch, "worktree": wt, "model": a.model or "default", "started": time.time(),
            "engine_revision": git(wt, "rev-parse", "--short=12", "origin/main", check=False), "budget_usd": a.budget}
