@@ -497,16 +497,25 @@ class Daily(unittest.TestCase):
 
     def test_a_second_daily_run_is_refused_while_the_first_is_alive(self):
         home()
+        lock = os.path.join(os.environ["IDEA_FORGE_HOME"], "daily.lock")
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        self.addCleanup(other.wait)
+        self.addCleanup(other.kill)
+        wr(lock, str(other.pid))
+        with self.assertRaises(SystemExit) as e:
+            with idea_forge.Lock():
+                pass
+        self.assertIn("another daily run is active", str(e.exception))
+        wr(lock, "999999999")
         with idea_forge.Lock():
-            with self.assertRaises(SystemExit) as e:
-                with idea_forge.Lock():
-                    pass
-            self.assertIn("another daily run is active", str(e.exception))
+            pass   # a stale pid file does not block
+        self.assertFalse(os.path.exists(lock), "released")
+
+    def test_a_run_that_restarted_itself_keeps_its_own_lock(self):
+        home()
         with idea_forge.Lock():
-            pass   # released, and a stale pid file does not block either
-        wr(os.path.join(os.environ["IDEA_FORGE_HOME"], "daily.lock"), "999999999")
-        with idea_forge.Lock():
-            pass
+            with idea_forge.Lock():   # what `restart_if_refreshed` amounts to: the same pid takes the lock again
+                pass
 
     def test_the_dry_run_prints_the_order_and_fixes_it(self):
         home()
@@ -1357,6 +1366,64 @@ class Refresh(unittest.TestCase):
         git(self.dedicated, "commit", "-q", "-m", "local only")
         self.assertIn("cannot fast-forward", idea_forge.refresh_checkout(self.dedicated))
         self.assertTrue(os.path.isfile(os.path.join(self.dedicated, "g.txt")))
+
+
+@unittest.skipIf(WINDOWS, "the night runs under systemd or cron; on Windows os.execv starts a new process and the old one exits at once")
+class RestartAfterRefresh(unittest.TestCase):
+    """A night that fast-forwards its own checkout restarts once, so the code that writes the briefs and publishes is the code just merged (on 2026-10-18 the pre-#185 copy
+    published two games without wiki pages). Real processes: the tool runs from a dedicated checkout one commit behind its origin, and the new commit changes `cmd_nightly`."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="idea_forge_restart_")
+        self.addCleanup(shutil.rmtree, self.base, True)
+        remote = os.path.join(self.base, "remote.git")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        work = os.path.join(self.base, "work")
+        subprocess.run(["git", "clone", "-q", remote, work], check=True, capture_output=True)
+        git(work, "checkout", "-q", "-b", "main")
+        os.makedirs(os.path.join(work, "scripts"))
+        for f in ("idea_forge.py", "proc_supervisor.py"):
+            shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
+        shutil.copytree(idea_forge.FORGE_DIR, os.path.join(work, os.path.relpath(idea_forge.FORGE_DIR, idea_forge.ROOT)),   # the idea vocabulary the state loader reads
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        wr(os.path.join(work, ".gitignore"), "__pycache__/\n")   # as the real repo: running the tool must not make the checkout look edited
+        git(work, "add", "-A")
+        git(work, "commit", "-q", "-m", "yesterday")
+        git(work, "push", "-q", "-u", "origin", "main")
+        self.dedicated = os.path.join(self.base, "factory")
+        subprocess.run(["git", "clone", "-q", remote, self.dedicated], check=True, capture_output=True)
+        tool = os.path.join(work, "scripts", "idea_forge.py")
+        text = rd(tool)
+        self.assertIn("def cmd_nightly(a):\n", text)
+        wr(tool, text.replace("def cmd_nightly(a):\n", "def cmd_nightly(a):\n    print(\"night code: merged today\", flush=True)\n", 1))
+        git(work, "commit", "-qam", "merged today")
+        git(work, "push", "-q")
+        self.env = dict(os.environ, IDEA_FORGE_HOME=os.path.join(self.base, "state"), IDEA_FORGE_PUBLISH="0", IDEA_FORGE_EXPORT=SCRATCH_EXPORT,
+                        GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t", PYTHONUNBUFFERED="1")
+        self.env.pop(idea_forge.REEXEC_ENV, None)
+
+    def night(self, **env):
+        return subprocess.run([sys.executable, os.path.join(self.dedicated, "scripts", "idea_forge.py"), "nightly", "--claude", sys.executable, "--skip-games",
+                               "--min-free-gb", "0", "--date", "2026-10-09"], capture_output=True, text=True, env=dict(self.env, **env), timeout=120)
+
+    def test_a_night_that_moved_its_checkout_restarts_once_on_the_new_code(self):
+        p = self.night()
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertEqual(out.count("restarting so the night runs the new code"), 1, out)
+        self.assertEqual(out.count("night code: merged today"), 1, out)
+        self.assertEqual(out.count("nightly done"), 1, "yesterday's copy stopped at the restart: " + out)
+        self.assertLess(out.index("restarting"), out.index("night code: merged today"))
+        self.assertIn("night code: merged today", rd(os.path.join(self.dedicated, "scripts", "idea_forge.py")))
+        self.assertFalse(os.path.exists(os.path.join(self.base, "state", "daily.lock")), "the restarted run released the lock it kept")
+
+    def test_the_guard_stops_a_second_restart(self):
+        p = self.night(**{idea_forge.REEXEC_ENV: "already"})
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertNotIn("restarting", out)
+        self.assertNotIn("night code: merged today", out, "no restart: the night finished on the copy it started with")
+        self.assertIn("night code: merged today", rd(os.path.join(self.dedicated, "scripts", "idea_forge.py")), "the checkout itself was still refreshed")
 
 
 @NEEDS_SH

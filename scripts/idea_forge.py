@@ -1275,7 +1275,7 @@ class Lock:
                 pid = int(rd(self.path).strip())
             except ValueError:
                 pid = 0
-            if pid and pid_alive(pid):
+            if pid and pid != os.getpid() and pid_alive(pid):   # our own pid: this process re-executed itself (`restart_if_refreshed`) and still holds the lock
                 sys.exit(f"another daily run is active (pid {pid}); not starting a second")
         wr(self.path, str(os.getpid()))
         return self
@@ -2027,6 +2027,27 @@ def refresh_checkout(root=None):
     return "updated to origin/main" if not rc else "not updated: cannot fast-forward: " + out[:120]
 
 
+REEXEC_ENV = "IDEA_FORGE_REEXEC"
+
+
+def checkout_head(root=None):
+    p = subprocess.run(["git", "-C", root or ROOT, "rev-parse", "HEAD"], capture_output=True, text=True)
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def restart_if_refreshed(before, argv, root=None):
+    """`refresh_checkout` changes this file under the running process, which has already loaded yesterday's copy. When it moved the checkout, start the same command again so
+    tonight's briefs and publishing run the code that was just merged. Once only: the restarted process carries REEXEC_ENV and never restarts. Returns when there is nothing to do."""
+    after = checkout_head(root)
+    if not before or not after or before == after or os.environ.get(REEXEC_ENV):
+        return
+    print(f"checkout: moved {before[:12]} -> {after[:12]}: restarting so the night runs the new code")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.environ[REEXEC_ENV] = after
+    os.execv(sys.executable, [sys.executable, os.path.join(HERE, "idea_forge.py")] + list(argv))
+
+
 def free_gb():
     """GiB free where the night's builds go (the home directory's disk). The one place the tool reads the machine's free space: tests replace this function, so a result never depends on the disk of the machine that runs them."""
     return shutil.disk_usage(os.path.expanduser("~")).free / 2**30
@@ -2053,7 +2074,9 @@ def cmd_nightly(a):
             if a.no_merge:
                 os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
             settle(0)   # yesterday's PRs whose checks have finished: merged before today's worktrees are cut from main
+            before = checkout_head()
             print("checkout: " + refresh_checkout())
+            restart_if_refreshed(before, a.argv)
             if publish_ok:
                 publish_games()   # what merged since the last run, and anything an earlier publish could not push
         failed = 0
@@ -2425,6 +2448,7 @@ def main(argv=None):
     s.set_defaults(f=cmd_digest)
 
     a = ap.parse_args(argv)
+    a.argv = list(sys.argv[1:] if argv is None else argv)   # the command as given, for `restart_if_refreshed`
     a.f(a)
 
 
