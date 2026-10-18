@@ -90,7 +90,12 @@ pub fn uses_templates(root: &Map<String, Value>) -> bool {
     }
     root.contains_key("groups")
         || root.get("rules").is_some_and(has_for_each)
-        || root.get("vars").and_then(Value::as_object).is_some_and(|o| o.keys().any(|k| k.contains('$')))
+        || root.get("vars").and_then(Value::as_object).is_some_and(|o| o.keys().any(|k| is_var_template(k)))
+}
+
+/// A variable named with a `$group` placeholder. `$comment` is a note (the one note key with a `$` in it), copied like any other variable.
+fn is_var_template(key: &str) -> bool {
+    key.contains('$') && key != "$comment"
 }
 
 /// Expands the scene's templates in place: `groups` is removed, every variable named with a `$group` becomes one per member, and every
@@ -205,9 +210,12 @@ fn glob(pattern: &str, s: &str) -> bool {
 
 fn expand_vars(vars: &Map<String, Value>, groups: &[(String, Vec<Member>)], errs: &mut Vec<String>) -> Map<String, Value> {
     let mut out = Map::new();
+    let mut plain_from: std::collections::HashMap<String, String> = std::collections::HashMap::new(); // expanded name -> the template that made it
     for (key, v) in vars {
-        if !key.contains('$') {
-            out.insert(key.clone(), v.clone());
+        if !is_var_template(key) {
+            if out.insert(key.clone(), v.clone()).is_some() {
+                errs.push(format!("vars.{key}: is declared twice (`vars.{}` makes it too)", plain_from.get(key).map_or(key.as_str(), String::as_str)));
+            }
             continue;
         }
         let names: Vec<&str> = groups.iter().map(|(n, _)| n.as_str()).collect();
@@ -229,6 +237,7 @@ fn expand_vars(vars: &Map<String, Value>, groups: &[(String, Vec<Member>)], errs
                     if out.insert(k.clone(), val).is_some() {
                         errs.push(format!("vars.{key}: `{k}` is declared twice"));
                     }
+                    plain_from.insert(k, key.clone());
                 }
                 (Ok(_), Ok(_)) => errs.push(format!("vars.{key} ({group} = {}): the name is not text: write the member's id or a text field into it", m.id)),
             }
@@ -424,8 +433,13 @@ impl Cx<'_> {
     fn rule(&mut self, o: &Map<String, Value>, scope: &Scope, p: &str) {
         let mut r = Map::new();
         for (k, v) in o {
-            let filled = if k == "do" { self.actions(v, scope, &format!("{p}.do")) } else { subst(v, scope).map_err(|e| format!("{p}.{k}: {e}")) };
-            // (`notes` and friends are copied by `subst` untouched.)
+            let filled = if crate::fields::is_extension_key(k) {
+                Ok(v.clone()) // a note (`notes`, `$comment`, `x-*`, `_*`) is the author's text: "costs $5" is not a placeholder
+            } else if k == "do" {
+                self.actions(v, scope, &format!("{p}.do"))
+            } else {
+                subst(v, scope).map_err(|e| format!("{p}.{k}: {e}"))
+            };
             match filled {
                 Ok(v) => {
                     r.insert(k.clone(), v);
@@ -611,6 +625,54 @@ mod tests {
         }))
         .unwrap_err();
         assert!(e[0].contains("expand into 4900 rules, more than 4096"), "{e:?}");
+    }
+
+    #[test]
+    fn notes_keep_their_dollars_and_a_comment_in_vars_is_not_a_template() {
+        let (v, _) = run(json!({
+            "groups": {"lamp": ["l1", "l2"]},
+            "vars": {"$comment": "costs $5 a lamp", "lit_$lamp": 0},
+            "rules": [{"id": "on_$lamp", "for_each": "lamp", "notes": "costs $5", "$comment": "$lamp is not filled here", "x-why": "$$$",
+                       "when": {"start": true}, "do": [{"set": ["lit_$lamp", 1], "notes": "$5 again"}]}]
+        }))
+        .unwrap();
+        assert_eq!(v["vars"], json!({"$comment": "costs $5 a lamp", "lit_l1": 0, "lit_l2": 0}));
+        assert_eq!(
+            v["rules"][1],
+            json!({"id": "on_l2", "notes": "costs $5", "$comment": "$lamp is not filled here", "x-why": "$$$",
+                                         "when": {"start": true}, "do": [{"set": ["lit_l2", 1], "notes": "$5 again"}]})
+        );
+        let plain = json!({"vars": {"$comment": "money: $", "a": 1}, "rules": [{"id": "r", "when": {"start": true}, "do": []}]});
+        assert!(!uses_templates(plain.as_object().unwrap()), "a `$comment` alone does not switch on template mode");
+        assert_eq!(run(plain.clone()).unwrap().0, plain);
+    }
+
+    #[test]
+    fn a_variable_declared_twice_is_an_error_whichever_comes_first() {
+        for vars in [json!({"lit_a": 5, "lit_$lamp": 0}), json!({"lit_$lamp": 0, "lit_a": 5})] {
+            let e = run(json!({"groups": {"lamp": ["a", "b"]}, "vars": vars.clone(), "rules": []})).unwrap_err().join("\n");
+            assert!(e.contains("`lit_a` is declared twice") || e.contains("vars.lit_a: is declared twice (`vars.lit_$lamp` makes it too)"), "{vars}: {e}");
+        }
+    }
+
+    /// Gentle Carousel was the first game written with groups (PR #181): its 13 template entries must expand into exactly the 252 rules (and 30
+    /// variables) it had before, minus `rev_t40_t30`, `rev_t40_t31` and `rev_t40_t41`, which could never fire (docs/analysis/2026-10-17-rule-groups-for-each.md).
+    /// The fixture is the old file's `vars` and `rules` with those three removed.
+    #[test]
+    fn gentle_carousel_expands_into_its_hand_written_rules_minus_three_dead_ones() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let read = |p: &str| -> Value { serde_json::from_str(&std::fs::read_to_string(root.join(p)).unwrap()).unwrap() };
+        let mut scene = read("examples/3d/gentle-carousel/gentle-carousel.json");
+        let before = read("tests/fixtures/gentle_carousel_rules_before_groups.json");
+        assert!(scene["rules"].as_array().unwrap().len() < 20, "the scene is written with templates");
+        expand(&mut scene).unwrap();
+        assert_eq!(scene["vars"], before["vars"]);
+        let (got, want) = (scene["rules"].as_array().unwrap(), before["rules"].as_array().unwrap());
+        assert_eq!(got.len(), 249);
+        for (i, (g, w)) in got.iter().zip(want).enumerate() {
+            assert_eq!(g, w, "rule {i} differs");
+        }
+        assert!(!got.iter().any(|r| r["id"].as_str().is_some_and(|id| id.starts_with("rev_t40_"))));
     }
 
     #[test]
