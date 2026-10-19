@@ -287,6 +287,10 @@ struct App {
     attack_held: bool,
     /// Right mouse is held and the current firearm should aim down sights.
     ads_held: bool,
+    /// The inputs the scene's rules read for this player this tick (`sim::rule_input::bits`).
+    rule_input: u8,
+    /// Presses since the last tick that offline never pass through `PlayerInput` (E and the click act at once): the offline rules see them too.
+    rule_presses: u8,
     /// Smoothed 0 (hip) .. 1 (sights) presentation blend.
     ads_blend: f32,
     /// The third-person chase camera used in a kart race (`kart_camera`).
@@ -348,6 +352,8 @@ struct App {
     rule_event_until: u64,
     /// Last `(width, height, content)` painted into the offline rules HUD.
     rule_hud_painted: Option<(u32, u32, String)>,
+    /// The sequence number of the server's rule state last copied into `rules` (online: the pause line, audio layers and the dump read them).
+    adopted_rule_seq: Option<u16>,
     /// What each split-screen view's HUD was last painted from (nothing is repainted while it is the same).
     split_hud_painted: Vec<Option<String>>,
     /// Where each local player's ears are (see `coop::note_listeners`).
@@ -608,6 +614,8 @@ impl App {
             attack_queued: false,
             attack_held: false,
             ads_held: false,
+            rule_input: 0,
+            rule_presses: 0,
             ads_blend: 0.0,
             chase: crate::kart_camera::ChaseCamera::new(),
             net_pulse: [0; 4],
@@ -636,6 +644,7 @@ impl App {
             rule_event: None,
             rule_event_until: 0,
             rule_hud_painted: None,
+            adopted_rule_seq: None,
             split_hud_painted: Vec::new(),
             listeners: Vec::new(),
             card: None,

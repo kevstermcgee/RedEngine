@@ -13,8 +13,8 @@ sprites: {"name":{"rows":["..aa..","aaaa"],"palette":{"a":"#ff0000"},"fps":8}} o
 sounds: {"name":{"seconds":0.2,"layers":[{"sine":880,"decay":18}]}} (a voice: `describe audio`, `audio list`)   music: {"name":{score,"title":"Shown Name"}} (`describe audio`)
 tables: {"rumour":["THE LIGHT WENT OUT AT NINE","THE KEEPER NEVER LEFT"]}  a text shows one: {"pick":"rumour","by":"r"} (0-based; none past the end)
 vars: {"score":0}   builtins: time (stops paused) tick ended(0, 1 win, 2 lose) mouse_x mouse_y music_on level gamepad (1: show pad buttons)   plus count_<tag> and <sceneid>_x, <sceneid>_y
-  held_left held_right held_up held_down held_action held_secondary (1 while held); the running rule's two things: self_x self_y self_vx self_vy self_face
-  other_x other_y other_vx other_vy other_face (face -1 left, 1 right; a press rule's self is the thing the keys move; 0 when absent)   persist: ["best"] (saved between sessions)
+  held_left held_right held_up held_down held_action held_secondary (1 while held); the rule's two things: self_x self_y self_vx self_vy self_ax self_ay (accel) self_face
+  other_x other_y other_vx other_vy other_face (face -1 left, 1 right; a press rule's self is what the keys move; 0 if absent)   persist: ["best"] (kept between runs)
 prefabs: {"name":{"tag":"coin"|[tags],"shape":{"sprite":n|"rect":[w,h]|"circle":r|"text":"SCORE {score}","color":"#fc0","scale":1,"flip":"x"|"auto","idle":sprite,"air":sprite},"size":[w,h],"layer":0,
   "body":{"type":"dynamic"|"static","gravity":600,"bounce":0.5,"friction":0.1,"drag":0,"max_fall":600},"collide":[tags it is stopped by],
   "move":{"keys":{"mode":"topdown"|"platformer","speed":90,"jump":250}} | {"pointer":"x"|"y"|"xy"} | {"chase":{"target":tag,"speed":30}} | {"drift":[vx,vy]} | {"wander":{"speed":20,"turn":1}} | {"patrol":{"axis":"x","range":20,"speed":40}}

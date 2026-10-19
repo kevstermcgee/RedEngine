@@ -158,6 +158,11 @@ impl GameUi {
         out
     }
 
+    /// The game's name with its `{var}` placeholders filled (the HUD's top line, the pause menu).
+    pub fn title_text(&self, vars: &[(&str, f64)]) -> Option<String> {
+        self.title.as_ref().map(|t| self.fill(t, vars))
+    }
+
     /// The objective to show now: the first candidate whose condition holds, with its placeholders filled.
     pub fn objective_text(&self, vars: &[(&str, f64)]) -> Option<String> {
         let values: Vec<f64> = self.var_names.iter().map(|n| lookup(vars, n)).collect();
@@ -209,6 +214,116 @@ impl GameUi {
     pub fn is_counted(&self, var: &str) -> bool {
         self.counters.iter().any(|c| c.var == var)
     }
+}
+
+/// The variable names a text's `{name}` and `{name:one|many}` placeholders read.
+fn placeholders(text: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        let Some(close) = rest[open..].find('}') else { break };
+        names.push(rest[open + 1..open + close].split(':').next().unwrap_or_default());
+        rest = &rest[open + close + 1..];
+    }
+    names
+}
+
+/// A scene variable the standard client's in-game HUD reads by name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HudRead {
+    /// Its index among the scene's own variables (declaration order, the built-ins left out: the order of `RulesEngine::vars`).
+    pub var: usize,
+    /// The first place that reads it: `ui.counters[0].var`, `ui.objective[1].if`, `hud.custom_vars`, ...
+    pub at: String,
+}
+
+/// The variables the standard client's in-game HUD reads, each once: the counters, the objective's conditions and texts, then the plain rows the state
+/// panel lists. `vars` are the scene's own variable names in declaration order. Online the HUD has only the variables the server sent
+/// (`net::protocol::MAX_RULE_VARS` of them), so these are sent first (`net::protocol::rule_vars_to_send`), and `lint` reports a HUD that reads more
+/// ([`check_hud_reads`]). The title is here for the HUD's top line; the pause menu (which shows the title and `ui.pause` even with the HUD off) and the
+/// audio layers are added by [`client_reads`]. Cards are not here: online they do not read the server's variables.
+pub fn hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, vars: &[String]) -> Vec<HudRead> {
+    let mut out: Vec<HudRead> = Vec::new();
+    if !hud.enabled {
+        return out;
+    }
+    let mut add = |name: &str, at: String| {
+        if let Some(var) = vars.iter().position(|v| v == name).filter(|i| !out.iter().any(|r| r.var == *i)) {
+            out.push(HudRead { var, at });
+        }
+    };
+    if let Some(ui) = ui {
+        for (k, c) in ui.counters.iter().enumerate() {
+            add(&c.var, format!("ui.counters[{k}].var"));
+            if let Of::Var(v) = &c.of {
+                add(v, format!("ui.counters[{k}].of"));
+            }
+        }
+        for (k, o) in ui.objective.iter().enumerate() {
+            let mut read = Vec::new();
+            if let Some(cond) = &o.cond {
+                cond.read_vars(&mut read);
+            }
+            for i in read {
+                if let Some(name) = ui.var_names.get(i) {
+                    add(name, format!("ui.objective[{k}].if"));
+                }
+            }
+            for name in placeholders(&o.text) {
+                add(name, format!("ui.objective[{k}].text"));
+            }
+        }
+        for name in ui.title.as_deref().map(placeholders).unwrap_or_default() {
+            add(name, "ui.title".to_string());
+        }
+    }
+    let zeros: Vec<(&str, f64)> = vars.iter().map(|n| (n.as_str(), 0.0)).collect();
+    let rows = hud.visible_vars(&zeros).into_iter().filter(|(n, _)| !ui.is_some_and(|u| u.is_counted(n))).take(crate::hud_config::HUD_ROWS);
+    let at = if hud.show_rules_vars { "hud.show_rules_vars" } else { "hud.custom_vars" };
+    for (name, _) in rows {
+        add(name, at.to_string());
+    }
+    out
+}
+
+/// Everything the standard client reads from the server's variables: the HUD's ([`hud_reads`]), then the title's placeholders and the pause menu's
+/// line (the pause menu shows both, even with the HUD off: `ui.title`, `ui.pause`) and the audio layers' variables (`audio.layers[].var`, the names in
+/// `audio_vars`). The online client copies what arrives into its own rules, which it does not run, so these follow the match too.
+pub fn client_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, audio_vars: &[&str], vars: &[String]) -> Vec<HudRead> {
+    let mut out = hud_reads(ui, hud, vars);
+    let title = ui.and_then(|u| u.title.as_deref()).map(placeholders).unwrap_or_default();
+    let pause = ui.and_then(|u| u.pause.as_deref()).map(placeholders).unwrap_or_default();
+    let extra = title
+        .into_iter()
+        .map(|n| (n, "ui.title".to_string()))
+        .chain(pause.into_iter().map(|n| (n, "ui.pause".to_string())))
+        .chain(audio_vars.iter().enumerate().map(|(i, n)| (*n, format!("audio.layers[{i}].var"))));
+    for (name, at) in extra {
+        if let Some(var) = vars.iter().position(|v| v == name).filter(|i| !out.iter().any(|r| r.var == *i)) {
+            out.push(HudRead { var, at });
+        }
+    }
+    out
+}
+
+/// What is wrong with a HUD that could not show what it reads online: more variables than a networked match sends (`MAX_RULE_VARS`, one message naming
+/// the ones that would not arrive). It used to show 0 online with no message (Quiet Compass, Idea Forge 2026-10-15); `lint` reports it as `net-hud`.
+/// (Names do not travel since protocol v17, so their length no longer matters.)
+pub fn check_hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, audio_vars: &[&str], vars: &[String]) -> Vec<String> {
+    use crate::net::protocol::MAX_RULE_VARS;
+    let reads = client_reads(ui, hud, audio_vars, vars);
+    let mut out = Vec::new();
+    if reads.len() > MAX_RULE_VARS {
+        let late: Vec<String> = reads[MAX_RULE_VARS..].iter().take(6).map(|r| format!("`{}` ({})", vars[r.var], r.at)).collect();
+        let more = reads.len() - MAX_RULE_VARS - late.len();
+        out.push(format!(
+            "the client reads {} variables (HUD, pause line, audio layers), but a networked match (red_server, play-local, playtest) sends at most {MAX_RULE_VARS} (net::protocol::MAX_RULE_VARS), so online {}{} would show 0; read at most {MAX_RULE_VARS}: drop a counter or an objective variable, or list fewer rows (`hud.show_rules_vars: false` with `hud.custom_vars`, or a `_name` variable, which is never a row)",
+            reads.len(),
+            late.join(", "),
+            if more > 0 { format!(" and {more} more") } else { String::new() }
+        ));
+    }
+    out
 }
 
 /// Where a problem is, and the names it could have been.
@@ -563,6 +678,84 @@ mod tests {
         ] {
             assert!(e.contains(want), "missing `{want}` in:\n{e}");
         }
+    }
+
+    fn many(n: usize) -> (RuleSet, Vec<String>) {
+        let names: Vec<String> = (0..n).map(|i| format!("v{i:02}")).collect();
+        let vars: Map<String, Value> = names.iter().map(|n| (n.clone(), json!(0))).collect();
+        let set = crate::sim::rules::parse_rules(json!({ "vars": vars }).as_object().unwrap(), &crate::sim::rules::Refs::default()).unwrap();
+        (set, names)
+    }
+
+    #[test]
+    fn the_hud_reads_counters_then_the_objective_then_its_rows_each_once() {
+        let (set, names) = many(20);
+        let u = parse_ui(
+            json!({"ui": {"counters": [{"var": "v17", "of": "v19"}, {"var": "v02"}], "objective": [{"if": "v19 > v05", "text": "{v18:left|left} {v17}"}, {"text": "x"}]}})
+                .as_object()
+                .unwrap(),
+            &set,
+        )
+        .unwrap()
+        .unwrap();
+        let hud = crate::hud_config::HudConfig::default();
+        let reads = hud_reads(Some(&u), &hud, &names);
+        let at: Vec<(&str, &str)> = reads.iter().map(|r| (names[r.var].as_str(), r.at.as_str())).collect();
+        assert_eq!(
+            &at[..5],
+            [
+                ("v17", "ui.counters[0].var"),
+                ("v19", "ui.counters[0].of"),
+                ("v02", "ui.counters[1].var"),
+                ("v05", "ui.objective[0].if"),
+                ("v18", "ui.objective[0].text")
+            ]
+        );
+        // Then the first HUD_ROWS shown variables no counter shows: v00, v01, v03, v04, v05 (already read), v06, v07, v08.
+        let rows: Vec<&str> = reads[5..].iter().map(|r| names[r.var].as_str()).collect();
+        assert_eq!(rows, ["v00", "v01", "v03", "v04", "v06", "v07", "v08"]);
+        let custom = crate::hud_config::HudConfig { show_rules_vars: false, custom_vars: vec!["v12".into(), "v02".into()], ..hud.clone() };
+        assert_eq!(hud_reads(Some(&u), &custom, &names).last().map(|r| (r.var, r.at.as_str())), Some((12, "hud.custom_vars")));
+        assert!(hud_reads(Some(&u), &crate::hud_config::HudConfig { enabled: false, ..hud.clone() }, &names).is_empty(), "a hidden HUD reads nothing");
+        assert_eq!(hud_reads(None, &hud, &names).len(), crate::hud_config::HUD_ROWS, "no ui block: the panel's rows");
+        assert!(check_hud_reads(Some(&u), &hud, &[], &names).is_empty(), "13 reads fit");
+    }
+
+    #[test]
+    fn the_client_also_reads_the_title_the_pause_line_and_the_audio_layers_and_fills_the_title() {
+        let (set, names) = many(8);
+        let u = parse_ui(json!({"ui": {"title": "Day {v06}", "pause": "{v05:win|wins} so far", "counters": [{"var": "v01"}]}}).as_object().unwrap(), &set)
+            .unwrap()
+            .unwrap();
+        let hidden = crate::hud_config::HudConfig { enabled: false, ..Default::default() };
+        let reads: Vec<(usize, String)> = client_reads(Some(&u), &hidden, &["v07"], &names).into_iter().map(|r| (r.var, r.at)).collect();
+        assert_eq!(
+            reads,
+            [(6, "ui.title".to_string()), (5, "ui.pause".to_string()), (7, "audio.layers[0].var".to_string())],
+            "with the HUD off the pause menu still shows the title and its line, and the audio reads"
+        );
+        let shown = crate::hud_config::HudConfig { show_rules_vars: false, ..Default::default() };
+        let reads: Vec<(usize, String)> = client_reads(Some(&u), &shown, &["v07", "v01"], &names).into_iter().map(|r| (r.var, r.at)).collect();
+        assert_eq!(reads[..2], [(1, "ui.counters[0].var".to_string()), (6, "ui.title".to_string())], "{reads:?}");
+        assert_eq!(reads.len(), 4, "each once: {reads:?}");
+        assert_eq!(u.title_text(&[("v06", 3.0)]).as_deref(), Some("Day 3"), "the title's placeholders are filled, not printed");
+    }
+
+    #[test]
+    fn a_hud_that_reads_more_than_the_wire_sends_is_an_error_that_names_the_cap_and_the_fix() {
+        // 65 counters of 70 variables: one more than protocol v17's 64.
+        let (set, names) = many(70);
+        let counters: Vec<Value> = names.iter().take(65).map(|n| json!({"var": n})).collect();
+        let u = parse_ui(json!({"ui": {"counters": counters}}).as_object().unwrap(), &set).unwrap().unwrap();
+        let no_rows = crate::hud_config::HudConfig { show_rules_vars: false, ..Default::default() };
+        let e = check_hud_reads(Some(&u), &no_rows, &[], &names);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert!(e[0].starts_with("the client reads 65 variables") && e[0].contains("online `v64` (ui.counters[64].var) would show 0"), "{}", e[0]);
+        for want in ["at most 64 (net::protocol::MAX_RULE_VARS)", "drop a counter", "hud.custom_vars"] {
+            assert!(e[0].contains(want), "missing `{want}` in {}", e[0]);
+        }
+        let e = check_hud_reads(Some(&u), &crate::hud_config::HudConfig::default(), &[], &names);
+        assert!(e.len() == 1 && e[0].starts_with("the client reads 70 variables") && e[0].contains("`v69` (hud.show_rules_vars)"), "the rows count too: {e:?}");
     }
 
     #[test]

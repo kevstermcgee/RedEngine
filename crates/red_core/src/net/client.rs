@@ -744,6 +744,10 @@ impl NetClient {
                 if first {
                     self.latest_snapshot_seq = 0;
                     self.stats.connects += 1;
+                    // A resumed player gets a new session on the server, which numbers its Status and RuleState from 0 again: kept, the old ones made every
+                    // new one look stale until the count caught up, so the HUD and the match timer froze for about as long as the match had run.
+                    self.status = None;
+                    self.rule_state = None;
                 }
                 events.push(NetEvent::Connected(w));
                 self.send_lobby(now); // tell the server we have this round's Welcome

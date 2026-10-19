@@ -161,3 +161,99 @@ fn the_offline_client_runs_the_prop_rules_too() {
     );
     assert_eq!(crate_state["held_by"], Value::Null);
 }
+
+/// Per-prop variables and restartable timers (ADR 2026-10-17-rule-timers-and-prop-variables-are-server-state) on the real simulation: a crate
+/// placed in the pit warms (`self.heat`) and its own fuse (`self.fuse`) hides it, the other crate untouched; stepping on the pad twice (about
+/// 1.1 s apart) restarts the 3 s door timer, which runs out once, after the last step. The trace replays clean (timers and prop variables are in the checksum).
+#[test]
+fn a_crate_keeps_its_own_heat_and_fuse_and_a_restarted_timer_runs_out_once() {
+    let dir = scratch("timers");
+    let path = variant(&dir, "timers", |v| {
+        v["prop_vars"] = serde_json::json!({"heat": 0});
+        for (k, x) in [("booms", 0), ("steps", 0), ("shut", 0)] {
+            v["vars"][k] = serde_json::json!(x);
+        }
+        v["rules"].as_array_mut().unwrap().extend(
+            serde_json::json!([
+                {"id": "drop_b", "when": {"after": 0.2}, "do": [{"place": ["crate_b", [3.5, 0.5, 0]]}]},
+                {"id": "warm", "when": {"prop_enter": {"zone": "pit"}, "prop": "crate_b"}, "do": [{"add": ["self.heat", 1]}, {"timer": ["self.fuse", 0.5]}]},
+                {"id": "boom", "when": {"timer": "self.fuse"}, "do": [{"add": ["booms", 1]}, {"hide": "self"}, {"emit": "boom"}]},
+                {"id": "plate", "when": {"enter": {"zone": "place_pad"}}, "do": [{"add": ["steps", 1]}, {"timer": ["close", 3]}]},
+                {"id": "close", "when": {"timer": "close"}, "do": [{"add": ["shut", 1]}, {"emit": "shut"}]}
+            ])
+            .as_array()
+            .unwrap()
+            .clone(),
+        );
+        *scenarios_of(v) = serde_json::json!([
+            {"name": "fuse: a crate in the pit warms and its own fuse hides it", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 3,
+             "script": [{"player": "p1", "wait": 2}],
+             "expect": [{"prop_var": "heat", "of": "crate_b", "eq": 1}, {"prop_var": "heat", "of": "crate", "eq": 0}, {"hidden": "crate_b"}, {"event": "boom", "count": 1}]},
+            {"name": "door: two steps restart the timer, which runs out once", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 20,
+             "script": [{"player": "p1", "walk": "-3.2,-5.2; -3.2,-3; -3.2,-5.2; -3.2,-3"}, {"player": "p1", "wait": 4}],
+             "expect": [{"var": "steps", "eq": 2}, {"event": "shut", "count": 1}, {"var": "shut", "eq": 1}]}
+        ]).as_array().unwrap().clone();
+    });
+    let scene: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    red_engine2::content::typed::<red_engine2::content::scene::Scene>(&scene).expect("the typed definition knows `prop_vars`, `timer` and `prop_var` checks");
+    let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 60 };
+    let (report, trace) = simrun::run(&path, None, Some("fuse:"), Some(opts)).expect("run");
+    assert!(report.all_passed(), "{}", report.render());
+    let (door, _) = simrun::run(&path, None, Some("door:"), None).expect("run");
+    assert!(door.all_passed(), "{}", door.render());
+    let trace = trace.expect("recorded");
+    let loaded = simrun::load(&path).unwrap();
+    let replayed = replay(&trace, &loaded.scene, &loaded.spawns).expect("replay");
+    assert!(replayed.is_clean(), "{:?}", replayed.exact.as_ref().or(replayed.coarse.as_ref()).map(describe));
+}
+
+/// Rules read the input a player already sends (ADR 2026-10-19-rules-read-the-input-a-player-already-sends), on the real simulation from a
+/// `checks.sim` script: holding `alt` is a breath (a timer that gasps if held too long, cancelled on the release), and `attack` with empty lungs
+/// is a whistle (Crooked Ferry). The scene passes the typed definition, and the trace replays clean.
+#[test]
+fn holding_alt_is_a_breath_and_a_press_is_a_whistle() {
+    let dir = scratch("input");
+    let path = variant(&dir, "input", |v| {
+        for (k, x) in [("breaths", 0), ("exhales", 0), ("gasps", 0), ("whistles", 0)] {
+            v["vars"][k] = serde_json::json!(x);
+        }
+        v["rules"].as_array_mut().unwrap().extend(
+            serde_json::json!([
+                {"id": "breathe_in", "when": {"input": "alt"}, "do": [{"add": ["breaths", 1]}, {"timer": ["breath", 0.6]}]},
+                {"id": "breathe_out", "when": {"input": "alt", "release": true}, "do": [{"add": ["exhales", 1]}, {"cancel": "breath"}]},
+                {"id": "gasp", "when": {"timer": "breath"}, "do": [{"add": ["gasps", 1]}]},
+                {"id": "whistle", "when": {"input": "attack"}, "if": "input(alt) == 0", "do": [{"add": ["whistles", 1]}, {"emit": "whistle"}]}
+            ])
+            .as_array()
+            .unwrap()
+            .clone(),
+        );
+        *scenarios_of(v) = serde_json::json!([
+            {"name": "breath: a short breath is let go before it runs out", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"alt": true, "seconds": 0.3}}, {"player": "p1", "wait": 1}],
+             "expect": [{"var": "breaths", "eq": 1}, {"var": "exhales", "eq": 1}, {"var": "gasps", "eq": 0}]},
+            {"name": "gasp: a breath held too long runs out once", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"alt": true, "seconds": 1.0}}, {"player": "p1", "wait": 0.5}],
+             "expect": [{"var": "breaths", "eq": 1}, {"var": "gasps", "eq": 1}, {"var": "exhales", "eq": 1}]},
+            {"name": "whistle: a press with empty lungs, none while holding breath", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"attack": true, "seconds": 0.1}}, {"player": "p1", "wait": 0.5},
+                        {"player": "p1", "hold": {"attack": true, "alt": true, "seconds": 0.1}}, {"player": "p1", "wait": 0.5}],
+             "expect": [{"var": "whistles", "eq": 1}, {"event": "whistle", "count": 1}]}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+    });
+    let scene: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    red_engine2::content::typed::<red_engine2::content::scene::Scene>(&scene).expect("the typed definition knows `input`, `release` and `alt`");
+    let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 60 };
+    let (report, trace) = simrun::run(&path, None, Some("breath:"), Some(opts)).expect("run");
+    assert!(report.all_passed(), "{}", report.render());
+    for name in ["gasp:", "whistle:"] {
+        let (r, _) = simrun::run(&path, None, Some(name), None).expect("run");
+        assert!(r.all_passed(), "{}", r.render());
+    }
+    let loaded = simrun::load(&path).unwrap();
+    let replayed = replay(&trace.expect("recorded"), &loaded.scene, &loaded.spawns).expect("replay");
+    assert!(replayed.is_clean(), "{:?}", replayed.exact.as_ref().or(replayed.coarse.as_ref()).map(describe));
+}

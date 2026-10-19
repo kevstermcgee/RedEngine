@@ -146,6 +146,8 @@ pub struct Scope<'a> {
     pub zones: &'a [String],
     /// Per-player variable names (`me.name` resolves to an index into this).
     pub player_vars: &'a [String],
+    /// Per-prop variable names (`self.name` resolves to an index into this).
+    pub prop_vars: &'a [String],
 }
 
 /// Answers the built-in functions at evaluation time: `index` is the position in the [`Scope`] the expression was
@@ -161,6 +163,16 @@ pub trait World {
 
     /// The value of the per-player variable at `index` (`me.name`) for the player that triggered the rule; 0 by default and when no player did.
     fn me(&self, _index: usize) -> f64 {
+        0.0
+    }
+
+    /// The value of the per-prop variable at `index` (`self.name`) of the rule's subject prop; 0 by default and when the rule has none.
+    fn its(&self, _index: usize) -> f64 {
+        0.0
+    }
+
+    /// `input(name)`: 1 while the rule's player holds the input at `bit` (`rule_input`); 0 by default and when no player triggered the rule.
+    fn input(&self, _bit: u8) -> f64 {
         0.0
     }
 
@@ -216,6 +228,10 @@ pub enum Expr {
     Var(usize),
     /// A per-player variable of the player that triggered the rule (`me.name`), by index into the scene's `player_vars`.
     Me(usize),
+    /// A per-prop variable of the rule's subject prop (`self.name`), by index into the scene's `prop_vars`.
+    Its(usize),
+    /// `input(name)`: 1 while the rule's player holds that input (its bit in `rule_input::bits`).
+    Input(u8),
     /// Unary minus.
     Neg(Box<Expr>),
     /// Logical not.
@@ -244,6 +260,8 @@ impl Expr {
             Expr::Num(n) => *n,
             Expr::Var(i) => vars.get(*i).copied().unwrap_or(0.0),
             Expr::Me(i) => world.me(*i),
+            Expr::Its(i) => world.its(*i),
+            Expr::Input(b) => world.input(*b),
             Expr::Call(f, i) => world.call(*f, *i),
             Expr::Call2(f, p, z) => world.call2(*f, *p, *z),
             Expr::Math(f, args) => {
@@ -307,8 +325,8 @@ impl Expr {
     /// Whether the expression reads a per-player variable (`me.name`), so it needs a triggering player.
     pub fn uses_me(&self) -> bool {
         match self {
-            Expr::Me(_) => true,
-            Expr::Num(_) | Expr::Var(_) | Expr::Call(..) | Expr::Call2(..) => false,
+            Expr::Me(_) | Expr::Input(_) => true,
+            Expr::Num(_) | Expr::Var(_) | Expr::Its(_) | Expr::Call(..) | Expr::Call2(..) => false,
             Expr::Neg(e) | Expr::Not(e) => e.uses_me(),
             Expr::Bin(_, l, r) | Expr::Random(l, r) => l.uses_me() || r.uses_me(),
             Expr::Math(_, args) => args.iter().any(Expr::uses_me),
@@ -319,10 +337,37 @@ impl Expr {
     pub fn uses_subject(&self) -> bool {
         match self {
             Expr::Call(_, i) | Expr::Call2(_, i, _) => *i == SUBJECT,
-            Expr::Num(_) | Expr::Var(_) | Expr::Me(_) => false,
+            Expr::Its(_) => true,
+            Expr::Num(_) | Expr::Var(_) | Expr::Me(_) | Expr::Input(_) => false,
             Expr::Neg(e) | Expr::Not(e) => e.uses_subject(),
             Expr::Bin(_, l, r) | Expr::Random(l, r) => l.uses_subject() || r.uses_subject(),
             Expr::Math(_, args) => args.iter().any(Expr::uses_subject),
+        }
+    }
+
+    /// Whether the expression reads the input at `bit` (`input(name)`).
+    pub fn reads_input(&self, bit: u8) -> bool {
+        match self {
+            Expr::Input(b) => *b == bit,
+            Expr::Neg(e) | Expr::Not(e) => e.reads_input(bit),
+            Expr::Bin(_, l, r) | Expr::Random(l, r) => l.reads_input(bit) || r.reads_input(bit),
+            Expr::Math(_, args) => args.iter().any(|a| a.reads_input(bit)),
+            Expr::Num(_) | Expr::Var(_) | Expr::Me(_) | Expr::Its(_) | Expr::Call(..) | Expr::Call2(..) => false,
+        }
+    }
+
+    /// Pushes the index of every variable the expression reads (into the table it was compiled against) onto `out`, in reading order, repeats included.
+    pub fn read_vars(&self, out: &mut Vec<usize>) {
+        match self {
+            Expr::Var(i) => out.push(*i),
+            Expr::Num(_) | Expr::Me(_) | Expr::Call(..) | Expr::Call2(..) => {}
+            Expr::Its(_) | Expr::Input(_) => {} // a prop's own variable (`self.name`) or a player's input: not one of the scene's
+            Expr::Neg(e) | Expr::Not(e) => e.read_vars(out),
+            Expr::Bin(_, l, r) | Expr::Random(l, r) => {
+                l.read_vars(out);
+                r.read_vars(out);
+            }
+            Expr::Math(_, args) => args.iter().for_each(|a| a.read_vars(out)),
         }
     }
 
@@ -330,7 +375,7 @@ impl Expr {
     pub fn reads_world(&self) -> bool {
         match self {
             Expr::Num(_) | Expr::Var(_) => false,
-            Expr::Me(_) => false,
+            Expr::Me(_) | Expr::Its(_) | Expr::Input(_) => false,
             Expr::Call(..) | Expr::Call2(..) | Expr::Random(..) => true,
             Expr::Neg(e) | Expr::Not(e) => e.reads_world(),
             Expr::Bin(_, l, r) => l.reads_world() || r.reads_world(),
@@ -396,8 +441,9 @@ fn lex(src: &str) -> Result<Vec<(Tok, usize)>, ParseError> {
             while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_') {
                 i += 1;
             }
-            // `me.name`: a per-player variable, one identifier.
-            if cs[start..i].iter().collect::<String>() == "me" && cs.get(i) == Some(&'.') && cs.get(i + 1).is_some_and(|d| d.is_alphabetic() || *d == '_') {
+            // `me.name` (a per-player variable) and `self.name` (the subject prop's): one identifier.
+            let head: String = cs[start..i].iter().collect();
+            if (head == "me" || head == "self") && cs.get(i) == Some(&'.') && cs.get(i + 1).is_some_and(|d| d.is_alphabetic() || *d == '_') {
                 i += 1;
                 while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_') {
                     i += 1;
@@ -503,6 +549,12 @@ impl Parser<'_> {
                         None => Err(ParseError { message: unknown_player_var(pv, self.scope.player_vars), at }),
                     };
                 }
+                if let Some(pv) = name.strip_prefix("self.") {
+                    return match self.scope.prop_vars.iter().position(|n| n == pv) {
+                        Some(i) => Ok(Expr::Its(i)),
+                        None => Err(ParseError { message: unknown_prop_var(pv, self.scope.prop_vars), at }),
+                    };
+                }
                 match name.as_str() {
                     "true" => Ok(Expr::Num(1.0)),
                     "false" => Ok(Expr::Num(0.0)),
@@ -539,10 +591,19 @@ impl Parser<'_> {
         if let Some((f, n)) = MathFn::by_name(name) {
             return Ok(Expr::Math(f, self.expr_args(name, n, at)?));
         }
+        if name == "input" {
+            self.pos += 1; // the `(`
+            let arg_at = self.at();
+            let (Some(Tok::Ident(arg)), Some(Tok::RParen)) = (self.toks.get(self.pos).map(|t| t.0.clone()), self.toks.get(self.pos + 1).map(|t| &t.0)) else {
+                return Err(ParseError { message: "`input(` needs an input's name, then `)`, like input(alt)".into(), at: arg_at });
+            };
+            self.pos += 2;
+            return super::rule_input::named(&arg).map(Expr::Input).map_err(|message| ParseError { message: format!("`input({arg})`: {message}"), at: arg_at });
+        }
         let Some(f) = Func::by_name(name) else {
             let mut known: Vec<&str> = Func::ALL.iter().map(|(n, _, _)| *n).collect();
             known.extend(MathFn::ALL.iter().map(|(n, _, _, _)| *n));
-            known.push("random");
+            known.extend(["random", "input"]);
             let hint = crate::suggest::suggest(name, known.iter().copied()).first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
             return Err(ParseError { message: format!("unknown function `{name}`{hint} (built-ins: {})", known.join(", ")), at });
         };
@@ -635,6 +696,14 @@ pub fn unknown_var(name: &str, names: &[String]) -> String {
     let near = crate::suggest::suggest(name, names.iter().map(String::as_str));
     let hint = near.first().map(|n| format!(" — did you mean `{n}`?")).unwrap_or_default();
     format!("unknown variable `{name}`{hint} (declare it in `vars`; known: {})", names.join(", "))
+}
+
+/// The message for `self.name` where `name` is not a declared per-prop variable.
+pub fn unknown_prop_var(name: &str, names: &[String]) -> String {
+    let near = crate::suggest::suggest(name, names.iter().map(String::as_str));
+    let hint = near.first().map(|n| format!(" — did you mean `self.{n}`?")).unwrap_or_default();
+    let known = if names.is_empty() { "none declared".to_string() } else { names.join(", ") };
+    format!("unknown per-prop variable `self.{name}`{hint} (declare it in `prop_vars`; known: {known})")
 }
 
 /// The message for `me.name` where `name` is not a declared per-player variable.

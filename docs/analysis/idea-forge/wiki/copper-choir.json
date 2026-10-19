@@ -1,0 +1,117 @@
+{
+ "tagline": "Tune an old radio to open gates of wood, tin and brass, and carry your sleeping friend through ten rooms without ever passing the same colour twice in a row.",
+ "overview": "Copper Choir is a short top-down puzzle about patience. You are a retired lighthouse keeper carrying a sleeping friend home through ten rooms. Each room is crossed by gates in three colours, wood, tin and brass, and your radio decides which of them are open: tune it to WOOD 88.1 and every wooden gate turns see-through; TIN 94.5 and BRASS 101.9 do the same for theirs.\n\nThe catch: you may never pass through the same colour twice in a row. Most gate columns have two lanes of different colours, so every room is a small plan. Pick the lane, tune the dial, walk through, and make sure the next gate you take is a different colour. Every turn of the dial jolts your friend a little, so the best route is the one that turns the dial least.",
+ "story": "A retired lighthouse keeper lives in a harbour town that is slowly floating out to sea. The lighthouse is already gone. Before dawn the keeper has to carry a sleeping friend home through ten rooms of the drifting town, steering by the hum of an old copper radio, without waking them on the way.",
+ "goal": "Reach the door of the tenth room before your friend wakes: the screen reads DAWN. THEY SLEPT THROUGH IT. If the bar next to SLEEP at the top fills up, your friend wakes (THEY WOKE) and the night is lost.",
+ "rules": [
+  "The radio has three stations: WOOD 88.1, TIN 94.5 and BRASS 101.9. Gates of the tuned colour turn see-through and let you walk through; the other two colours are solid.",
+  "Never pass through the same colour twice in a row. If you do, your friend gets a fright: a thud, a shake, and the SLEEP bar jumps by more than half.",
+  "Every turn of the dial is a small jolt that raises the bar a little.",
+  "The bar drains slowly on its own, and every door you reach calms your friend a good deal more.",
+  "A full bar wakes your friend and ends the night.",
+  "The pale strip on the right of each room is its door. Going through it takes you to the next room and resets the colour rule, so the first gate of a new room may be any colour.",
+  "Your best room is saved between plays (BEST, top right)."
+ ],
+ "controls": [
+  {
+   "input": "Arrow keys / WASD (or a gamepad stick)",
+   "action": "Walk in any direction"
+  },
+  {
+   "input": "Q, or click the Q < button",
+   "action": "Tune the radio down one station"
+  },
+  {
+   "input": "E, or click the > E button",
+   "action": "Tune the radio up one station"
+  },
+  {
+   "input": "Esc / P (gamepad Start)",
+   "action": "Pause"
+  }
+ ],
+ "characters": [
+  {
+   "name": "The Keeper",
+   "role": "You",
+   "description": "The retired lighthouse keeper, a small figure in a white cap and a blue coat. Walks in any direction; a solid gate stops them.",
+   "shot": {
+    "t": 1
+   }
+  },
+  {
+   "name": "The Sleeping Friend",
+   "role": "The one you carry",
+   "description": "Your friend, fast asleep, who drifts along right behind you wherever you walk. Every jolt and fright shows on the SLEEP bar.",
+   "shot": {
+    "t": 30,
+    "scenario": "same_surface_twice"
+   }
+  },
+  {
+   "name": "The Gates",
+   "role": "Obstacles",
+   "description": "Columns of wood (brown), tin (pale blue) and brass (gold). The colour the radio is tuned to goes dim and see-through and can be walked through; the others are solid walls.",
+   "shot": {
+    "t": 45
+   }
+  },
+  {
+   "name": "The Radio",
+   "role": "Your one tool",
+   "description": "The station name at the top of the screen, with the Q < and > E buttons beside it. The station wraps round: from WOOD, one turn down goes straight to BRASS.",
+   "shot": {
+    "t": 45
+   }
+  },
+  {
+   "name": "The Door",
+   "role": "Exit",
+   "description": "The pale strip at the right edge of every room. Reaching it soothes your friend and takes you to the next room; the tenth door is home.",
+   "shot": {
+    "t": 1
+   }
+  }
+ ],
+ "tips": [
+  "Look at the whole room before you touch the dial: choose lanes so the colours alternate and you turn it as few times as possible.",
+  "From WOOD to BRASS is one turn down with Q, not two turns up with E: the dial wraps round.",
+  "If the bar is high, wait a moment before the next turn; it drains while you stand still.",
+  "A door resets the colour rule, so the first gate of a room may match the last gate of the room before."
+ ],
+ "gallery": [
+  {
+   "caption": "Room 1 with the radio on TIN 94.5: the tin half of each gate (top) has gone dim and passable, the wooden half (bottom) stays solid.",
+   "shot": {
+    "t": 1
+   }
+  },
+  {
+   "caption": "Room 6 on WOOD 88.1: the wooden gates are open, while tin and brass block the way. The hint at the bottom spells out the rule.",
+   "shot": {
+    "t": 45
+   }
+  },
+  {
+   "caption": "Passing the same colour twice in a row: the SLEEP bar jumps by more than half.",
+   "shot": {
+    "t": 30,
+    "scenario": "same_surface_twice"
+   }
+  },
+  {
+   "caption": "Too many turns of the dial: the bar fills and THEY WOKE.",
+   "shot": {
+    "t": 30,
+    "scenario": "too_many_jolts"
+   }
+  },
+  {
+   "caption": "The tenth door: DAWN. THEY SLEPT THROUGH IT, and BEST 10 is saved.",
+   "shot": {
+    "t": 90
+   }
+  }
+ ],
+ "why_made": "Idea Forge dealt this card: you tune a radio dial where every frequency rewrites one rule of the room; but you can never touch the same surface twice in a row; you carry a fragile guest who panics at sudden moves; carry a sleeping friend through ten rooms without waking them; and, as optional story, a retired lighthouse keeper in a harbour town that is slowly floating away.\n\nThe AI kept the dial, the never-twice rule, the fragile guest and the ten rooms. It narrowed 'every frequency rewrites one rule' to 'every frequency opens one colour of surface', because a 2D game cannot change friction or gravity while it runs, and it made turning the dial itself the sudden move, because the rules cannot measure how sharply the player moves. It noted that the result is a gate puzzle more than an action game and kept the walking deliberately plain, so the planning is the game. The lighthouse keeper's story lives on in the title and the hint at the bottom of each room."
+}

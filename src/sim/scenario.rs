@@ -33,12 +33,13 @@ const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "ma
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
 const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event"];
 const HOLD_KEYS: &[&str] =
-    &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "reload", "switch", "seconds"];
+    &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "alt", "reload", "switch", "seconds"];
 const EXPECT_KEYS: &[&str] = &[
     "event",
     "no_event",
     "var",
     "player_var",
+    "prop_var",
     "of",
     "ended",
     "not_ended",
@@ -201,6 +202,8 @@ pub enum Expect {
         /// Value.
         value: f64,
     },
+    /// One loose prop's own variable (`prop_vars`, `self.name`) compares as given: `{"prop_var": "hp", "of": "crate_1", "eq": 0}`.
+    PropVar { prop: String, name: String, cmp: Cmp, value: f64 },
     /// One player's per-player variable compares as given.
     PlayerVar {
         /// Scenario player id.
@@ -691,7 +694,7 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let mut flag = |k: &str| hold_flag(h, k, &hp, &mut errs);
                 let (jump, sprint, crouch) = (flag("jump"), flag("sprint"), flag("crouch"));
                 let (interact, attack, reload, switch_weapon, aim, drop) =
-                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("aim"), flag("drop"));
+                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("alt"), flag("drop"));
                 let select = hold_select(h, &hp, &mut errs);
                 let yaw = hold_degrees(h, "yaw_deg", &hp, &mut errs);
                 let ticks = h.get("seconds").map_or(1, |s| ticks_of(s, &format!("{hp}.seconds"), &mut errs));
@@ -821,6 +824,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
         "no_event",
         "var",
         "player_var",
+        "prop_var",
         "ended",
         "not_ended",
         "hidden",
@@ -837,7 +841,7 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
     .collect();
     if main.len() != 1 {
         errs.push(format!(
-            "{ep}: give exactly one of event, no_event, var, player_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop, field, game (got {})",
+            "{ep}: give exactly one of event, no_event, var, player_var, prop_var, ended, not_ended, hidden, shown, collision_disabled, collision_enabled, player, prop, field, game (got {})",
             if main.is_empty() { "none".to_string() } else { main.join(" + ") }
         ));
         return None;
@@ -904,6 +908,19 @@ fn parse_expect(eo: &Map<String, Value>, ep: &str, rules: &RuleSet, object_ids: 
             }
             let (cmp, value) = parse_cmp(eo, ep, "player_var", errs)?;
             Some(Expect::PlayerVar { player: who.to_string(), name: text, cmp, value })
+        }
+        "prop_var" => {
+            let prop = eo.get("of").and_then(Value::as_str).unwrap_or("");
+            if !rules.prop_var_names.contains(&text) || !rules.prop_ids.iter().any(|p| p == prop) {
+                errs.push(format!(
+                    "{ep}: a `prop_var` check reads a declared per-prop variable (`prop_vars`: {}) of a loose prop named with `of` (one of {})",
+                    rules.prop_var_names.join(", "),
+                    rules.prop_ids.join(", ")
+                ));
+                return None;
+            }
+            let (cmp, value) = parse_cmp(eo, ep, "prop_var", errs)?;
+            Some(Expect::PropVar { prop: prop.to_string(), name: text, cmp, value })
         }
         "game" => {
             let Some(path) = eo.get("path").and_then(Value::as_str).filter(|p| !p.is_empty()) else {
@@ -1458,6 +1475,10 @@ fn check(e: &Expect, scenario: &Scenario, sim: &MatchSim, slots: &[usize], histo
         Expect::Var { name, cmp, value } => {
             let got = sim.rules().var(name).unwrap_or(f64::NAN);
             done(format!("var {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{name} = {got}"))
+        }
+        Expect::PropVar { prop, name, cmp, value } => {
+            let got = sim.rules().prop_var(prop, name).unwrap_or(f64::NAN);
+            done(format!("{prop} {name} {} {value}", cmp.word()), cmp.holds(got, *value), format!("{prop}.{name} = {got}"))
         }
         Expect::PlayerVar { player, name, cmp, value } => {
             let got = scenario.players.iter().position(|p| &p.id == player).and_then(|pi| sim.rules().player_var(slots[pi], name)).unwrap_or(f64::NAN);

@@ -20,6 +20,9 @@ use serde_json::{Map, Value};
 pub const HUD_KEYS: &[&str] =
     &["enabled", "show_scoreboard", "show_round", "show_ping", "show_combat", "show_crosshair", "show_events", "show_help", "show_rules_vars", "custom_vars"];
 
+/// The most plain variable rows the HUD's state panel lists (without a `ui` block the rest are summed up as `+N MORE`).
+pub const HUD_ROWS: usize = 8;
+
 /// What the HUD draws (see the module docs). `Default` is the arena look: everything on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HudConfig {

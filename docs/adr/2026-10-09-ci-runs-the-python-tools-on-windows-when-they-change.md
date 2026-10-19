@@ -16,6 +16,8 @@ Separately, the changed-file list came from `git diff --name-only`, which quotes
   a full local run, so what CI runs and what `scripts/ci.sh` runs still cannot drift.
 - The `changes` job has a third output, `pytools`, true for any `*.py` or `*.ps1`, anything under `scripts/`, `tools/` or `bench/`, the publish manifest, the MCP adapter, the bench scripts and
   `.github/`; Rust-only and documentation-only changes leave it false. No usable base commit still runs everything.
+  *Amended 2026-10-17:* a `*.py` under `examples/2d/` or `examples/3d/` is a game's own generator (game data, kept beside the game since that date), not a tool: it no longer sets `pytools`,
+  so a games-only pull request stays on the games path; CI's `content` job runs it instead (`scripts/game_generators.py check`: it must still write the committed game).
 - The `python-tools` job runs that stage on `ubuntu-24.04` and `windows-latest` (a 25-minute limit, because a hung process is exactly what these tests are about) when `pytools` is true. Linux is
   there for the fast signal (the `test` job's Linux leg reaches the same files only after the engine builds).
 - The file list is read with `-z` and matched through a here-string, so quoted names and long lists are handled.

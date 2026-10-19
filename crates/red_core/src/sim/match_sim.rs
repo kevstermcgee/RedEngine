@@ -60,6 +60,8 @@ pub struct ServerPlayer {
     pub view_lag: u8,
     /// Whether Interact was held at the last processed input (plants, defuses).
     pub interact_held: bool,
+    /// The inputs the scene's rules read (`rule_input::bits`) of the inputs processed this tick; kept as they were on a tick with none.
+    pub rule_input: u8,
     newest_received_seq: u32,
     queue: VecDeque<PlayerInput>,
 }
@@ -121,6 +123,9 @@ pub struct MatchSim {
     pub(super) game: Option<Box<dyn crate::sim::game::MatchGame>>,
     /// The scene's own `"teams": true` (see [`MatchSim::teams_enabled`]), independent of whether it also has a `shooter` block.
     pub(super) teams_requested: bool,
+    /// The rule variables a networked match sends, as indices into [`RulesEngine::vars`]: the ones the scene's HUD reads first
+    /// ([`crate::net::protocol::rule_vars_to_send`]).
+    sent_rule_vars: Vec<usize>,
 }
 
 impl MatchSim {
@@ -187,7 +192,19 @@ impl MatchSim {
             },
             game: crate::sim::game::game_for(scene),
             teams_requested: scene.teams,
+            sent_rule_vars: {
+                let names: Vec<String> = scene.rules.var_names.iter().skip(crate::sim::rules::BUILTIN_VARS.len()).cloned().collect();
+                let audio: Vec<&str> = scene.audio.iter().flat_map(|a| a.layers.iter().map(|l| l.var.as_str())).collect();
+                let reads: Vec<usize> = crate::ui_config::client_reads(scene.ui.as_ref(), &scene.hud, &audio, &names).iter().map(|r| r.var).collect();
+                crate::net::protocol::rule_vars_to_send(names.len(), &reads)
+            },
         })
+    }
+
+    /// The rule variables a networked match sends its clients, as indices into [`RulesEngine::vars`] in declaration order: the ones the scene's HUD
+    /// reads first, at most `net::protocol::MAX_RULE_VARS` ([`crate::net::protocol::rule_vars_to_send`]).
+    pub fn sent_rule_vars(&self) -> &[usize] {
+        &self.sent_rule_vars
     }
 
     /// The race, if this match is one: its phase, countdown, laps and standings.
@@ -409,6 +426,7 @@ impl MatchSim {
             },
             view_lag: 0,
             interact_held: false,
+            rule_input: 0,
             newest_received_seq: 0,
             queue: VecDeque::new(),
         });
@@ -521,6 +539,10 @@ impl MatchSim {
             let mut inputs = [None; 2];
             for slot_in in inputs.iter_mut().take(budget) {
                 *slot_in = p.queue.pop_front();
+            }
+            if inputs[0].is_some() {
+                // A press inside a caught-up pair still counts; held in place before a round, nobody presses anything.
+                p.rule_input = if locked { 0 } else { inputs.iter().flatten().fold(0, |b, i| b | super::rule_input::bits(i)) };
             }
             for input in inputs.into_iter().flatten() {
                 let Some(p) = self.players[slot].as_mut() else { break };
@@ -659,6 +681,7 @@ impl MatchSim {
                     height: body.body_height,
                     character: p.state.character,
                     team: p.team,
+                    input: p.rule_input,
                 }
             })
             .collect();

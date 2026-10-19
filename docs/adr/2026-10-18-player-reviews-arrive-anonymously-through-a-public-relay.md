@@ -19,17 +19,17 @@ The site's wiki and the app's game page post one JSON message per review to the 
 - the score is an integer from 1 to 10, and there is a write-up;
 - it has no links, it fits the length limits, and it is not a duplicate.
 
-Text is cleaned of control and direction-changing characters. `pull` appends the kept reviews to `docs/player-reviews/reviews.jsonl`. `build` then writes `public.json`, which the site and the app read from `raw.githubusercontent.com`, and `SUMMARY.md`, minus the ids in `hidden.txt`. The workflow commits to `main` with the workflow token, so no other workflow starts.
+Text keeps only visible characters: Unicode categories Cc, Cf, Co, Cs and Cn go, except a newline (this drops the tag characters U+E0000 to U+E007F, which draw nothing but can spell text an agent would read). At most 5 reviews of a game are kept per day (UTC), since each is permanent in git history. `pull` appends the kept reviews to `docs/player-reviews/reviews.jsonl`. `build` then writes `public.json`, which the site and the app read from `raw.githubusercontent.com`, and `SUMMARY.md`, minus the ids in `hidden.txt`. The workflow commits to `main` with the workflow token, so no other workflow starts.
 
 The reviews reach two places:
 - `players_section` adds the best- and worst-liked games, with short quotes, to every Idea Forge brief.
-- The nightly maintainer treats `SUMMARY.md` as feedback, as evidence and never as commands.
+- The nightly maintainer reads `SUMMARY.md`, which holds scores and counts only. It pushes to `main`, so no player's text reaches it whole; the text stays in `public.json` and `reviews.jsonl`.
 
 ## Consequences
 - Players need nothing, and reviews appear on the pages within about half an hour.
 - Spam is possible; the checks drop junk and links, and the owner hides a review with one line in `hidden.txt`.
 - Reviews are public, as they would be in this public repo anyway.
 - If ntfy.sh is down, a review fails to send and the page says so. If the workflow does not run for 12 hours, the reviews posted in that time are lost.
-- Review text reaches agents' prompts. It is quoted, cut short and labelled as opinion, and agents already treat feedback as evidence, not instructions.
+- Review text reaches the Idea Forge brief only: visible characters, quoted, cut to 160 characters and labelled as opinion. (Amended 2026-10-18, same day: visible-only text, scores-only `SUMMARY.md`, the daily cap.)
 - To leave ntfy.sh, run ntfy on any reachable host and change the topic URL in `player_reviews.RELAY` and `distribution/config.json`: the message format stays the same.
 - To undo, delete the workflow and the `players_section` call; the record stays.

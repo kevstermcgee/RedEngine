@@ -328,6 +328,24 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
         self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
 
+    def test_a_2d_games_generator_ships_beside_it_and_feedback_check_runs_it(self):
+        self.run_it()
+        slug = self.idea["slug"]
+        game = rd(os.path.join(self.wt, "examples", "2d", f"{slug}.game2d.json"))
+        os.makedirs(os.path.join(self.wt, "examples", "2d", slug))
+        gen = os.path.join(self.wt, "examples", "2d", slug, "build.py")
+        wr(gen, f"from pathlib import Path\n(Path(__file__).resolve().parent.parent / {slug + '.game2d.json'!r}).write_text({game!r})\n")
+        env = dict(self.env, IDEA_FORGE_RUN=os.path.join(self.wt, ".idea-forge"))
+        self.assertIn("feedback OK", cli("feedback", "--check", cwd=self.wt, env=env).stdout)
+        wr(gen, "print('writes nothing')\n")
+        p = cli("feedback", "--check", cwd=self.wt, env=env, check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn(f"examples/2d/{slug}/build.py: did not write examples/2d/{slug}.game2d.json", p.stdout)
+        wr(gen, f"from pathlib import Path\n(Path(__file__).resolve().parent.parent / {slug + '.game2d.json'!r}).write_text({game!r})\n")
+        cli("ship", slug, "--no-push")
+        files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"examples/2d/{slug}/build.py", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
+
     def test_ship_refuses_unfinished_feedback(self):
         self.run_it()
         slug = self.idea["slug"]
@@ -354,7 +372,13 @@ class Kinds(unittest.TestCase):
         self.assertTrue(idea_forge.allowed_path("examples/3d/x/audio/dusk.json", "x", "3d"))
         self.assertFalse(idea_forge.allowed_path("examples/3d/y/y.json", "x", "3d"))
         self.assertFalse(idea_forge.allowed_path("examples/2d/x.game2d.json", "x", "3d"))
-        self.assertFalse(idea_forge.allowed_path("examples/2d/x/extra.json", "x", "2d"), "a 2D game is one file")
+        self.assertTrue(idea_forge.allowed_path("examples/2d/x/build.py", "x", "2d"), "a 2D game's generator lives in its own folder beside the one game file")
+        for kind in ("2d", "3d"):   # the generator's folder (#180) and the wiki page (#185) together
+            self.assertTrue(idea_forge.allowed_path(idea_forge.wiki_file("x"), "x", kind), kind)
+            self.assertTrue(idea_forge.allowed_path(f"examples/{kind}/x/build.py", "x", kind), kind)
+            self.assertFalse(idea_forge.allowed_path(idea_forge.wiki_file("y"), "x", kind), kind)
+        self.assertFalse(idea_forge.allowed_path("examples/2d/y/build.py", "x", "2d"))
+        self.assertFalse(idea_forge.allowed_path("examples/2d/x.py", "x", "2d"))
         self.assertEqual(idea_forge.feedback_name("2026-10-09", "3d", "x"), "2026-10-09-3d-x.md")
         self.assertEqual(idea_forge.feedback_name({"date": "2026-10-07", "slug": "x"}), "2026-10-07-x.md", "runs from before kinds keep their name")
 
@@ -407,6 +431,26 @@ esac
         del game["checks"]["lint"]   # without a declaration the bare command is the judge, as before
         wr(os.path.join(root, "examples", "3d", "x", "x.json"), json.dumps(game))
         self.assertFalse(idea_forge.score(root, "x", "3d")[1]["ok"])
+
+    def test_both_briefs_say_where_a_generator_lives_and_that_it_is_kept(self):
+        i = idea_forge.make_idea(123456789)
+        for kind, folder in (("2d", "examples/2d/electric-foundry/build.py"), ("3d", "examples/3d/electric-foundry/build.py")):
+            b = idea_forge.brief(i, "2026-10-09", kind=kind)
+            for must in (folder, "never in /tmp", "examples/2d/honeybound/", "byte for byte", "scripts/game_generators.py check"):
+                self.assertIn(must, b, f"{kind}: {must}")
+
+    def test_scripts_written_outside_the_game_folder_are_counted_from_the_transcript(self):
+        d = tempfile.mkdtemp()
+        events = [
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "mkdir -p /tmp/g && cat > /tmp/g/gen.py <<'EOF'\nprint(1)\nEOF"}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Write", "input": {"file_path": os.path.join(d, "examples/3d/x/build.py"), "content": ""}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "cat > gen.py <<'EOF'\nEOF"}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python3 /x/scripts/idea_forge.py note y"}}]}},
+            {"type": "user", "message": {"content": "a plain string"}},
+        ]
+        session = os.path.join(d, "session.jsonl")
+        wr(session, "\n".join(json.dumps(e) for e in events) + "\nnot json\n")
+        self.assertEqual(idea_forge.scripts_not_kept(session, d, "examples/3d/x/"), [os.path.normpath("/tmp/g/gen.py"), os.path.join(d, "gen.py")])
 
     def test_the_3d_brief_tells_the_agent_to_declare_checks_lint(self):
         self.assertIn("Declare `checks.lint`", idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-09", kind="3d"))
@@ -497,16 +541,25 @@ class Daily(unittest.TestCase):
 
     def test_a_second_daily_run_is_refused_while_the_first_is_alive(self):
         home()
+        lock = os.path.join(os.environ["IDEA_FORGE_HOME"], "daily.lock")
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        self.addCleanup(other.wait)
+        self.addCleanup(other.kill)
+        wr(lock, str(other.pid))
+        with self.assertRaises(SystemExit) as e:
+            with idea_forge.Lock():
+                pass
+        self.assertIn("another daily run is active", str(e.exception))
+        wr(lock, "999999999")
         with idea_forge.Lock():
-            with self.assertRaises(SystemExit) as e:
-                with idea_forge.Lock():
-                    pass
-            self.assertIn("another daily run is active", str(e.exception))
+            pass   # a stale pid file does not block
+        self.assertFalse(os.path.exists(lock), "released")
+
+    def test_a_run_that_restarted_itself_keeps_its_own_lock(self):
+        home()
         with idea_forge.Lock():
-            pass   # released, and a stale pid file does not block either
-        wr(os.path.join(os.environ["IDEA_FORGE_HOME"], "daily.lock"), "999999999")
-        with idea_forge.Lock():
-            pass
+            with idea_forge.Lock():   # what `restart_if_refreshed` amounts to: the same pid takes the lock again
+                pass
 
     def test_the_dry_run_prints_the_order_and_fixes_it(self):
         home()
@@ -1357,6 +1410,65 @@ class Refresh(unittest.TestCase):
         git(self.dedicated, "commit", "-q", "-m", "local only")
         self.assertIn("cannot fast-forward", idea_forge.refresh_checkout(self.dedicated))
         self.assertTrue(os.path.isfile(os.path.join(self.dedicated, "g.txt")))
+
+
+@unittest.skipIf(WINDOWS, "the night runs under systemd or cron; on Windows os.execv starts a new process and the old one exits at once")
+class RestartAfterRefresh(unittest.TestCase):
+    """A night that fast-forwards its own checkout restarts once, so the code that writes the briefs and publishes is the code just merged (on 2026-10-18 the pre-#185 copy
+    published two games without wiki pages). Real processes: the tool runs from a dedicated checkout one commit behind its origin, and the new commit changes `cmd_nightly`."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="idea_forge_restart_")
+        self.addCleanup(shutil.rmtree, self.base, True)
+        remote = os.path.join(self.base, "remote.git")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", remote], check=True)
+        work = os.path.join(self.base, "work")
+        subprocess.run(["git", "clone", "-q", remote, work], check=True, capture_output=True)
+        git(work, "checkout", "-q", "-b", "main")
+        os.makedirs(os.path.join(work, "scripts"))
+        for f in os.listdir(HERE):   # every module the tool may import at load (proc_supervisor, game_generators, ...)
+            if f.endswith(".py"):
+                shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
+        shutil.copytree(idea_forge.FORGE_DIR, os.path.join(work, os.path.relpath(idea_forge.FORGE_DIR, idea_forge.ROOT)),   # the idea vocabulary the state loader reads
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        wr(os.path.join(work, ".gitignore"), "__pycache__/\n")   # as the real repo: running the tool must not make the checkout look edited
+        git(work, "add", "-A")
+        git(work, "commit", "-q", "-m", "yesterday")
+        git(work, "push", "-q", "-u", "origin", "main")
+        self.dedicated = os.path.join(self.base, "factory")
+        subprocess.run(["git", "clone", "-q", remote, self.dedicated], check=True, capture_output=True)
+        tool = os.path.join(work, "scripts", "idea_forge.py")
+        text = rd(tool)
+        self.assertIn("def cmd_nightly(a):\n", text)
+        wr(tool, text.replace("def cmd_nightly(a):\n", "def cmd_nightly(a):\n    print(\"night code: merged today\", flush=True)\n", 1))
+        git(work, "commit", "-qam", "merged today")
+        git(work, "push", "-q")
+        self.env = dict(os.environ, IDEA_FORGE_HOME=os.path.join(self.base, "state"), IDEA_FORGE_PUBLISH="0", IDEA_FORGE_EXPORT=SCRATCH_EXPORT,
+                        GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t", PYTHONUNBUFFERED="1")
+        self.env.pop(idea_forge.REEXEC_ENV, None)
+
+    def night(self, **env):
+        return subprocess.run([sys.executable, os.path.join(self.dedicated, "scripts", "idea_forge.py"), "nightly", "--claude", sys.executable, "--skip-games",
+                               "--min-free-gb", "0", "--date", "2026-10-09"], capture_output=True, text=True, env=dict(self.env, **env), timeout=120)
+
+    def test_a_night_that_moved_its_checkout_restarts_once_on_the_new_code(self):
+        p = self.night()
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertEqual(out.count("restarting so the night runs the new code"), 1, out)
+        self.assertEqual(out.count("night code: merged today"), 1, out)
+        self.assertEqual(out.count("nightly done"), 1, "yesterday's copy stopped at the restart: " + out)
+        self.assertLess(out.index("restarting"), out.index("night code: merged today"))
+        self.assertIn("night code: merged today", rd(os.path.join(self.dedicated, "scripts", "idea_forge.py")))
+        self.assertFalse(os.path.exists(os.path.join(self.base, "state", "daily.lock")), "the restarted run released the lock it kept")
+
+    def test_the_guard_stops_a_second_restart(self):
+        p = self.night(**{idea_forge.REEXEC_ENV: "already"})
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertNotIn("restarting", out)
+        self.assertNotIn("night code: merged today", out, "no restart: the night finished on the copy it started with")
+        self.assertIn("night code: merged today", rd(os.path.join(self.dedicated, "scripts", "idea_forge.py")), "the checkout itself was still refreshed")
 
 
 @NEEDS_SH

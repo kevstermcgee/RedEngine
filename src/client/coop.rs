@@ -28,6 +28,8 @@ pub(crate) struct PlayerCtx {
     pub attack_queued: bool,
     pub attack_held: bool,
     pub ads_held: bool,
+    pub rule_input: u8,
+    pub rule_presses: u8,
     pub ads_blend: f32,
     pub net_pulse: [u8; 4],
     pub switch_queued: Option<i32>,
@@ -73,7 +75,7 @@ impl App {
     /// Exchanges this app's per-player state with `ctx`'s (the same call twice puts everything back).
     pub(crate) fn swap_player(&mut self, ctx: &mut PlayerCtx) {
         swap_player!(
-            self, ctx; slot, device, camera, character, body, keys, pad, sprint_held, jump_queued, attack_queued, attack_held, ads_held, ads_blend, net_pulse, switch_queued, weapon,
+            self, ctx; slot, device, camera, character, body, keys, pad, sprint_held, jump_queued, attack_queued, attack_held, ads_held, rule_input, rule_presses, ads_blend, net_pulse, switch_queued, weapon,
             switching, scroll_accum, ammo, shot_cd, swing, switch, since_shot, flash_left, eye, swing_timer, target_index, pickup_target, physics_pos, prev_physics_pos,
             foot_y, prev_foot_y, vertical_velocity, horizontal_velocity, last_move_speed, eye_height, fov_deg, view_mode, player_object_index, walk_phase,
             hand_prop_transform, flashlight_on
@@ -95,6 +97,8 @@ impl App {
             attack_queued: false,
             attack_held: false,
             ads_held: false,
+            rule_input: 0,
+            rule_presses: 0,
             ads_blend: 0.0,
             net_pulse: [0; 4],
             switch_queued: None,

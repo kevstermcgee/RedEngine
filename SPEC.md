@@ -571,7 +571,10 @@ condition holds, and then **does** its actions:
 - **`when`** (exactly one): `{enter: VOLUME}`, `{exit: VOLUME}` (a player crosses the boundary), `{event: "name"}` (another
   rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`,
   `{prop_enter: VOLUME}` / `{prop_exit: VOLUME}` (a loose prop's origin crosses in or out; each prop that crosses fires the rule once;
-  `"prop": id | [ids]` beside it restricts the rule to those props), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres).
+  `"prop": id | [ids]` beside it restricts the rule to those props), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres),
+  `{input: name}` (a player presses `jump`, `crouch`, `sprint`, `interact`, `attack` or `alt`, the right mouse or left trigger; with
+  `"release": true`, lets go; `me` is that player, and `input(name)` in an expression is 1 while they hold it. ADR
+  2026-10-19-rules-read-the-input-a-player-already-sends).
   A prop is *inside* when its origin is inside in x/z and its height band overlaps in y; a carried prop counts where it was picked up
   until it is dropped. Prop triggers fire with no triggering player (`teleport` does nothing).
 - **The rule's subject, `self`**: a rule fired by one loose prop — `prop_enter`, `prop_exit`, `prop_below`, or the engine events `pickup`,
@@ -618,14 +621,31 @@ condition holds, and then **does** its actions:
   `enter` rule's work (key on `enter`, or use one variable per volume). A player or prop that starts inside a volume gets no `enter`
   (use a `start` rule). A variable whose name starts with `_` is internal: the generic HUD does not show it.
 
+**Rules that repeat (`groups`, `for_each`).** A rule per tile, door or lane is written once. `"groups"` names members: a list of ids
+(`"door": ["door_*"]`, `*` matching top-level object ids in scene order) or id -> fields (`"tile": {"t1": {"box": [...], "near": ["t2"]}}`). A rule with
+`"for_each": "door"` becomes one rule per member, with `$door` replaced by the member's id and `$door.field` by its field (a string that is one
+placeholder becomes the value: `"box": "$tile.box"`); `{"for_each": "tile", "rules": [...]}` repeats a block of rules per member, in order, and nests;
+`"in"` gives the range (a group, a list, or a field such as `$tile.near`); `{"for_each": ..., "do": [...]}` inside a `do` repeats actions in place; a
+variable named `"_s_$tile"` is declared once per member. This is expanded when the scene loads (`sim::rule_groups`), so the simulation, the match
+checksum, replays and the wire see exactly the rules written out by hand. A template's id must hold its placeholder; an error keeps the template's
+path and names the member (`rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`). `examples/3d/gentle-carousel` is 13 entries for 249 rules.
+
+**Timers and per-prop variables.** `{"timer": ["close", 2]}` starts a timer, or restarts it if it is running; `{"cancel": "close"}` stops it; a rule
+with `"when": {"timer": "close"}` fires once when it runs out. `secs` may be an expression; a timer only started or only waited for is an error.
+`"prop_vars": {"heat": 0}` gives every loose prop its own copy, read and written as `self.heat` by a rule whose subject is a prop, and `self.fuse` is
+each prop's own timer (its trigger fires once per prop, as the subject). One per static object comes from a template (`"close_$door"`). Both are
+server state: in the match checksum, never on the wire (`sim::rule_timers`; checked with `{"prop_var": "heat", "of": "crate", "eq": 1}`).
+
 Everything a rule names — variables, objects, loose props, zones, spawn points, events — is checked when the scene loads, with a
 did-you-mean (`rules[1] (exit_opens).if: unknown variable `scor` — did you mean `score`?`). Rules run inside the
 authoritative simulation (`MatchSim`: `red_server`, `red_engine2 sim`), deterministically, and their state (prop occupancy and
 where each aimed field points included) is part of the match checksum. Offline `re2` runs the same `RulesEngine`, applies hide/show, teleport, impulse, reset, place
 and the field pushes, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
-state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (16 variables, 256 hidden
-objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. `red_engine2 describe rules` prints this with a
+state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (64 variables, by index since v17, 256 hidden
+objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. Of the variables, the ones the HUD reads
+(`ui` counters and objective, then its plain rows) go first; a client that reads more than 64 (HUD, title, `ui.pause`, `audio.layers`; the online client copies them into its own rules) is a `lint` error
+(`net-hud`), since online it would show 0, and so is an event or outcome name over 32 bytes, which the wire cuts. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)
@@ -835,7 +855,7 @@ problems (stairs that lead nowhere, unreachable rooms, overlaps, ...).
 
 The graphics client polls native gamepads through gilrs. Left-stick movement retains analog
 strength; right-stick look is time-based and FOV-compensated. Input flag bit 7 selects signed
--127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->16<!--/fact-->.
+-127..127 axes; digital -1/0/1 inputs retain their old meaning. Network protocol is v<!--fact:protocol-->17<!--/fact-->.
 Headless builds do not pull in gilrs. Focus loss, disconnect and menu transitions require
 neutral controls before gameplay resumes. See docs/CONTROLLERS_AND_SANDBOX.md for bindings.
 

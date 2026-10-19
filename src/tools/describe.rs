@@ -274,6 +274,8 @@ pub const SCENE_KEYS: &[(&str, &str)] = &[
     ("interest", "{cell_size, note} network-interest settings (roadmap; rooms are the cells)"),
     ("vars", "{name: number|bool} game variables rules read and write (`describe rules`); built-ins: time, tick, players"),
     ("player_vars", "{name: number|bool} per-player variables: every player has their own copy (laps, lives, a personal score); rules read and write them as `me.name` for the player that triggered the rule (`describe rules`)"),
+    ("prop_vars", "{name: number|bool} per-prop variables: every loose prop has its own copy (heat, hits); rules read and write the subject prop's as `self.name` (`describe rules`, TIMERS for `self.` timers)"),
+    ("groups", "{name: [ids, \"door_*\"] | {id: {field: value}}} members a rule template repeats over (`for_each`, `$name`, `$name.field`): expanded when the scene loads (`describe rules`)"),
     ("rules", "[{id, when, who, if, once, cooldown, do}] game logic as data: triggers, conditions, actions (`describe rules`)"),
     ("phases", "{name: [rule ids]} named level states for lint/reach/walk/verify: the rules assumed to have fired, so a gate they open is open (`describe rules`)"),
     ("fields", "[{id, zone|object|box, velocity:[x,z], lift, rate}] force volumes on loose props: a river current, a conveyor, a wind tunnel; pulls props inside toward a target speed (SPEC \"Force fields\")"),
@@ -348,6 +350,11 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
         "style-lamp",
         "warn",
         "a game whose point lights all keep the default lamp colour (#fff4e0 / white) -> a palette `lamp` role or style.light.lamp",
+    ),
+    (
+        "net-hud",
+        "error",
+        "the client reads (HUD, title, pause line, audio layers) more than the 64 variables a networked match sends (red_server, play-local, playtest): online it shows 0 -> read at most 64; or an event/outcome name over 32 bytes, shown cut online -> rename it; offline play is unaffected",
     ),
     (
         "style-sky",
@@ -559,6 +566,8 @@ fn ui_text() -> String {
      }\n\n\
      Everything is checked on load with a did-you-mean: variables (labels, counters, `of`, conditions, {placeholders}), `end` outcomes against the rules' `end` actions,\n\
      unknown keys, texts too long for a screen. `hud` composes: `show_rules_vars: false` hides the plain variable rows but counters and the objective stay; `enabled: false` hides all.\n\
+     Online a match sends 64 variables (by index), the ones the client reads first (HUD, title, `pause`, audio layers; the client copies them into its own\n\
+     rules): reading more, or an event/outcome name over 32 bytes, is lint `net-hud`. Texts (`title`, `objective`, `pause`) fill their {var} placeholders.\n\
      Offline (`re2 scene.json`): Enter, Space, E or a click uses a card's button; a restart rebuilds the game from the scene file and skips the start card. Online: the HUD\n\
      uses the labels, counters and objective, but the cards are offline only (a shared match cannot wait for one player; it has its own lobby and results).\n\n\
      SEE IT:    red_engine2 ui-shot game-hud|game-start|game-end out.png --scene scene.json [--var delivered=3] [--outcome victory] [--size 1280x720]\n\
@@ -574,7 +583,8 @@ fn rules_text() -> String {
          rule = { id, when, who?, if?, once?, cooldown?, do }\n\
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
          \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; `prop: id | [ids]` beside it: only those)\n\
-         \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)\n\
+         \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)   {timer: name} (a timer ran out; see TIMERS)\n\
+         \x20           {input: jump|crouch|sprint|interact|attack|alt} a player presses it (`release: true`: lets go); `me` is them, input(alt) is 1 while held\n\
          \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
@@ -590,6 +600,21 @@ fn rules_text() -> String {
          copy of the player that triggered the rule (enter/exit, or an event a player caused: kill, pickup, or an `emit` from such a rule),\n\
          and `{\"add\": [\"me.laps\", 1]}` / `set` write it; `me.` in a start/every/after rule is a validate error. Prove it in `sim` with\n\
          `{\"player_var\": \"laps\", \"of\": \"p1\", \"gte\": 3}`.\n\
+         GROUPS AND for_each (a rule per tile, door or lane, written once; expanded when the scene loads, so it runs exactly like hand copies):\n\
+         \x20 \"groups\": {\"door\": [\"door_*\"], \"tile\": {\"t1\": {\"box\": [0,0,0,1,2,1], \"near\": [\"t2\"]}, \"t2\": {...}}}   ids (`*` = object ids) or id -> fields\n\
+         \x20 \"vars\": {\"_s_$tile\": 0}                                   one variable per member (`\"$tile.start\"` as the value reads a field)\n\
+         \x20 {\"id\": \"open_$door\", \"for_each\": \"door\", \"when\": {\"enter\": {\"object\": \"$door\"}}, \"do\": [{\"deactivate\": \"$door\"}]}   one rule per member\n\
+         \x20 {\"for_each\": \"tile\", \"rules\": [ ...rules... ]}             a block: each member's rules together, in order (nest blocks freely)\n\
+         \x20 {\"id\": \"wake_$tile_$n\", \"for_each\": \"n\", \"in\": \"$tile.near\", ...}   `in`: a group's name, a list, or a field that holds one\n\
+         \x20 \"do\": [{\"for_each\": \"door\", \"do\": [{\"hide\": \"$door\"}]}]      actions repeated in place\n\
+         `$name` is the member's id, `$name.field` its field (a whole-string placeholder is the value itself: `\"box\": \"$tile.box\"`); the longest name in scope\n\
+         wins (`$tile_$n`). A template's id must hold its placeholder. An error names the template and the member: `rules[3].rules[2] (wake_t1_t2, tile = t1, n = t2)`.\n\
+         TIMERS (restartable): {\"timer\": [\"close\", 2]} starts it, or restarts it if it is running; {\"cancel\": \"close\"} stops it; a rule with\n\
+         `\"when\": {\"timer\": \"close\"}` fires once when it runs out (every rule that waits for it, that tick). `secs` may be an expression. A timer only\n\
+         started or only waited for is a validate error. Per thing: `\"close_$door\"` in a for_each template, or `self.fuse` for each loose prop's own.\n\
+         PER-PROP VARIABLES: `\"prop_vars\": {\"heat\": 0}` gives every loose prop its own copy; `self.heat` reads and writes the rule's subject prop's\n\
+         (prop_enter, prop_exit, prop_below, pickup, drop, prop_hit, or a `self.` timer). Prove it: `{\"prop_var\": \"heat\", \"of\": \"crate\", \"eq\": 1}`.\n\
+         Both are server state: in the match checksum, never sent to clients (they see what the rules do with them).\n\
          Built-in functions read the loose props (a prop's id, or a zone's, as the argument; a prop that is not loose is a validate error):\n",
     );
     for (_, _, help) in crate::sim::rules_expr::Func::ALL {
@@ -938,7 +963,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "brief" => brief_json(commands),
             "rules" => json!({
                 "actions": crate::sim::rules::ACTIONS.iter().map(|(n, h)| json!({"action": n, "help": h})).collect::<Vec<_>>(),
-                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below"],
+                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below", "timer", "input"],
                 "functions": crate::sim::rules_expr::Func::ALL.iter().map(|(n, _, h)| json!({"function": n, "help": h})).collect::<Vec<_>>(),
                 "engine_events": crate::sim::rules::ENGINE_EVENTS,
                 "volumes": ["zone", "object", "box"],

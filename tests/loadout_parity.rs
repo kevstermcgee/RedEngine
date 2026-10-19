@@ -25,10 +25,12 @@ fn ticks(mode: &str) -> u32 {
 }
 
 /// The fingerprints of this build on Linux: (mode, value). Update them only for a change meant to change play, with the reason in the pull request.
+/// (Re-pinned for protocol v17: the snapshot header carried the version; the harness now folds the body only, and the body's fingerprints were the
+/// same on the v16 and v17 builds.)
 /// Exact checksums are only guaranteed on one platform (ADR 0021-deterministic-traces-replay-and-checksums), so elsewhere the harness checks that two
 /// runs agree and that the bots really play, not these numbers.
 const GOLDEN: &[(&str, u64)] =
-    &[("tdm", 0xef20_811b_5d5b_3e07), ("ffa", 0x8803_66bc_c801_cd9d), ("ctf", 0x4bcc_d56d_0cee_b221), ("snd", 0x8e87_8598_5318_e6ad)];
+    &[("tdm", 0xf7bf_4cfe_5d11_fb3a), ("ffa", 0xcc89_6a13_e4df_4073), ("ctf", 0x5450_07b5_041d_c2dd), ("snd", 0xc53f_1a4c_2697_b22a)];
 
 fn pickups() -> Value {
     json!([
@@ -102,6 +104,9 @@ fn match_sim(mode: &str) -> MatchSim {
     sim
 }
 
+/// Bytes before a message's body: magic (u16), protocol version (u16), kind (u8).
+const SNAPSHOT_HEADER: usize = 5;
+
 struct Fold(u64);
 
 impl Fold {
@@ -138,7 +143,8 @@ fn fingerprint(mode: &str) -> (u64, [u32; 3]) {
             let (players, game) = red_engine2::net::snapshot_view(&sim, viewer);
             buf.clear();
             ServerMsg::Snapshot(Snapshot { server_tick: sim.tick() as u32, players, game, ..Default::default() }).encode(&mut buf);
-            f.bytes(&buf);
+            // The body only: the header (magic, protocol version, kind) is not play, so a protocol bump that leaves snapshots alone keeps the numbers.
+            f.bytes(&buf[SNAPSHOT_HEADER..]);
         }
     }
     (f.0, [kills, events.len() as u32, thrown])

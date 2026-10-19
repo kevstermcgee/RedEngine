@@ -125,7 +125,7 @@ fn each_sunrise_adds_a_day_to_the_count_the_game_keeps() {
     // A game that was played before comes back where it was.
     assert!(rules.set_var("days_lived", 6.0));
     assert!(!rules.set_var("no_such_var", 1.0));
-    let me = RulePlayer { slot: 0, pos: glam::Vec3::ZERO, radius: 0.3, height: 1.3, character: Character::Boy, team: 0 };
+    let me = RulePlayer { slot: 0, pos: glam::Vec3::ZERO, radius: 0.3, height: 1.3, character: Character::Boy, team: 0, input: 0 };
     rules.step(1, &[me]);
     for tick in [100u64, 200] {
         rules.inject(tick, "sunrise", None);

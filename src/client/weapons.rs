@@ -226,6 +226,7 @@ impl App {
         } else {
             self.attack_queued = true;
             self.attack_held = true;
+            self.rule_presses |= 1 << crate::sim::rule_input::index("attack").unwrap_or(0);
         }
     }
 
@@ -240,6 +241,7 @@ impl App {
             self.net_pulse[0] = NET_PULSE_TICKS; // the server picks up / drops
             return;
         }
+        self.rule_presses |= 1 << crate::sim::rule_input::index("interact").unwrap_or(0);
         let mut acted = false;
         // The physics world has one holder: loose props are the first player's to carry. Everyone's `interact` still reaches the rules.
         if let Some(props) = self.props.as_mut().filter(|_| self.slot == 0) {

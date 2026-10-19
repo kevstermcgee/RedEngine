@@ -148,7 +148,12 @@ fn two_scripted_players_finish_a_rules_game_over_quic_under_loss_and_reordering(
     for (i, b) in bots.iter().enumerate() {
         let st = b.client.rule_state().unwrap_or_else(|| panic!("bot {i} has no rule state: {:?}", b.events));
         assert_eq!(st.outcome, "victory", "bot {i}: {:?}", b.events);
-        assert_eq!(st.vars.iter().find(|v| v.name == "coins").map(|v| v.value), Some(1.0));
+        let (scene, _) = ClientWorld::load(&map).unwrap();
+        assert_eq!(
+            st.named(scene.rules.own_var_names()).into_iter().find(|(n, _)| *n == "coins").map(|(_, v)| v),
+            Some(1.0),
+            "names from the client's own scene (v17)"
+        );
         assert!(!st.hidden.is_empty(), "the coin is hidden for bot {i}");
         assert_eq!(b.client.stats().connects, 1, "bot {i} never had to reconnect: {:?}", b.events);
     }
@@ -316,6 +321,53 @@ fn a_player_reconnects_after_an_outage_and_resumes_their_slot() {
     proxy.finish();
     let server = server.finish();
     assert_eq!(server.stats().resumes, 1, "the server resumed the parked player");
+}
+
+/// Like `poll_until`, sending an idle input each time as a playing client does every tick (a silent client is dropped after a few seconds).
+fn play_until(client: &mut NetClient, secs: f64, mut done: impl FnMut(&NetClient) -> bool) -> bool {
+    let end = Instant::now() + Duration::from_secs_f64(secs);
+    while Instant::now() < end {
+        let now = Instant::now();
+        client.poll(now);
+        client.send_input(red_engine2::sim::player::PlayerInput::default(), now);
+        if done(client) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    false
+}
+
+/// After a reconnect the server's new session numbers its Status and RuleState from 0 again. The client used to keep the old ones, so every new one
+/// looked older and was dropped: the HUD and the match timer stood still for about as long as the match had been running (5 statuses a second).
+#[test]
+fn after_a_reconnect_the_status_and_rule_state_follow_the_new_session_at_once() {
+    let server = start(&identity(), "127.0.0.1:0", None, QuicServerOptions::default());
+    let proxy = LossyProxy::start(server.addr, profile("lan").unwrap(), 5).unwrap();
+    let mut client = NetClient::connect_with(quic_cfg(proxy.addr, &server.fingerprint, 0)).unwrap();
+    assert!(play_until(&mut client, 5.0, |c| c.state() == ConnState::Connected));
+    assert!(play_until(&mut client, 10.0, |c| c.status().is_some_and(|s| s.seq >= 20) && c.rule_state().is_some()), "a few seconds of statuses");
+    assert_eq!(client.stats().connects, 1);
+    let (old_seq, old_tick) = (client.status().unwrap().seq, client.rule_state().unwrap().server_tick);
+    proxy.set_blackhole(true);
+    assert!(play_until(&mut client, 5.0, |c| c.state() == ConnState::Reconnecting), "the client noticed");
+    std::thread::sleep(Duration::from_millis(1500));
+    proxy.set_blackhole(false);
+    assert!(play_until(&mut client, 12.0, |c| c.state() == ConnState::Connected && c.stats().connects == 2), "reconnected");
+    let t0 = Instant::now();
+    let fresh = play_until(&mut client, 2.0, |c| {
+        c.status().is_some_and(|s| s.seq < old_seq) && c.rule_state().is_some_and(|r| r.seq < old_seq && r.server_tick > old_tick)
+    });
+    assert!(
+        fresh,
+        "the new session's status and rule state were dropped as stale: status seq {:?}, rule state seq {:?} (before the outage: {old_seq})",
+        client.status().map(|s| s.seq),
+        client.rule_state().map(|r| r.seq)
+    );
+    eprintln!("MEASURE reconnect: the HUD's state followed the new session {:.2} s after the Welcome", t0.elapsed().as_secs_f64());
+    client.disconnect();
+    proxy.finish();
+    assert_eq!(server.finish().stats().resumes, 1);
 }
 
 #[test]

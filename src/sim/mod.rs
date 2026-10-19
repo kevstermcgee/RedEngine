@@ -12,7 +12,7 @@
 //! - [`player`]: one player's movement for one tick as a pure function (single-player, server and client
 //!   prediction all run it); [`spawns`]: multiplayer spawn points from the map.
 //! - [`match_sim`]: the authoritative match world (players + props), ticked with queued inputs.
-//! - [`rules`] + [`rules_expr`] + [`rules_run`]: game rules as data (`vars`, `rules`): triggers, conditions and actions
+//! - [`rules`] + [`rules_expr`] + [`rules_run`]: game rules as data (`vars`, `rules`): triggers, conditions and actions; [`rule_groups`] expands `groups`/`for_each` templates into them
 //!   parsed and validated with the scene, run deterministically every tick (`describe rules`).
 //! - [`trace`] + [`replay`] + [`checksum`]: record a match (joins, inputs, events, checksums), replay it without a renderer or
 //!   socket, and find the first tick where two runs disagree (`red_engine2 replay`).
@@ -53,6 +53,9 @@ pub use red_core::sim::ordnance;
 pub use red_core::sim::player;
 pub use red_core::sim::race;
 pub mod replay;
+pub use red_core::sim::rule_groups;
+pub use red_core::sim::rule_input;
+pub use red_core::sim::rule_timers;
 pub use red_core::sim::rules;
 pub use red_core::sim::rules_expr;
 pub use red_core::sim::rules_run;

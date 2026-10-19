@@ -63,7 +63,7 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
     assert_eq!(a.rule_state(), b.rule_state(), "simultaneous clients must present identical state");
 
     let state = a.rule_state().unwrap();
-    assert_eq!(state.vars.iter().find(|v| v.name == "score").map(|v| v.value), Some(3.0));
+    assert_eq!(state.named(scene.rules.own_var_names()), [("score", 3.0)]);
     assert_eq!(state.hidden, [hidden_index]);
     assert_eq!(state.collision_disabled, [hidden_index]);
     assert_eq!(state.event, "collected");
@@ -79,4 +79,106 @@ fn peers_and_a_late_joiner_recover_the_same_complete_rule_state() {
     stop.store(true, Ordering::Relaxed);
     let server = handle.join().unwrap();
     assert!(server.stats().rule_states_sent >= 3);
+}
+
+/// Quiet Compass (Idea Forge 2026-10-15, F1): the server sent the first 16 variables in declaration order, so a HUD counter on a later one showed 0
+/// online while it counted offline. The variables the HUD reads go first, by index (protocol v17, at most `MAX_RULE_VARS` = 64), and the online HUD
+/// equals the one drawn from every variable. 70 variables: more than a match sends, with the HUD reading three of the last ones.
+#[test]
+fn a_hud_counter_on_a_variable_declared_after_the_cap_counts_online() {
+    use red_engine2::net::protocol::MAX_RULE_VARS;
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&source).unwrap();
+    let names: Vec<String> = (0..70).map(|i| format!("v{i:02}")).collect();
+    value["vars"] = serde_json::Value::Object(names.iter().map(|n| (n.clone(), json!(0))).collect());
+    value["hud"] = json!({"show_rules_vars": false});
+    value["ui"] = json!({
+        "title": "Late counters",
+        "counters": [{"var": "v67", "label": "Crumble", "of": 9}, {"var": "v02", "label": "Early"}],
+        "objective": [{"if": "v69 >= 5", "text": "Leave ({v68} left)"}, {"text": "Wait"}]
+    });
+    value["rules"] = json!([{
+        "id": "count",
+        "when": {"after": 0.05},
+        "once": true,
+        "do": [{"set": ["v67", 7]}, {"set": ["v69", 5]}, {"set": ["v68", 3]}, {"set": ["v02", 2]}, {"end": "victory"}]
+    }]);
+    let text = serde_json::to_string(&value).unwrap();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
+    assert!(scene.rules.own_var_names().len() > MAX_RULE_VARS, "the scene must declare more variables than a networked match sends");
+    let spawns = parse_spawns(&text).unwrap();
+    let hash = red_engine2::net::map_hash(&text);
+    let mut server = Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), hash), MatchSim::new(&scene, spawns)).unwrap();
+    server.set_logger(|_| {});
+    let addr = server.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop2 = stop.clone();
+    let handle = std::thread::spawn(move || {
+        server.run(&stop2);
+        server
+    });
+
+    let mut client = NetClient::connect(addr, 0, hash, 0).unwrap();
+    wait_for_finished_state(&mut [&mut client]);
+    let state = client.rule_state().unwrap().clone();
+    stop.store(true, Ordering::Relaxed);
+    handle.join().unwrap();
+
+    assert!(state.vars.len() == MAX_RULE_VARS, "a full list: {}", state.vars.len());
+    let online = state.named(scene.rules.own_var_names());
+    let got = |n: &str| online.iter().find(|(name, _)| *name == n).map(|(_, v)| *v);
+    assert_eq!((got("v67"), got("v68"), got("v69"), got("v02")), (Some(7.0), Some(3.0), Some(5.0), Some(2.0)), "sent: {online:?}");
+    // What the online client draws from the server's variables is what a client holding all seventy would draw.
+    let mut all: Vec<(String, f64)> = names.iter().map(|n| (n.clone(), 0.0)).collect();
+    for (n, v) in [("v67", 7.0), ("v69", 5.0), ("v68", 3.0), ("v02", 2.0)] {
+        all.iter_mut().find(|(name, _)| name == n).unwrap().1 = v;
+    }
+    let texts = |vars: &[(&str, f64)]| -> Vec<String> {
+        let layout = red_engine2::ui::game::rules_overlay(&scene, 960, 540, vars, None, None, true);
+        layout.widgets.iter().filter_map(|w| w.text.clone()).collect()
+    };
+    let everything: Vec<(&str, f64)> = all.iter().map(|(n, v)| (n.as_str(), *v)).collect();
+    assert_eq!(texts(&online), texts(&everything));
+    assert!(texts(&online).iter().any(|t| t.contains("7 / 9")), "{:?}", texts(&online));
+    // The bug, for the record: the first variables in declaration order (what the server used to send) draw the counter at 0 and the wrong objective.
+    let old = texts(&everything[..MAX_RULE_VARS]);
+    assert!(old.iter().any(|t| t.contains("0 / 9")) && old.iter().any(|t| t == "WAIT"), "{old:?}");
+}
+
+/// The online HUD names the server's variables by index, so the names must come from the map that was hashed when joining. The client reads the
+/// file again to join (`ClientWorld::load`); a scene it parsed at startup may be older (here a variable was added in front since), and naming
+/// from that one put `deaths`' value under `score`. `ClientWorld::rule_var_names` comes from the hashed file.
+#[test]
+fn a_client_names_the_rule_variables_from_the_map_it_joined_with() {
+    let dir = std::env::temp_dir().join(format!("net_rule_state_names_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("lab.json");
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/test_lab.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&source).unwrap();
+    value["rules"] = json!([{"id": "finish", "when": {"after": 0.05}, "once": true, "do": [{"add": ["score", 3]}, {"end": "victory"}]}]);
+    value["vars"] = json!({"score": 0});
+    std::fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
+    let at_startup = red_engine2::load_scene(&path).unwrap();
+    value["vars"] = json!({"deaths": 0, "score": 0});
+    let text = serde_json::to_string(&value).unwrap();
+    std::fs::write(&path, &text).unwrap();
+
+    let (_scene, world) = red_engine2::net::bot::ClientWorld::load(&path).unwrap();
+    assert_eq!(world.rule_var_names, ["deaths", "score"]);
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap();
+    let mut server =
+        Server::bind(ServerConfig::new("127.0.0.1:0".parse().unwrap(), world.map_hash), MatchSim::new(&scene, parse_spawns(&text).unwrap())).unwrap();
+    server.set_logger(|_| {});
+    let addr = server.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop2 = stop.clone();
+    let handle = std::thread::spawn(move || server.run(&stop2));
+    let mut client = NetClient::connect(addr, 0, world.map_hash, 0).unwrap();
+    wait_for_finished_state(&mut [&mut client]);
+    let state = client.rule_state().unwrap();
+    assert_eq!(state.named(&world.rule_var_names), [("deaths", 0.0), ("score", 3.0)]);
+    assert_ne!(state.named(at_startup.rules.own_var_names()), [("score", 3.0)], "the startup scene's names are the wrong ones for this match");
+    stop.store(true, Ordering::Relaxed);
+    handle.join().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }

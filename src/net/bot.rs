@@ -36,6 +36,9 @@ pub struct ClientWorld {
     pub prop_objects: Vec<usize>,
     /// Any-depth object ids in the same deterministic dictionary order used by the server.
     pub rule_object_ids: Vec<String>,
+    /// The scene's own rule variable names (`RuleSet::own_var_names`) of the map that was hashed: what a `RuleState`'s indices mean. Taken from this
+    /// file, not from a scene the client parsed earlier, which may be older than what the server agreed to.
+    pub rule_var_names: Vec<String>,
     /// Hash of the map file text, sent when joining.
     pub map_hash: u32,
     /// The scene's kart race, if it has one: the surfaces (mud, water ...) a kart's prediction must look up exactly as the server does.
@@ -68,6 +71,7 @@ impl ClientWorld {
             collision_disabled: Vec::new(),
             prop_objects,
             rule_object_ids: crate::schema::object_ids(&scene.objects),
+            rule_var_names: scene.rules.own_var_names().to_vec(),
             map_hash,
             race: scene.race.clone(),
         }

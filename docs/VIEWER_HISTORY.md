@@ -31,7 +31,7 @@ Scenes with `vars` and `rules` are playable here, not only in the headless simul
 machine at 60 Hz: `hide`/`show` changes rendered object visibility, `collision` can open or close authored static geometry,
 teleport and prop impulse effects reach the live world, and
 pickup/drop/shot/hit/kill/respawn/swing/prop_hit events can trigger rules, and rules see loose props (`prop_enter`, `tilt(id)`, `reset`). A compact generic HUD shows scene variables, recent events and an `end` outcome.
-Online uses the same presentation: protocol v<!--fact:protocol-->16<!--/fact--> repeats a bounded authoritative rule-state snapshot (up to 16 variables, 256 hidden
+Online uses the same presentation: protocol v<!--fact:protocol-->17<!--/fact--> repeats a bounded authoritative rule-state snapshot (up to 64 variables, 256 hidden
 object indices and 64 collision-disabled objects, plus the recent event and outcome). Packet loss, reconnects and late joins recover current truth without replaying events.
 
 This is a viewer, not an editor. The seeker's primary action on objects is **hitting them with

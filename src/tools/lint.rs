@@ -27,6 +27,7 @@
 //! | `style-palette` | a game (it has a `ui`) with no `style.palette`, or one that is all default colours                     |
 //! | `style-lamp`   | a game whose point lights are all the default lamp colour                    |
 //! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
+//! | `net-hud`      | the client reads more variables than a networked match sends (64), or an event/outcome name is over 32 bytes |
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
@@ -152,6 +153,7 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_carry(world, &mut out);
     check_speed_cap(world, &mut out);
     check_style(world, &mut out);
+    check_net_hud(world, &mut out);
     // A total order: findings of one severity and code used to keep the order the checks happened to produce them in, which follows hash-map iteration and
     // differed from run to run (two `headroom` errors swapped places between runs of the same binary). The message names the object, so it breaks the tie.
     out.sort_by(|a, b| b.sev.cmp(&a.sev).then(a.code.cmp(b.code)).then_with(|| a.message.cmp(&b.message)));
@@ -159,6 +161,41 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// A HUD that reads more variables than a networked match sends, or a name longer than the wire carries: online (`red_server`, `play-local`, the
+/// playtest's host) it showed 0 with no message (Quiet Compass, Idea Forge 2026-10-15). The server sends what the HUD reads first, so this fires only
+/// when that cannot fit; a scene still loads and plays offline (`ui_config::check_hud_reads`).
+fn check_net_hud(world: &MapWorld, out: &mut Vec<Finding>) {
+    let names: Vec<String> = world.scene.rules.var_names.iter().skip(crate::sim::rules::BUILTIN_VARS.len()).cloned().collect();
+    let audio: Vec<&str> = world.scene.audio.iter().flat_map(|a| a.layers.iter().map(|l| l.var.as_str())).collect();
+    for message in crate::ui_config::check_hud_reads(world.scene.ui.as_ref(), &world.scene.hud, &audio, &names) {
+        out.push(finding(Severity::Error, "net-hud", message, None, &[]));
+    }
+    // An event or an outcome still travels as text, cut to MAX_RULE_TEXT bytes: online its HUD line or banner would show the cut name.
+    let max = crate::net::protocol::MAX_RULE_TEXT;
+    let mut long: Vec<(&str, &str)> = Vec::new();
+    for r in &world.scene.rules.rules {
+        for a in &r.actions {
+            let (kind, name) = match a {
+                crate::sim::rules::Action::Emit(n) => ("event", n.as_str()),
+                crate::sim::rules::Action::End(n) => ("outcome", n.as_str()),
+                _ => continue,
+            };
+            if name.len() > max && !long.contains(&(kind, name)) {
+                long.push((kind, name));
+            }
+        }
+    }
+    for (kind, name) in long {
+        out.push(finding(
+            Severity::Error,
+            "net-hud",
+            format!("the {kind} `{name}` is {} bytes, but a networked match sends at most {max} of its name (net::protocol::MAX_RULE_TEXT), so online the HUD shows it cut; rename it to at most {max} bytes", name.len()),
+            None,
+            &[],
+        ));
+    }
+}
 
 /// A game that ships the default palette, lamp or sky looks like every other game made with the engine (`style::defaults_kept`, ADR
 /// 2026-10-10-a-game-style-block-re-skins-shared-prefabs). Games only: reference maps and test content are not asked to have a look of their own.
@@ -183,7 +220,12 @@ fn check_speed_cap(world: &MapWorld, out: &mut Vec<Finding>) {
             &[],
         ));
     }
-    let Some(rules) = world.raw.get("rules").and_then(Value::as_array) else { return };
+    // The rules as they run: a `for_each` template's copies, not the template (`sim::rule_groups`).
+    let mut expanded = world.raw.clone();
+    if crate::sim::rule_groups::expand(&mut expanded).is_err() {
+        return;
+    }
+    let Some(rules) = expanded.get("rules").and_then(Value::as_array) else { return };
     for r in rules {
         let id = r.get("id").and_then(Value::as_str).unwrap_or("?");
         for a in r.get("do").and_then(Value::as_array).into_iter().flatten() {
@@ -1267,6 +1309,29 @@ mod silent_failure_tests {
 
     fn codes(f: &[Finding], code: &str) -> Vec<String> {
         f.iter().filter(|x| x.code == code).map(|x| x.message.clone()).collect()
+    }
+
+    #[test]
+    fn a_hud_reading_more_than_a_networked_match_sends_is_an_error_and_sixty_four_late_ones_are_not() {
+        let with_counters = |n: usize| {
+            let vars: Vec<String> = (0..70).map(|i| format!("\"v{i:02}\": 0")).collect();
+            // The last `n` variables: late in declaration order, the ones the server used to drop.
+            let counters: Vec<String> = (70 - n..70).map(|i| format!("{{\"var\": \"v{i:02}\"}}")).collect();
+            let top = format!(r#""vars": {{{}}}, "hud": {{"show_rules_vars": false}}, "ui": {{"counters": [{}]}},"#, vars.join(", "), counters.join(", "));
+            run(&room("", "", &top))
+        };
+        let fits = with_counters(64);
+        assert!(codes(&fits, "net-hud").is_empty(), "the HUD's 64 go first: {}", format_report(&fits));
+        let f = with_counters(65);
+        let found = codes(&f, "net-hud");
+        assert!(found.len() == 1 && f.iter().any(|x| x.code == "net-hud" && x.sev == Severity::Error), "{}", format_report(&f));
+        assert!(found[0].contains("reads 65 variables") && found[0].contains("at most 64"), "{}", found[0]);
+        let long = "the_parcel_reached_the_far_lighthouse";
+        let top = format!(r#""vars": {{"n": 0}}, "rules": [{{"id": "r", "when": {{"start": true}}, "do": [{{"emit": "{long}"}}, {{"end": "{long}"}}]}}],"#);
+        let f = run(&room("", "", &top));
+        let found = codes(&f, "net-hud");
+        assert_eq!(found.len(), 2, "the event and the outcome: {}", format_report(&f));
+        assert!(found.iter().all(|m| m.contains("37 bytes") && m.contains("rename it to at most 32 bytes")), "{found:?}");
     }
 
     #[test]

@@ -163,6 +163,7 @@ strict_struct! {
         look_at: Any,
         interact: bool,
         attack: bool,
+        alt: bool,
         reload: bool,
         switch: Any,
         seconds: Any,
@@ -176,6 +177,7 @@ strict_struct! {
         no_event: String,
         var: String,
         player_var: String,
+        prop_var: String,
         of: String,
         ended: Any,
         not_ended: bool,
@@ -208,5 +210,7 @@ strict_struct! {
         held_by: Any,
         field: String,
         aimed_at: Any,
+        game: String,
+        path: String,
     }
 }
