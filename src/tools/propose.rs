@@ -501,7 +501,8 @@ mod tests {
             "a small arcade game",
             &Overrides { title: Some("Zip".into()), session_minutes: Some(4), input: vec![Input::Gamepad], ..Overrides::default() },
         );
-        assert!(!r.buildable() && r.problems.iter().any(|x| x.contains("gamepad") && x.contains("prepared")), "{:?}", r.problems);
+        // a 2D game may ask for a gamepad: the native 2D player reads one
+        assert!(r.buildable() && r.caps.input.contains(&Input::Gamepad), "{:?}", r.problems);
         let r = propose("a small arcade game", &Overrides { title: Some("Zip".into()), session_minutes: Some(4), ..Overrides::default() });
         assert!(r.buildable() && r.title == "Zip" && r.session == (4, 4));
         assert!(r.warnings.iter().any(|w| w.contains("install") && w.contains("unverified")), "{:?}", r.warnings);

@@ -117,7 +117,18 @@ pub fn verify(path: &Path, only: Option<&str>) -> Report {
 }
 
 /// `solve`: a playthrough that reaches `goal` from a level's start, as scenario steps (see `red2d::solve`).
-pub fn solve(path: &Path, level: Option<&str>, goal: &str, avoid: Option<&str>, progress: Option<&str>, max_seconds: f32, beam: usize, seed: u64) -> Report {
+#[allow(clippy::too_many_arguments)]
+pub fn solve(
+    path: &Path,
+    level: Option<&str>,
+    goal: &str,
+    avoid: Option<&str>,
+    progress: Option<&str>,
+    max_seconds: f32,
+    beam: usize,
+    seed: u64,
+    after: Option<&Path>,
+) -> Report {
     let (d, _) = match load(path) {
         Ok(x) => x,
         Err(e) => return Report { text: e, ok: false },
@@ -139,12 +150,42 @@ pub fn solve(path: &Path, level: Option<&str>, goal: &str, avoid: Option<&str>, 
         (Ok(g), Ok(a), Ok(p)) => (g, a, p),
         (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => return Report { text: e, ok: false },
     };
+    // `--after`: scenario steps (`hold`/`wait` only) played first; the answer is those steps followed by what the search found.
+    let mut prefix_steps: Vec<serde_json::Value> = Vec::new();
+    let mut prefix = Vec::new();
+    if let Some(f) = after {
+        let parsed =
+            std::fs::read_to_string(f).map_err(|e| e.to_string()).and_then(|t| serde_json::from_str::<Vec<serde_json::Value>>(&t).map_err(|e| e.to_string()));
+        let steps = match parsed {
+            Ok(v) => v,
+            Err(e) => return Report { text: format!("--after {}: {e} (a JSON list of `hold`/`wait` steps)", f.display()), ok: false },
+        };
+        for (i, st) in steps.iter().enumerate() {
+            let held: Vec<String> =
+                st.get("hold").and_then(|h| h.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            let secs = st.get("seconds").or_else(|| st.get("wait")).and_then(serde_json::Value::as_f64);
+            match secs {
+                Some(s) if st.get("hold").is_some() || st.get("wait").is_some() => prefix.push((held, s as f32)),
+                _ => {
+                    return Report {
+                        text: format!("--after {} step {}: only {{\"hold\": [..], \"seconds\": s}} and {{\"wait\": s}} steps", f.display(), i + 1),
+                        ok: false,
+                    }
+                }
+            }
+        }
+        prefix_steps = steps;
+    }
     let started = std::time::Instant::now();
-    match red2d::solve::solve(&d, &red2d::solve::Goal { level: level_ix, goal, avoid, progress, max_seconds, beam: beam.max(1), seed }) {
+    match red2d::solve::solve(&d, &red2d::solve::Goal { level: level_ix, goal, avoid, progress, max_seconds, beam: beam.max(1), seed, prefix }) {
         Ok(s) => Report {
             text: format!(
                 "{}\nSOLVED in {:.1} s of play ({} candidates simulated in {:.1} s): the steps above replay it as a scenario `script` (seed {seed}{}).",
-                s.steps(),
+                {
+                    let mut all = prefix_steps.clone();
+                    all.extend(s.steps().as_array().cloned().unwrap_or_default());
+                    serde_json::Value::Array(all)
+                },
                 s.ticks as f64 / 60.0,
                 s.explored,
                 started.elapsed().as_secs_f32(),

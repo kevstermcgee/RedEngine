@@ -14,13 +14,14 @@ A platformer's reach depends on jumps, speed and moving enemies, so `checks.reac
 
 ## What the player does
 
-- The picture is the same CPU renderer `verify` and `frame` use, scaled to the window with the aspect ratio kept (whole-number scaling for games that ask for `integer`). F11 toggles fullscreen.
+- The picture is the same CPU renderer `verify` and `frame` use, scaled to the window with the aspect ratio kept (whole-number scaling for games that ask for `integer`). F or F11 toggles fullscreen in every game (no game may bind them). The game's `icon` sprite is the window's title-bar and taskbar icon (and RedEngineGames' installer makes it the shortcut icon).
 - 60 simulation ticks a second from a fixed clock. A stall never turns into a burst of more than five ticks, and losing focus releases every held key.
 - Keys: arrows or WASD move, Space/Z/J is `action`, Shift/X/K is `secondary`, Escape/P is `pause`; the mouse is the pointer and left click is a click. Games read the same names the rules use (`KeyA`, `ArrowLeft`, `Space`).
-- Started by a player (`RE2_PLAYER=1`, which the game's `Play-<slug>.exe` and the RedEngine Games app set; `--fullscreen --intro` by hand), the window opens in borderless fullscreen and the "RedEngine Games" title card (`ui::title_card`) plays for about two and a half seconds before the first tick; any key or click skips it. `F11` toggles fullscreen.
+- A gamepad (the first connected; Xbox names, PlayStation/Nintendo positions mapped by gilrs): left stick or d-pad move, A is `action`, X, B or the right trigger is `secondary`, Start or Back is `pause`. Only changes are fed in, so keyboard and pad work side by side; the `gamepad` variable is 1 while one is connected (show pad buttons then).
+- What the rules ask of the platform: `window: "fullscreen"|"close"` (close saves first), `save: true` (write progress now), `export_music: true` (the track playing now becomes `<Music folder>/<game title>/<track title>.wav`; the game hears `music_exported` or `music_not_exported`). With `pause_if` a pause menu is made of rules: the world and its clock stand still while press rules still run (ADR 2026-10-16-a-2d-game-s-clock-stands-still-while-its-world-is-paused).
+- Started by a player (`RE2_PLAYER=1`, which the game's `Play-<slug>.exe` and the RedEngine Games app set; `--fullscreen --intro` by hand), the window opens in borderless fullscreen and the "RedEngine Games" title card (`ui::title_card`) plays for about two and a half seconds before the first tick; any key or click skips it. F or F11 toggles fullscreen, as in every game (also while the card plays, without skipping it).
 - Progress is written atomically every two seconds while it changes and on exit, to `progress.json` under the per-game save directory (`RE2_SAVE_DIR`, else the user config directory keyed by the game id).
 
 ## Not built yet
 
-- A gamepad in the 2D player.
 - Packaging a 2D game as its own Windows `.exe` for RedEngineGames.

@@ -21,11 +21,14 @@ const MAX_ENTITIES: usize = 4000;
 const MAX_EVENT_ROUNDS: u32 = 16;
 const EPS: f32 = 1e-3;
 /// Where the built-ins after `music_on` sit in [`BUILTINS`] (a test keeps them in step).
+/// How hard a glide catches a fall, px/s^2 (a fall faster than the glide slows to it over a few ticks).
+const GLIDE_CATCH: f32 = 2400.0;
 const B_LEVEL: usize = 6;
 const B_HELD: usize = 7;
 const B_SELF: usize = 13;
 const B_OTHER: usize = 18;
-const B_ACCEL: usize = 23;
+const B_GAMEPAD: usize = 23;
+const B_ACCEL: usize = 24;
 /// How far outside the screen an `asleep` thing wakes, px.
 const WAKE_MARGIN: f32 = 16.0;
 
@@ -49,6 +52,19 @@ pub fn action_for_key(code: &str) -> Option<&'static str> {
 }
 
 /// One living thing.
+/// Something a rule asked of the platform around the game (the window, the save file, a file for the player): the simulation only records it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Request {
+    /// Borderless fullscreen on or off.
+    Fullscreen,
+    /// Close the game (after saving).
+    Close,
+    /// Write the saved variables now.
+    Save,
+    /// Export this music track (index into `GameDef::music`) for the player to keep.
+    ExportMusic(usize),
+}
+
 #[derive(Debug, Clone)]
 pub struct Entity {
     /// Unique, increasing.
@@ -87,6 +103,8 @@ pub struct Entity {
     jump_buf: f32,
     /// Rising from its own jump (letting go of jump cuts it).
     jumping: bool,
+    /// Seconds of glide used since it last stood on something.
+    glided: f32,
     /// An `asleep` thing the camera has come near.
     awake: bool,
     /// Its sideways move was stopped by something solid this tick (a walker turns).
@@ -210,6 +228,10 @@ pub struct Sim {
     pub sound_counts: Vec<u32>,
     /// Things that need the author's attention (an event storm).
     pub notes: Vec<String>,
+    /// What the rules asked of the platform (`window`, `save`, `export_music`), oldest first, until the platform takes them.
+    pub requests: Vec<Request>,
+    /// A gamepad is connected (the platform says so; the `gamepad` variable): a game shows pad buttons instead of keys.
+    pub gamepad: bool,
     /// The world's size now (the level's, in a game with `levels`).
     pub world: (f32, f32),
     /// The clear colour now (the level's, in a game with `levels`).
@@ -321,6 +343,8 @@ impl Sim {
             music_on: true,
             event_counts: BTreeMap::new(),
             notes: Vec::new(),
+            requests: Vec::new(),
+            gamepad: false,
             world,
             background,
             level: 0,
@@ -554,6 +578,11 @@ impl Sim {
         (i >= 0.0 && (i as usize) < d.lines.len()).then_some(i as usize)
     }
 
+    /// The platform reports something back (`music_exported`, ...): the event fires for the game's rules at the next tick.
+    pub fn notify(&mut self, name: &str) {
+        self.emit_event(name);
+    }
+
     fn emit_event(&mut self, name: &str) {
         *self.event_counts.entry(name.to_string()).or_insert(0) += 1;
         self.events.push(name.to_string());
@@ -784,7 +813,8 @@ impl Sim {
         let buttons = std::mem::take(&mut self.buttons);
 
         // An open dialogue owns its keys (the first open one in `ui`); with `pause` the world stands still and no press rule fires until it closes.
-        let mut paused = false;
+        // `pause_if` stands the world still the same way but leaves the keys to the game's press rules (a pause menu made of rules).
+        let mut paused = def.pause_if.as_ref().is_some_and(|e| self.expr_value(e) != 0.0);
         if self.ended.is_none() {
             if let Some(w) = def.ui.iter().find(|w| matches!(w.kind, WidgetKind::Dialogue(_)) && self.widget_shown(w)) {
                 if let WidgetKind::Dialogue(d) = &w.kind {
@@ -863,7 +893,10 @@ impl Sim {
             self.begin();
         } else {
             self.tick += 1;
-            self.t_ticks += 1;
+            // The game's clock (`time`, `every`, `after`, cooldowns) stands still with the world: a long pause does not end in a burst of overdue timers.
+            if !paused {
+                self.t_ticks += 1;
+            }
         }
         let snap = self.persisted_values();
         if snap != self.saved_snapshot {
@@ -913,6 +946,7 @@ impl Sim {
         for k in 0..6 {
             self.vars[nd + B_HELD + k] = f64::from(self.held[k]);
         }
+        self.vars[nd + B_GAMEPAD] = f64::from(self.gamepad);
         if self.counts_dirty {
             let mut counts = vec![0u32; self.def.tags.len()];
             for e in self.entities.iter().filter(|e| e.alive) {
@@ -990,6 +1024,7 @@ impl Sim {
             air: 0.0,
             jump_buf: 0.0,
             jumping: false,
+            glided: 0.0,
             awake: false,
             blocked_x: false,
             carrier: None,
@@ -1155,6 +1190,12 @@ impl Sim {
                     }
                 }
                 Act::Restart => self.restart = true,
+                Act::Window(cmd) => self.requests.push(match cmd {
+                    crate::game::WindowCmd::Fullscreen => Request::Fullscreen,
+                    crate::game::WindowCmd::Close => Request::Close,
+                }),
+                Act::Save => self.requests.push(Request::Save),
+                Act::ExportMusic => self.requests.push(Request::ExportMusic(self.music_track)),
                 Act::ResetSave => {
                     for &i in &def.persist {
                         self.vars[i] = def.vars[i].1;
@@ -1542,8 +1583,22 @@ impl Sim {
         }
         // gravity, drag, friction
         if let Some(b) = p.body {
+            // A platformer's glide: holding jump while falling caps the fall (eased in, so it catches rather than stops), for `glide_time` per time in the air.
+            let glide = match &p.mv {
+                Move::Keys { mode: KeyMode::Platformer, feel, .. } if feel.glide > 0.0 => Some((feel.glide, feel.glide_time)),
+                _ => None,
+            };
+            let jump_held = glide.is_some() && (self.held("up") || self.held("action"));
             let e = &mut self.entities[i];
             e.vy = (e.vy + b.gravity * DT).min(b.max_fall);
+            if let Some((cap, limit)) = glide {
+                if e.grounded {
+                    e.glided = 0.0;
+                } else if jump_held && e.vy > cap && (limit <= 0.0 || e.glided < limit) {
+                    e.vy = (e.vy - GLIDE_CATCH * DT).max(cap);
+                    e.glided += DT;
+                }
+            }
             if b.drag > 0.0 {
                 e.vx *= 1.0 - b.drag;
                 e.vy *= 1.0 - b.drag;
@@ -2016,6 +2071,12 @@ impl Sim {
         if def.view.forward_only {
             c[0] = c[0].max(self.cam[0]);
         }
+        if let Some(e) = &def.view.min_x {
+            c[0] = c[0].max(e.eval(&self.vars) as f32);
+        }
+        if let Some(e) = &def.view.max_x {
+            c[0] = c[0].min(e.eval(&self.vars) as f32);
+        }
         if def.world3d.is_some() {
             // The 3D camera looks at the middle of the view and sees a different part of the world than the flat screen would: only its focus has to stay inside the world.
             return [c[0].clamp(-vw * 0.5, self.world.0 - vw * 0.5), c[1].clamp(-vh * 0.5, self.world.1 - vh * 0.5)];
@@ -2342,6 +2403,7 @@ pub(crate) mod tests {
         assert_eq!(BUILTINS[B_SELF], "self_x");
         assert_eq!(BUILTINS[B_SELF + 4], "self_face");
         assert_eq!(BUILTINS[B_OTHER], "other_x");
+        assert_eq!(BUILTINS[B_GAMEPAD], "gamepad");
         assert_eq!(BUILTINS[B_ACCEL], "self_ax");
         assert_eq!(BUILTINS.len(), B_ACCEL + 2);
     }

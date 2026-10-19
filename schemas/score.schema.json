@@ -59,6 +59,13 @@
       "items": {
         "$ref": "#/$defs/ScoreTrack"
       }
+    },
+    "title": {
+      "description": "The track's name for people (a pause menu shows it; an exported file is called it).",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": false,

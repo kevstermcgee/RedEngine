@@ -154,6 +154,10 @@ impl Controller {
     pub fn reset(&mut self) {
         self.gate.reset();
     }
+    /// A controller is connected (it was found by the last poll).
+    pub fn connected(&self) -> bool {
+        self.active.is_some()
+    }
     /// Poll the first connected controller, retaining ownership until it disconnects.
     pub fn poll(&mut self, focused: bool) -> Sample {
         use gilrs::EventType;

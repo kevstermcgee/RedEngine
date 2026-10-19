@@ -39,7 +39,7 @@ pub const SCALES: &[(&str, &[i32])] = &[
     ("chromatic", &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
 ];
 
-const TOP_KEYS: &[&str] = &["bpm", "beats", "bars", "key", "scale", "seed", "lufs", "reverb", "delay", "instruments", "tracks"];
+const TOP_KEYS: &[&str] = &["bpm", "beats", "bars", "key", "scale", "seed", "lufs", "reverb", "delay", "instruments", "tracks", "title"];
 const TRACK_KEYS: &[&str] = &[
     "inst", "play", "chords", "every", "voicing", "strum", "pattern", "notes", "steps", "density", "range", "leap", "start", "octave", "hold", "gain", "pan",
     "send", "vel", "from", "to", "seed",
@@ -327,6 +327,12 @@ pub fn parse_score(v: &Value) -> Result<Score, Vec<String>> {
     };
     let mut errs = Vec::new();
     check_keys(o, TOP_KEYS, "", &mut errs);
+    // `title`: the track's name for people (a pause menu shows it, an exported file is called it); the music itself ignores it.
+    if let Some(t) = o.get("title") {
+        if !t.as_str().is_some_and(|t| !t.trim().is_empty() && t.chars().count() <= 60) {
+            errs.push("title: a track title is a name of 1 to 60 characters, like \"Meadow Path\"".to_string());
+        }
+    }
     let bpm = num(o, "bpm", 60.0, 20.0, 300.0, "", &mut errs);
     let beats = num(o, "beats", 4.0, 1.0, 16.0, "", &mut errs) as u32;
     let bars = num(o, "bars", 4.0, 1.0, MAX_BARS as f32, "", &mut errs) as u32;
