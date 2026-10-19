@@ -161,3 +161,48 @@ fn the_offline_client_runs_the_prop_rules_too() {
     );
     assert_eq!(crate_state["held_by"], Value::Null);
 }
+
+/// Per-prop variables and restartable timers (ADR 2026-10-17-rule-timers-and-prop-variables-are-server-state) on the real simulation: a crate
+/// placed in the pit warms (`self.heat`) and its own fuse (`self.fuse`) hides it, the other crate untouched; stepping on the pad twice (about
+/// 1.1 s apart) restarts the 3 s door timer, which runs out once, after the last step. The trace replays clean (timers and prop variables are in the checksum).
+#[test]
+fn a_crate_keeps_its_own_heat_and_fuse_and_a_restarted_timer_runs_out_once() {
+    let dir = scratch("timers");
+    let path = variant(&dir, "timers", |v| {
+        v["prop_vars"] = serde_json::json!({"heat": 0});
+        for (k, x) in [("booms", 0), ("steps", 0), ("shut", 0)] {
+            v["vars"][k] = serde_json::json!(x);
+        }
+        v["rules"].as_array_mut().unwrap().extend(
+            serde_json::json!([
+                {"id": "drop_b", "when": {"after": 0.2}, "do": [{"place": ["crate_b", [3.5, 0.5, 0]]}]},
+                {"id": "warm", "when": {"prop_enter": {"zone": "pit"}, "prop": "crate_b"}, "do": [{"add": ["self.heat", 1]}, {"timer": ["self.fuse", 0.5]}]},
+                {"id": "boom", "when": {"timer": "self.fuse"}, "do": [{"add": ["booms", 1]}, {"hide": "self"}, {"emit": "boom"}]},
+                {"id": "plate", "when": {"enter": {"zone": "place_pad"}}, "do": [{"add": ["steps", 1]}, {"timer": ["close", 3]}]},
+                {"id": "close", "when": {"timer": "close"}, "do": [{"add": ["shut", 1]}, {"emit": "shut"}]}
+            ])
+            .as_array()
+            .unwrap()
+            .clone(),
+        );
+        *scenarios_of(v) = serde_json::json!([
+            {"name": "fuse: a crate in the pit warms and its own fuse hides it", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 3,
+             "script": [{"player": "p1", "wait": 2}],
+             "expect": [{"prop_var": "heat", "of": "crate_b", "eq": 1}, {"prop_var": "heat", "of": "crate", "eq": 0}, {"hidden": "crate_b"}, {"event": "boom", "count": 1}]},
+            {"name": "door: two steps restart the timer, which runs out once", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 20,
+             "script": [{"player": "p1", "walk": "-3.2,-5.2; -3.2,-3; -3.2,-5.2; -3.2,-3"}, {"player": "p1", "wait": 4}],
+             "expect": [{"var": "steps", "eq": 2}, {"event": "shut", "count": 1}, {"var": "shut", "eq": 1}]}
+        ]).as_array().unwrap().clone();
+    });
+    let scene: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    red_engine2::content::typed::<red_engine2::content::scene::Scene>(&scene).expect("the typed definition knows `prop_vars`, `timer` and `prop_var` checks");
+    let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 60 };
+    let (report, trace) = simrun::run(&path, None, Some("fuse:"), Some(opts)).expect("run");
+    assert!(report.all_passed(), "{}", report.render());
+    let (door, _) = simrun::run(&path, None, Some("door:"), None).expect("run");
+    assert!(door.all_passed(), "{}", door.render());
+    let trace = trace.expect("recorded");
+    let loaded = simrun::load(&path).unwrap();
+    let replayed = replay(&trace, &loaded.scene, &loaded.spawns).expect("replay");
+    assert!(replayed.is_clean(), "{:?}", replayed.exact.as_ref().or(replayed.coarse.as_ref()).map(describe));
+}

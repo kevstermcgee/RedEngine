@@ -11,6 +11,7 @@
 
 use super::clock::{TICK_DT, TICK_RATE_HZ};
 use super::match_sim::MAX_PLAYERS;
+use super::rule_timers::TimerRef;
 use super::rules::{Action, Aim, AimTo, Obj, PropSel, ResetTarget, Rule, RuleSet, Target, Volume, When, Who};
 use super::rules_expr::{Expr, Func, World, SUBJECT};
 use crate::player::Character;
@@ -157,6 +158,8 @@ impl World for Ctx<'_> {
 struct MeView<'a> {
     ctx: &'a Ctx<'a>,
     row: &'a [f64],
+    /// The subject prop's own variables (`self.name`), empty when there is none.
+    its: &'a [f64],
     /// The physics index of the rule's subject prop (`self`), if it has one.
     subject: Option<usize>,
 }
@@ -179,6 +182,9 @@ impl World for MeView<'_> {
     }
     fn me(&self, index: usize) -> f64 {
         self.row.get(index).copied().unwrap_or(0.0)
+    }
+    fn its(&self, index: usize) -> f64 {
+        self.its.get(index).copied().unwrap_or(0.0)
     }
     fn random(&self, lo: f64, hi: f64) -> f64 {
         self.ctx.random(lo, hi)
@@ -257,6 +263,12 @@ pub struct RulesEngine {
     pvars: Vec<f64>,
     /// How many per-player variables the scene declares (a row's length). Kept here because `self.set` is taken out of the engine while a tick runs.
     pn: usize,
+    /// Per-prop variables (`self.name`): a row of `inn` values per loose prop, in the set's `prop_ids` order.
+    ivars: Vec<f64>,
+    /// How many per-prop variables the scene declares.
+    inn: usize,
+    /// Every timer and when it runs out (`sim::rule_timers`).
+    timers: super::rule_timers::Timers,
     fired: Vec<bool>,
     next_ok: Vec<u64>,
     inside: BTreeMap<(usize, usize), bool>,
@@ -296,6 +308,9 @@ impl RulesEngine {
             vars: set.var_init.clone(),
             pvars: set.player_var_init.iter().copied().cycle().take(set.player_var_init.len() * MAX_PLAYERS).collect(),
             pn: set.player_var_init.len(),
+            ivars: set.prop_var_init.iter().copied().cycle().take(set.prop_var_init.len() * set.prop_ids.len()).collect(),
+            inn: set.prop_var_init.len(),
+            timers: super::rule_timers::Timers::new(set.timers.len(), set.prop_timers.len(), set.prop_ids.len()),
             fired: vec![false; set.rules.len()],
             next_ok: vec![0; set.rules.len()],
             prop_slot: vec![None; set.prop_ids.len()],
@@ -374,6 +389,14 @@ impl RulesEngine {
         }
     }
 
+    /// The subject prop's own variables (empty without a subject or `prop_vars`).
+    fn its_row(&self, ctx: &Ctx<'_>, subject: Option<usize>) -> &[f64] {
+        match subject.and_then(|k| ctx.set_index(k)) {
+            Some(i) if self.inn > 0 => self.ivars.get(i * self.inn..(i + 1) * self.inn).unwrap_or(&[]),
+            _ => &[],
+        }
+    }
+
     /// The row of per-player variables for `slot` (empty without a player or a declaration).
     fn row(&self, slot: Option<usize>) -> &[f64] {
         let n = self.pn;
@@ -381,6 +404,13 @@ impl RulesEngine {
             Some(s) if n > 0 && s < MAX_PLAYERS => &self.pvars[s * n..(s + 1) * n],
             _ => &[],
         }
+    }
+
+    /// The loose prop `prop`'s own copy of `name` (`self.name`), if the scene declares it and has that prop.
+    pub fn prop_var(&self, prop: &str, name: &str) -> Option<f64> {
+        let i = self.set.prop_ids.iter().position(|p| p == prop)?;
+        let v = self.set.prop_var_names.iter().position(|n| n == name)?;
+        self.ivars.get(i * self.inn + v).copied()
     }
 
     /// The scene's own variables (not the built-ins) as `(name, value)`.
@@ -511,7 +541,7 @@ impl RulesEngine {
             }
         }
         if let Some(c) = &rule.cond {
-            let me = MeView { ctx, row: self.row(slot), subject };
+            let me = MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject };
             if !c.truthy_in(&self.vars, &me) {
                 return;
             }
@@ -527,7 +557,7 @@ impl RulesEngine {
         for a in &rule.actions {
             match a {
                 Action::Set { var, value } => {
-                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), subject });
+                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
                     if let Some(slot_v) = self.vars.get_mut(*var) {
                         *slot_v = v;
                     }
@@ -535,12 +565,24 @@ impl RulesEngine {
                 Action::SetMe { var, value } => {
                     let n = self.pn;
                     if let Some(s) = slot.filter(|s| *s < MAX_PLAYERS) {
-                        let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), subject });
+                        let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
                         if let Some(cell) = self.pvars.get_mut(s * n + *var) {
                             *cell = v;
                         }
                     }
                 }
+                Action::SetIts { var, value } => {
+                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                    let n = self.inn;
+                    if let Some(cell) = subject.and_then(|k| ctx.set_index(k)).and_then(|i| self.ivars.get_mut(i * n + *var)) {
+                        *cell = v;
+                    }
+                }
+                Action::Timer { timer, secs } => {
+                    let v = secs.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                    self.timers.start(*timer, subject.and_then(|k| ctx.set_index(k)), tick, v);
+                }
+                Action::Cancel(timer) => self.timers.cancel(*timer, subject.and_then(|k| ctx.set_index(k))),
                 Action::Emit(name) => {
                     self.record(tick, &rule.id, name.clone(), slot);
                     queue.push((name.clone(), slot, subject));
@@ -701,6 +743,7 @@ impl RulesEngine {
     fn run_rules(&mut self, set: &RuleSet, tick: u64, players: &[RulePlayer], ctx: &Ctx<'_>, effects: &mut Vec<Effect>) {
         let props = ctx.props;
         let mut queue: Vec<(String, Option<usize>, Option<usize>)> = std::mem::take(&mut self.injected);
+        self.timers.advance(tick);
         for ri in 0..set.rules.len() {
             let rule = &set.rules[ri];
             match &rule.when {
@@ -732,6 +775,18 @@ impl RulesEngine {
                     }
                 }
                 When::Event(_) => {}
+                When::Timer(t @ TimerRef::Global(_)) => {
+                    if self.timers.rang(*t, None, tick) {
+                        self.fire(set, ri, tick, None, None, &mut queue, effects, ctx);
+                    }
+                }
+                When::Timer(t @ TimerRef::Prop(_)) => {
+                    for i in 0..set.prop_ids.len() {
+                        if let Some(k) = self.timers.rang(*t, Some(i), tick).then(|| slots_get(ctx, i)).flatten() {
+                            self.fire(set, ri, tick, None, Some(k), &mut queue, effects, ctx);
+                        }
+                    }
+                }
                 When::PropEnter(volume) | When::PropExit(volume) => {
                     let entering = matches!(rule.when, When::PropEnter(_));
                     for (k, p) in props.iter().enumerate() {
@@ -792,6 +847,11 @@ impl RulesEngine {
         for v in &self.pvars {
             mix(v.to_bits());
         }
+        // The same for `prop_vars` and timers: a scene without them folds nothing more.
+        for v in &self.ivars {
+            mix(v.to_bits());
+        }
+        self.timers.fold(&mut mix);
         for (f, n) in self.fired.iter().zip(&self.next_ok) {
             mix(*f as u64);
             mix(*n);

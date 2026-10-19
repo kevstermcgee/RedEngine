@@ -58,7 +58,7 @@
     },
     "game_rules": {
       "summary": "Game rules as data: vars, rules, the expression language, scripted headless scenarios (`sim`), and standard-client presentation.",
-      "files": ["crates/red_core/src/sim/rule_groups.rs", "crates/red_core/src/sim/rules.rs", "crates/red_core/src/sim/rules_expr.rs", "crates/red_core/src/sim/rules_run.rs", "src/sim/scenario.rs", "crates/red_core/src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
+      "files": ["crates/red_core/src/sim/rule_groups.rs", "crates/red_core/src/sim/rule_timers.rs", "crates/red_core/src/sim/rules.rs", "crates/red_core/src/sim/rules_expr.rs", "crates/red_core/src/sim/rules_run.rs", "src/sim/scenario.rs", "crates/red_core/src/sim/approach.rs", "recipes/coin_run.json", "recipes/gated_garden.json"],
       "tests": ["lib:sim::scenario", "ai_tasks", "net_rule_state", "prop_rules", "object_actions"],
       "commands": ["red_engine2 sim recipes/coin_run.json"],
       "docs": ["docs/adr/0020-game-rules-as-data-and-headless-scenarios.md", "docs/adr/0035-rule-state-in-the-standard-client.md", "docs/adr/0036-repeated-bounded-online-rule-state.md", "docs/adr/2026-09-29-prop-aware-rules-and-scenarios.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-03-level-states-phases-for-lint-reach-and-walk.md", "docs/adr/2026-10-03-object-based-player-actions-for-sim-and-the-scripted.md"],
