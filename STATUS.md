@@ -37,7 +37,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
   code on 2026-10-10 (old binary `red_relay.prev-20261010` beside it).
 - Earlier milestones (hardening #74-#84, CI wall-clock #97, content formats #100-#106, agent loop #102-#105, aimed fields #115, the games) are in git and
   `docs/analysis/`.
-- 2026-10-19: RedCraft (games/redcraft): a Minecraft-like block game on the game-mode and world-layer seams, with seven small engine seams (ADR 2026-10-19-a-block-game-rides-on-the-mode-and-layer-seams); publishing waits on RedEngineGames PR #7
+- 2026-10-19: RedCraft (games/redcraft, #197): a Minecraft-like block game on the game-mode and world-layer seams, with seven small engine seams (ADR 2026-10-19-a-block-game-rides-on-the-mode-and-layer-seams); published as redcraft-v1 with its own client (RedEngineGames #7)
 
 ## Next
 - Phase 2 after the items in Now: (2) a fall-out height, (3) rules that change movement, gravity and scale, and a body swap, (4) 3D string tables, (5) 3D
@@ -53,6 +53,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
   `sim --json --inspect` returning the whole 14 KB result.
 - Simplification S7 (offline `re2` through MatchSim/LocalSession): parked; it needs a design and a parity plan.
 - CI growth from generated games: proposals 2-4 of `docs/analysis/2026-10-09-engine-ci-growth.md` are not built.
+- 2026-10-19: RedCraft feedback (docs/analysis/2026-10-19-redcraft-feedback.md, 13 open gaps ranked): first a mode that owns the player's body (input_frozen still steps it), a mode's frame while the cursor is free, rendering a painted surface to an image (RedCraft's icons.rs re-implements its shader in Rust), separate HUD and window overlays with a fast Canvas::rect (38 ms per full-window fill in release), a game binary's default scene; publishing: publish_games.py check does not see the site's wiki page and thumbnail
 
 ## Failing / blocked
 - Nothing failing on main: CI, Release (Linux binaries) and Publish games passed at c4860ce (2026-10-16).
