@@ -206,3 +206,54 @@ fn a_crate_keeps_its_own_heat_and_fuse_and_a_restarted_timer_runs_out_once() {
     let replayed = replay(&trace, &loaded.scene, &loaded.spawns).expect("replay");
     assert!(replayed.is_clean(), "{:?}", replayed.exact.as_ref().or(replayed.coarse.as_ref()).map(describe));
 }
+
+/// Rules read the input a player already sends (ADR 2026-10-19-rules-read-the-input-a-player-already-sends), on the real simulation from a
+/// `checks.sim` script: holding `alt` is a breath (a timer that gasps if held too long, cancelled on the release), and `attack` with empty lungs
+/// is a whistle (Crooked Ferry). The scene passes the typed definition, and the trace replays clean.
+#[test]
+fn holding_alt_is_a_breath_and_a_press_is_a_whistle() {
+    let dir = scratch("input");
+    let path = variant(&dir, "input", |v| {
+        for (k, x) in [("breaths", 0), ("exhales", 0), ("gasps", 0), ("whistles", 0)] {
+            v["vars"][k] = serde_json::json!(x);
+        }
+        v["rules"].as_array_mut().unwrap().extend(
+            serde_json::json!([
+                {"id": "breathe_in", "when": {"input": "alt"}, "do": [{"add": ["breaths", 1]}, {"timer": ["breath", 0.6]}]},
+                {"id": "breathe_out", "when": {"input": "alt", "release": true}, "do": [{"add": ["exhales", 1]}, {"cancel": "breath"}]},
+                {"id": "gasp", "when": {"timer": "breath"}, "do": [{"add": ["gasps", 1]}]},
+                {"id": "whistle", "when": {"input": "attack"}, "if": "input(alt) == 0", "do": [{"add": ["whistles", 1]}, {"emit": "whistle"}]}
+            ])
+            .as_array()
+            .unwrap()
+            .clone(),
+        );
+        *scenarios_of(v) = serde_json::json!([
+            {"name": "breath: a short breath is let go before it runs out", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"alt": true, "seconds": 0.3}}, {"player": "p1", "wait": 1}],
+             "expect": [{"var": "breaths", "eq": 1}, {"var": "exhales", "eq": 1}, {"var": "gasps", "eq": 0}]},
+            {"name": "gasp: a breath held too long runs out once", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"alt": true, "seconds": 1.0}}, {"player": "p1", "wait": 0.5}],
+             "expect": [{"var": "breaths", "eq": 1}, {"var": "gasps", "eq": 1}, {"var": "exhales", "eq": 1}]},
+            {"name": "whistle: a press with empty lungs, none while holding breath", "players": [{"id": "p1", "spawn": "start"}], "max_seconds": 4,
+             "script": [{"player": "p1", "hold": {"attack": true, "seconds": 0.1}}, {"player": "p1", "wait": 0.5},
+                        {"player": "p1", "hold": {"attack": true, "alt": true, "seconds": 0.1}}, {"player": "p1", "wait": 0.5}],
+             "expect": [{"var": "whistles", "eq": 1}, {"event": "whistle", "count": 1}]}
+        ])
+        .as_array()
+        .unwrap()
+        .clone();
+    });
+    let scene: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    red_engine2::content::typed::<red_engine2::content::scene::Scene>(&scene).expect("the typed definition knows `input`, `release` and `alt`");
+    let opts = RecordOptions { map_hash: 0, checkpoint_every: 1, dump_every: 60 };
+    let (report, trace) = simrun::run(&path, None, Some("breath:"), Some(opts)).expect("run");
+    assert!(report.all_passed(), "{}", report.render());
+    for name in ["gasp:", "whistle:"] {
+        let (r, _) = simrun::run(&path, None, Some(name), None).expect("run");
+        assert!(r.all_passed(), "{}", r.render());
+    }
+    let loaded = simrun::load(&path).unwrap();
+    let replayed = replay(&trace.expect("recorded"), &loaded.scene, &loaded.spawns).expect("replay");
+    assert!(replayed.is_clean(), "{:?}", replayed.exact.as_ref().or(replayed.coarse.as_ref()).map(describe));
+}

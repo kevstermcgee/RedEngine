@@ -236,6 +236,9 @@ strict_struct! {
         prop_below: Any,
         /// A timer ran out (`self.name` for the subject prop's own).
         timer: String,
+        /// A player presses an input (`sim::rule_input::INPUTS`), or with `release: true` lets go of it.
+        input: String,
+        release: bool,
         /// With `prop_enter` / `prop_exit` / a prop's `event`: only this prop, or these (`self` is the one that fired the rule).
         prop: Any,
     }

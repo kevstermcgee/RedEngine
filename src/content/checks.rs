@@ -163,6 +163,7 @@ strict_struct! {
         look_at: Any,
         interact: bool,
         attack: bool,
+        alt: bool,
         reload: bool,
         switch: Any,
         seconds: Any,

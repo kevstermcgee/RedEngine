@@ -136,7 +136,9 @@ impl App {
             attack: self.take_pulse(1) || ((self.attack_held || self.pad.down(crate::controller::button::FIRE)) && self.weapon.automatic()),
             switch_weapon: self.take_pulse(2),
             reload: self.take_pulse(3),
-            aim: false,
+            // The right mouse or left trigger is `alt` for a scene whose rules read it; anywhere else (the shooter aims with it) it stays off.
+            aim: (self.ads_held || self.pad.down(crate::controller::button::AIM))
+                && crate::sim::rule_input::reads(self.rules.set(), crate::sim::rule_input::ALT),
             drop: false,
             select: 0,
         }
@@ -195,6 +197,7 @@ impl App {
         let input = self.build_input();
         // Dead: the body lies where it fell. The server ignores our movement then, and predicting it would only pull us back.
         let input = if self.own_dead() { PlayerInput { yaw: input.yaw, pitch: input.pitch, ..Default::default() } } else { input };
+        self.rule_input = crate::sim::rule_input::bits(&input) | std::mem::take(&mut self.rule_presses);
         // In a race `attack` uses the item (the kart step handles it): it must not swing a bat or fire a gun as well.
         let attack_now = input.attack && !self.net.as_ref().is_some_and(|n| n.is_race());
         let mut st = PlayerState {
@@ -268,6 +271,7 @@ impl App {
             height: self.body.body_height,
             character: self.character,
             team: 0,
+            input: self.rule_input,
         }];
         for ctx in self.locals.iter().flatten() {
             players.push(RulePlayer {
@@ -277,6 +281,7 @@ impl App {
                 height: ctx.body.body_height,
                 character: ctx.character,
                 team: 0,
+                input: ctx.rule_input,
             });
         }
         let collision_before: Vec<String> = self.rules.collision_disabled().map(str::to_string).collect();

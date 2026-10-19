@@ -979,6 +979,8 @@ pub const BUILTINS: &[&str] = &[
     "other_vx",
     "other_vy",
     "other_face",
+    "self_ax",
+    "self_ay",
 ];
 
 /// Side bits of a contact, as seen from the rule's first thing: its top met the other (it jumped into it from below), its bottom (it landed on it), ...

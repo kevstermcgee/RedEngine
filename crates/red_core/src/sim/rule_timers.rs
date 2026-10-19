@@ -160,7 +160,7 @@ mod tests {
     use serde_json::json;
 
     fn player(x: f32) -> RulePlayer {
-        RulePlayer { slot: 0, pos: Vec3::new(x, 0.0, 0.5), radius: 0.3, height: 1.8, character: Character::Human, team: 0 }
+        RulePlayer { slot: 0, pos: Vec3::new(x, 0.0, 0.5), radius: 0.3, height: 1.8, character: Character::Human, team: 0, input: 0 }
     }
 
     fn prop(x: f32) -> RuleProp {

@@ -584,6 +584,7 @@ fn rules_text() -> String {
          \x20 when      exactly one of: {enter: VOLUME} {exit: VOLUME} {event: name} {every: secs} {after: secs} {start: true}\n\
          \x20           {prop_enter: VOLUME} {prop_exit: VOLUME} (a loose prop's origin crosses in/out; `prop: id | [ids]` beside it: only those)\n\
          \x20           {prop_below: [prop_id, y]} (its origin drops below y metres)   {timer: name} (a timer ran out; see TIMERS)\n\
+         \x20           {input: jump|crouch|sprint|interact|attack|alt} a player presses it (`release: true`: lets go); `me` is them, input(alt) is 1 while held\n\
          \x20 who       any (default) | human | rat | team1 | team2   (player triggers only; team1/team2 need \"teams\": true or a shooter block)\n\
          \x20 if        expression over the vars (and built-ins time, tick, players): `score >= 3 && !has_key`\n\
          \x20 once      fire at most once per match;  cooldown: minimum seconds between firings\n\
@@ -962,7 +963,7 @@ pub fn render(topic: &str, commands: &Value, json_out: bool) -> Result<String, S
             "brief" => brief_json(commands),
             "rules" => json!({
                 "actions": crate::sim::rules::ACTIONS.iter().map(|(n, h)| json!({"action": n, "help": h})).collect::<Vec<_>>(),
-                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below", "timer"],
+                "when": ["enter", "exit", "event", "every", "after", "start", "prop_enter", "prop_exit", "prop_below", "timer", "input"],
                 "functions": crate::sim::rules_expr::Func::ALL.iter().map(|(n, _, h)| json!({"function": n, "help": h})).collect::<Vec<_>>(),
                 "engine_events": crate::sim::rules::ENGINE_EVENTS,
                 "volumes": ["zone", "object", "box"],

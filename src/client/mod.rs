@@ -287,6 +287,10 @@ struct App {
     attack_held: bool,
     /// Right mouse is held and the current firearm should aim down sights.
     ads_held: bool,
+    /// The inputs the scene's rules read for this player this tick (`sim::rule_input::bits`).
+    rule_input: u8,
+    /// Presses since the last tick that offline never pass through `PlayerInput` (E and the click act at once): the offline rules see them too.
+    rule_presses: u8,
     /// Smoothed 0 (hip) .. 1 (sights) presentation blend.
     ads_blend: f32,
     /// The third-person chase camera used in a kart race (`kart_camera`).
@@ -610,6 +614,8 @@ impl App {
             attack_queued: false,
             attack_held: false,
             ads_held: false,
+            rule_input: 0,
+            rule_presses: 0,
             ads_blend: 0.0,
             chase: crate::kart_camera::ChaseCamera::new(),
             net_pulse: [0; 4],

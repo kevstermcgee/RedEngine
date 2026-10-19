@@ -1266,6 +1266,12 @@
             "null"
           ]
         },
+        "alt": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "reload": {
           "type": [
             "boolean",
@@ -4301,6 +4307,19 @@
           "description": "A timer ran out (`self.name` for the subject prop's own).",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "input": {
+          "description": "A player presses an input (`sim::rule_input::INPUTS`), or with `release: true` lets go of it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release": {
+          "type": [
+            "boolean",
             "null"
           ]
         },

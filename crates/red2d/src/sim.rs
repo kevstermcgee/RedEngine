@@ -25,6 +25,7 @@ const B_LEVEL: usize = 6;
 const B_HELD: usize = 7;
 const B_SELF: usize = 13;
 const B_OTHER: usize = 18;
+const B_ACCEL: usize = 23;
 /// How far outside the screen an `asleep` thing wakes, px.
 const WAKE_MARGIN: f32 = 16.0;
 
@@ -78,6 +79,8 @@ pub struct Entity {
     emit_acc: f32,
     /// Where it was at the start of this tick's movement (which side a `touch` came from).
     prev: [f32; 2],
+    /// Its velocity at the start of this tick's movement (`self_ax`, `self_ay`: how fast it changed).
+    prev_v: [f32; 2],
     /// Seconds since it last stood on something (coyote time).
     air: f32,
     /// Seconds a pressed jump is still remembered.
@@ -983,6 +986,7 @@ impl Sim {
             timer: 0.0,
             emit_acc: 0.0,
             prev: [x, y],
+            prev_v: v,
             air: 0.0,
             jump_buf: 0.0,
             jumping: false,
@@ -1078,6 +1082,11 @@ impl Sim {
                 self.vars[nd + base + k] = f64::from(*x);
             }
         }
+        // `self_ax`, `self_ay`: the change in the rule's own thing's velocity over its last movement, per second ("a sudden move").
+        let own = ctx.own.and_then(|id| self.ent(id)).map(|i| &self.entities[i]);
+        let a = own.map_or([0.0; 2], |e| [(e.vx - e.prev_v[0]) * TPS as f32, (e.vy - e.prev_v[1]) * TPS as f32]);
+        self.vars[nd + B_ACCEL] = f64::from(a[0]);
+        self.vars[nd + B_ACCEL + 1] = f64::from(a[1]);
     }
 
     fn run_actions(&mut self, def: &GameDef, acts: &[Act], ctx: Ctx) {
@@ -1359,6 +1368,7 @@ impl Sim {
         self.hits.clear();
         for e in &mut self.entities {
             e.prev = [e.x, e.y];
+            e.prev_v = [e.vx, e.vy];
         }
         // Things standing on a moving platform move after everything else, so they ride where the platform went this tick.
         let mut riders = Vec::new();
@@ -2332,7 +2342,8 @@ pub(crate) mod tests {
         assert_eq!(BUILTINS[B_SELF], "self_x");
         assert_eq!(BUILTINS[B_SELF + 4], "self_face");
         assert_eq!(BUILTINS[B_OTHER], "other_x");
-        assert_eq!(BUILTINS.len(), B_OTHER + 5);
+        assert_eq!(BUILTINS[B_ACCEL], "self_ax");
+        assert_eq!(BUILTINS.len(), B_ACCEL + 2);
     }
 
     /// A small platformer world: a floor, a player, an enemy and a block in the air.
@@ -2562,5 +2573,27 @@ pub(crate) mod tests {
         s.step();
         assert!(s.var("score").unwrap() > 0.0, "the coin was to the right of the player: {:?}", s.var("score"));
         assert_eq!(s.var("best"), Some(-9.0), "facing left, secondary held");
+    }
+
+    /// Copper Choir's guest panics at sudden moves: `self_ax` is how fast the keys' thing changed speed (px/s per second), 0 at a steady speed.
+    #[test]
+    fn self_ax_is_how_sharply_the_rules_own_thing_changed_speed() {
+        let rules = r##"{"when":{"press":"secondary"},"do":[{"set":["score","self_ax"]}]},{"when":{"press":"action"},"do":[{"set":["best","self_ax"]}]}"##;
+        let mut s = Sim::new(game(rules, WALLS, r#"{"prefab":"floor","at":[80,85]},{"prefab":"player","at":[30,76],"id":"p"}"#), 1);
+        s.run_ticks(20);
+        s.key("ArrowRight", true);
+        s.step();
+        let speed = s.by_id("p").unwrap().vx;
+        s.key("KeyX", true);
+        s.step();
+        assert!(
+            speed > 0.0 && (s.var("score").unwrap() - f64::from(speed) * TPS as f64).abs() < 1e-3,
+            "from rest to {speed} px/s in one tick: {:?}",
+            s.var("score")
+        );
+        s.run_ticks(60);
+        s.key("Space", true);
+        s.step();
+        assert_eq!(s.var("best"), Some(0.0), "a steady run is no jolt");
     }
 }

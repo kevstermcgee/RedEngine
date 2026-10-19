@@ -38,6 +38,8 @@ pub struct RulePlayer {
     pub character: Character,
     /// Team 1 or 2, or `0` outside a teamed match (see `MatchSim::teams_enabled`).
     pub team: u8,
+    /// The inputs the player holds this tick (`rule_input::bits`): what `input` triggers and `input(name)` read.
+    pub input: u8,
 }
 
 /// A loose prop as the rules see it (one per prop, in the physics world's order).
@@ -162,6 +164,8 @@ struct MeView<'a> {
     its: &'a [f64],
     /// The physics index of the rule's subject prop (`self`), if it has one.
     subject: Option<usize>,
+    /// The triggering player's inputs this tick (`input(name)`), 0 without one.
+    input: u8,
 }
 
 impl World for MeView<'_> {
@@ -185,6 +189,9 @@ impl World for MeView<'_> {
     }
     fn its(&self, index: usize) -> f64 {
         self.its.get(index).copied().unwrap_or(0.0)
+    }
+    fn input(&self, bit: u8) -> f64 {
+        (self.input >> bit & 1) as f64
     }
     fn random(&self, lo: f64, hi: f64) -> f64 {
         self.ctx.random(lo, hi)
@@ -291,6 +298,8 @@ pub struct RulesEngine {
     aims: Vec<Aim>,
     /// The scene's looping axis: a player near the seam is inside a volume just past the other edge (see `expanse`).
     wrap: Option<crate::expanse::Wrap>,
+    /// Each player slot's inputs this tick and the tick before (`rule_input`): what `input` triggers compare.
+    input: [[u8; MAX_PLAYERS]; 2],
     /// The generator `random(a, b)` draws from: seeded the same for every match of the scene (so the server, a replay and a scenario agree);
     /// [`reseed`](Self::reseed) gives a match its own draws.
     rng: u64,
@@ -328,6 +337,7 @@ impl RulesEngine {
             pending: Vec::new(),
             injected: Vec::new(),
             wrap: None,
+            input: [[0; MAX_PLAYERS]; 2],
             rng: 0x005E_ED0F_5A5E,
         }
     }
@@ -398,6 +408,12 @@ impl RulesEngine {
     }
 
     /// The row of per-player variables for `slot` (empty without a player or a declaration).
+    /// How a rule firing for player `slot` and subject prop `subject` sees the world (`me.`, `self.`, `input()`).
+    fn view<'a>(&'a self, ctx: &'a Ctx<'a>, slot: Option<usize>, subject: Option<usize>) -> MeView<'a> {
+        let input = slot.and_then(|s| self.input[0].get(s)).copied().unwrap_or(0);
+        MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject, input }
+    }
+
     fn row(&self, slot: Option<usize>) -> &[f64] {
         let n = self.pn;
         match slot {
@@ -541,7 +557,7 @@ impl RulesEngine {
             }
         }
         if let Some(c) = &rule.cond {
-            let me = MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject };
+            let me = self.view(ctx, slot, subject);
             if !c.truthy_in(&self.vars, &me) {
                 return;
             }
@@ -557,7 +573,7 @@ impl RulesEngine {
         for a in &rule.actions {
             match a {
                 Action::Set { var, value } => {
-                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                    let v = value.eval_in(&self.vars, &self.view(ctx, slot, subject));
                     if let Some(slot_v) = self.vars.get_mut(*var) {
                         *slot_v = v;
                     }
@@ -565,21 +581,21 @@ impl RulesEngine {
                 Action::SetMe { var, value } => {
                     let n = self.pn;
                     if let Some(s) = slot.filter(|s| *s < MAX_PLAYERS) {
-                        let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                        let v = value.eval_in(&self.vars, &self.view(ctx, slot, subject));
                         if let Some(cell) = self.pvars.get_mut(s * n + *var) {
                             *cell = v;
                         }
                     }
                 }
                 Action::SetIts { var, value } => {
-                    let v = value.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                    let v = value.eval_in(&self.vars, &self.view(ctx, slot, subject));
                     let n = self.inn;
                     if let Some(cell) = subject.and_then(|k| ctx.set_index(k)).and_then(|i| self.ivars.get_mut(i * n + *var)) {
                         *cell = v;
                     }
                 }
                 Action::Timer { timer, secs } => {
-                    let v = secs.eval_in(&self.vars, &MeView { ctx, row: self.row(slot), its: self.its_row(ctx, subject), subject });
+                    let v = secs.eval_in(&self.vars, &self.view(ctx, slot, subject));
                     self.timers.start(*timer, subject.and_then(|k| ctx.set_index(k)), tick, v);
                 }
                 Action::Cancel(timer) => self.timers.cancel(*timer, subject.and_then(|k| ctx.set_index(k))),
@@ -744,6 +760,9 @@ impl RulesEngine {
         let props = ctx.props;
         let mut queue: Vec<(String, Option<usize>, Option<usize>)> = std::mem::take(&mut self.injected);
         self.timers.advance(tick);
+        let mut now = [0u8; MAX_PLAYERS];
+        players.iter().filter(|p| p.slot < MAX_PLAYERS).for_each(|p| now[p.slot] = p.input);
+        self.input = [now, self.input[0]];
         for ri in 0..set.rules.len() {
             let rule = &set.rules[ri];
             match &rule.when {
@@ -761,6 +780,13 @@ impl RulesEngine {
                             if (entering && now && !was) || (!entering && !now && was) {
                                 self.fire(set, ri, tick, Some(p.slot), None, &mut queue, effects, ctx);
                             }
+                        }
+                    }
+                }
+                When::Input(t) => {
+                    for p in players.iter().filter(|p| p.slot < MAX_PLAYERS && Self::who_ok(rule.who, p.character, p.team)) {
+                        if super::rule_input::edge(*t, self.input[1][p.slot], self.input[0][p.slot]) {
+                            self.fire(set, ri, tick, Some(p.slot), None, &mut queue, effects, ctx);
                         }
                     }
                 }
@@ -852,6 +878,10 @@ impl RulesEngine {
             mix(v.to_bits());
         }
         self.timers.fold(&mut mix);
+        // Who holds what, only in a scene whose rules read inputs (older checksums and traces are unchanged).
+        if self.set.rules.iter().any(|r| matches!(r.when, When::Input(_))) {
+            self.input[1].iter().for_each(|b| mix(*b as u64));
+        }
         for (f, n) in self.fired.iter().zip(&self.next_ok) {
             mix(*f as u64);
             mix(*n);
@@ -924,7 +954,7 @@ mod tests {
     }
 
     fn at(slot: usize, x: f32, z: f32, c: Character) -> RulePlayer {
-        RulePlayer { slot, pos: Vec3::new(x, 0.0, z), radius: 0.3, height: 1.8, character: c, team: 0 }
+        RulePlayer { slot, pos: Vec3::new(x, 0.0, z), radius: 0.3, height: 1.8, character: c, team: 0, input: 0 }
     }
 
     fn at_team(slot: usize, x: f32, z: f32, c: Character, team: u8) -> RulePlayer {
