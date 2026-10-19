@@ -17,6 +17,7 @@ struct Globals {
     ambient: vec4<f32>,
     light_pos_or_dir: array<vec4<f32>, 16>,
     light_color_intensity: array<vec4<f32>, 16>,
+    // x: lights in use, y: the shadow-casting light (negative: none), z: shadow cascades, w: metres from the eye where the haze begins.
     counts: vec4<f32>,
     bg_top: vec4<f32>,
     bg_bottom: vec4<f32>,
@@ -99,7 +100,9 @@ fn wind_offset(w: f32, p: vec3<f32>) -> vec3<f32> {
 // These live here, in every module, so a game's code reads the same helpers whether it draws the sky or a surface.
 
 // What a game's `surface` function (`museum.art`) is given for one pixel of a painted object: the point and normal in the object's own space (a canvas is
-// the unit square x, y in -0.5..0.5 facing +z), the size of a pixel there, the world point and normal, and the object's `surface` numbers and palette.
+// the unit square x, y in -0.5..0.5 facing +z), the size of a pixel there, the world point and normal, the object's `surface` numbers and palette, and
+// the vertex colour. The vertex colour tints the painted colour, unless the object's `material.z` is 1: then it is the surface's own per-vertex data
+// (a block's texture number and its baked light, interpolated across the face) and the painted colour is used as it is.
 struct SurfaceIn {
     p: vec3<f32>,
     n: vec3<f32>,
@@ -108,6 +111,7 @@ struct SurfaceIn {
     world_n: vec3<f32>,
     params: vec4<f32>,
     palette: array<vec4<f32>, 4>,
+    vertex: vec3<f32>,
 };
 
 // Eight numbers a game's client sets every frame (`LiveRenderer::set_game_params`): what its sky and surfaces should show now. All zero otherwise.

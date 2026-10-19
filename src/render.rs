@@ -624,6 +624,9 @@ impl Renderer {
                 }
             }
             for layer in &self.layers {
+                layer.draw_blended(&mut main_pass, &self.pipelines.main_alpha);
+            }
+            for layer in &self.layers {
                 layer.draw_glow(&mut main_pass, &self.pipelines.main_glow);
             }
             if let Some(ocean) = &self.ocean {
@@ -824,7 +827,7 @@ pub(crate) fn build_globals_common(scene: &Scene, t: f32, cam_pos: Vec3, view_pr
         ambient: [ambient.x, ambient.y, ambient.z, 0.0],
         light_pos_or_dir,
         light_color_intensity,
-        counts: [n as f32, shadow_idx as f32, cascades.len() as f32, 0.0],
+        counts: [n as f32, shadow_idx as f32, cascades.len() as f32, scene.clock.as_ref().map_or(0.0, |c| c.fog_start)],
         bg_top: [bg_top.x, bg_top.y, bg_top.z, bg_mode],
         bg_bottom: [bg_bottom.x, bg_bottom.y, bg_bottom.z, 0.0],
         inv_view_proj: view_proj.inverse().to_cols_array_2d(),
@@ -939,5 +942,14 @@ mod tests {
         assert_eq!(globals.counts[0], MAX_LIGHTS as f32);
         assert_eq!(globals.light_pos_or_dir[0], [18.0, 0.0, 0.0, 1.0]);
         assert!(globals.light_pos_or_dir[..MAX_LIGHTS].iter().all(|light| light[0] != 0.0));
+        assert_eq!(globals.counts[3], 0.0, "no clock: the haze begins at the eye");
+    }
+
+    #[test]
+    fn a_clocks_haze_start_reaches_the_shaders() {
+        let text = serde_json::json!({"camera": {}, "objects": [], "clock": {"fog": 0.02, "fog_start": 96}}).to_string();
+        let scene = crate::scene_blocks::parse_scene(&text).expect("parses");
+        let globals = build_globals_common(&scene, 0.0, Vec3::ZERO, Mat4::IDENTITY, Vec3::ZERO);
+        assert_eq!((globals.fog[3], globals.counts[3]), (0.02, 96.0));
     }
 }

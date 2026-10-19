@@ -145,8 +145,9 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let local_px = length(fwidth(in.local_pos));
     var glow = vec3<f32>(0.0);
     if (obj.surface.x > 0.5) {
-        let painted = surface_of(SurfaceIn(in.local_pos, normalize(in.local_normal), local_px, in.world_pos, n, obj.surface, obj.palette));
-        albedo = painted.rgb * in.vertex_color;
+        let painted = surface_of(SurfaceIn(in.local_pos, normalize(in.local_normal), local_px, in.world_pos, n, obj.surface, obj.palette, in.vertex_color));
+        // `material.z` 1: the vertex colour was the surface's data, not a tint.
+        albedo = painted.rgb * select(in.vertex_color, vec3<f32>(1.0), obj.material.z > 0.5);
         glow = painted.rgb * painted.a;
     }
     var color = (globals.ambient.rgb + vec3<f32>(AMBIENT_FLOOR)) * albedo * hemi;
@@ -216,7 +217,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (globals.fog.w > 0.0) {
         let to_frag = in.world_pos - globals.camera_pos.xyz;
         let dist = length(to_frag);
-        let f = 1.0 - exp(-dist * globals.fog.w);
+        let f = 1.0 - exp(-max(dist - globals.counts.w, 0.0) * globals.fog.w);
         color = mix(color, haze_color(to_frag / max(dist, 1e-4)), f);
     }
     return vec4<f32>(color, obj.base_color.a);

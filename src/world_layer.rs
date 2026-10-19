@@ -1,6 +1,6 @@
 //! The seam a generated world draws through (ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library): both renderers hold a list of
 //! [`WorldLayer`]s instead of naming each world, and draw them at the same points of their frame (prepared after the scene's uniforms, their solid
-//! parts after the scene's opaque meshes, their shadows in every cascade, their glows after the see-through surfaces).
+//! parts after the scene's opaque meshes, their shadows in every cascade, their see-through parts after the scene's, their glows after those).
 //!
 //! A scene's layers come from [`layers_for`]: the endless meadow (`procgen`, the engine's own [`crate::stream_gpu::StreamLayer`]) first, then a
 //! layer from each [`LayerDef`] a crate defined ([`define_layers`]), in the order they were defined, as a scene block is
@@ -69,6 +69,10 @@ pub trait WorldLayer: Any {
 
     /// Its solid surfaces, after the scene's opaque meshes (the pass has the main pipeline and bindings).
     fn draw_main(&self, pass: &mut wgpu::RenderPass<'_>, view_proj: Mat4);
+
+    /// Its see-through surfaces (water, glass), after the scene's own: `alpha` is the main pipeline with source-alpha blending, depth-tested, writing no
+    /// depth and culling no faces; a draw's opacity is its uniform's `base_color.a`. The layer sets the pipeline and orders its draws far to near.
+    fn draw_blended(&self, _pass: &mut wgpu::RenderPass<'_>, _alpha: &wgpu::RenderPipeline) {}
 
     /// What glows, after the see-through surfaces (`glow` is the blended pipeline that writes no depth).
     fn draw_glow(&self, _pass: &mut wgpu::RenderPass<'_>, _glow: &wgpu::RenderPipeline) {}

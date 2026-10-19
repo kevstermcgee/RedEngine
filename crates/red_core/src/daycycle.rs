@@ -8,6 +8,8 @@
 //! "clock": { "day_secs": 720, "start": 0.27, "sun_max_deg": 62, "fog": 0.0035, "stars": 1.0, "moon": true }
 //! ```
 //!
+//! `fog_start` (metres, default 0) holds the haze back that far from the eye: a world that ends at a view distance fades only its far part.
+//!
 //! `start` is the time of day when the scene begins: 0 is midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset. Everything here is arithmetic on that one number and
 //! a day count, so the same moment looks the same on every machine, `frame --hour 18.5` can draw any moment, and a test can sweep a whole day and check that
 //! nothing jumps. The look is deliberately stylised and soft (a pink-gold dawn and dusk, a deep indigo night) rather than physically exact.
@@ -23,7 +25,8 @@ use serde_json::{Map, Value};
 use std::f32::consts::TAU;
 
 /// `clock` keys.
-pub const CLOCK_KEYS: &[&str] = &["day_secs", "start", "sun_max_deg", "latitude_deg", "fog", "stars", "moon", "moon_phase", "night_light", "light"];
+pub const CLOCK_KEYS: &[&str] =
+    &["day_secs", "start", "sun_max_deg", "latitude_deg", "fog", "fog_start", "stars", "moon", "moon_phase", "night_light", "light"];
 
 /// The synodic month in days: how long the moon takes to go through its phases.
 const MOON_MONTH: f32 = 29.53;
@@ -63,6 +66,9 @@ pub struct Clock {
     pub latitude_deg: f32,
     /// Haze density per metre (0 for none): the distance fades into the horizon colour.
     pub fog: f32,
+    /// Metres from the eye where the haze begins (0: at the eye). A world that ends at a view distance hazes only its far part, as a block
+    /// game's fog does, so what is near keeps its colours.
+    pub fog_start: f32,
     /// Star brightness, 0 (none) to 2.
     pub stars: f32,
     /// Whether the moon shows.
@@ -83,6 +89,7 @@ impl Default for Clock {
             sun_max_deg: 62.0,
             latitude_deg: 40.0,
             fog: 0.0,
+            fog_start: 0.0,
             stars: 1.0,
             moon: true,
             moon_phase: 0.55,
@@ -295,6 +302,7 @@ pub fn parse_clock(root: &Map<String, Value>) -> Result<Option<Clock>, Vec<Strin
         sun_max_deg: num("sun_max_deg", d.sun_max_deg, 20.0, 89.0),
         latitude_deg: num("latitude_deg", d.latitude_deg, 0.0, 89.0),
         fog: num("fog", d.fog, 0.0, 0.05),
+        fog_start: num("fog_start", d.fog_start, 0.0, 5000.0),
         stars: num("stars", d.stars, 0.0, 2.0),
         moon: o.get("moon").map_or(d.moon, |v| v.as_bool().unwrap_or(d.moon)),
         moon_phase: num("moon_phase", d.moon_phase, 0.0, 1.0),
@@ -429,7 +437,10 @@ mod tests {
     #[test]
     fn the_block_parses_with_defaults_and_names_every_mistake() {
         let ok = parse_clock(serde_json::json!({"clock": {"day_secs": 600, "start": 0.5, "fog": 0.003}}).as_object().unwrap()).unwrap().unwrap();
-        assert_eq!((ok.day_secs, ok.start, ok.fog, ok.moon), (600.0, 0.5, 0.003, true));
+        assert_eq!((ok.day_secs, ok.start, ok.fog, ok.moon, ok.fog_start), (600.0, 0.5, 0.003, true, 0.0));
+        let held_back = parse_clock(serde_json::json!({"clock": {"fog": 0.02, "fog_start": 80}}).as_object().unwrap()).unwrap().unwrap();
+        assert_eq!(held_back.fog_start, 80.0, "the haze can begin out at a view distance");
+        assert!(parse_clock(serde_json::json!({"clock": {"fog_start": -1}}).as_object().unwrap()).is_err());
         assert!(parse_clock(&Map::new()).unwrap().is_none());
         let e = parse_clock(serde_json::json!({"clock": {"day_sec": 600, "start": "dawn", "fog": 9, "stars": 5}}).as_object().unwrap()).unwrap_err().join("\n");
         for want in ["clock.day_sec: unknown field", "clock.start: must be a number", "clock.fog: 9 is outside", "clock.stars: 5 is outside"] {

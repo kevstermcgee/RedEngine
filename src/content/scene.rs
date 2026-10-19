@@ -526,6 +526,7 @@ strict_struct! {
         sun_max_deg: Any,
         latitude_deg: Any,
         fog: Any,
+        fog_start: Any,
         stars: Any,
         moon: bool,
         moon_phase: Any,

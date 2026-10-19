@@ -338,6 +338,8 @@ pub(crate) fn run(app: &mut App, opts: Options) -> i32 {
     }
     // Let go of everything, so a server does not hold a phantom player, and a key is not left down.
     app.hold_keys(&Key::ALL.map(|(_, k)| k), false);
+    // The run ends as a window's would: the game's mode saves what it keeps.
+    app.with_mode(|m, cx| m.closing(cx));
     app.fire(false);
     app.failures.extend(runner.failures.iter().cloned());
     if timed_out {

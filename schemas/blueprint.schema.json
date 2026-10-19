@@ -5777,6 +5777,7 @@
         "sun_max_deg": true,
         "latitude_deg": true,
         "fog": true,
+        "fog_start": true,
         "stars": true,
         "moon": {
           "type": [

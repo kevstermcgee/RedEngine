@@ -92,6 +92,14 @@ pub trait GameMode {
     fn target_bounds(&self, _id: &str) -> Option<(Vec3, Vec3)> {
         None
     }
+
+    /// The program is ending (the window closed, a quit button, the end of a headless run): save what the game keeps.
+    fn closing(&mut self, _cx: &mut ModeContext) {}
+
+    /// Whether the mode is taking typed text now (a name field): the client's own letter keys (`F` for fullscreen) leave the keyboard alone.
+    fn typing(&self) -> bool {
+        false
+    }
 }
 
 /// Chooses the mode for a scene when it starts (`None`: the client plays it as it is).
@@ -243,6 +251,17 @@ impl ModeContext<'_> {
         self.app.grabbed
     }
 
+    /// Whether `key` is held now: by the player, or by a script's `hold` (a mode that moves the player itself reads its keys here, so scripts
+    /// drive it too).
+    pub fn key_held(&self, key: winit::keyboard::KeyCode) -> bool {
+        self.app.keys.contains(&key)
+    }
+
+    /// The gamepad as last polled (sticks, buttons held and newly pressed, triggers); all zero without one, and while the game is paused.
+    pub fn pad(&self) -> crate::controller::Sample {
+        self.app.pad
+    }
+
     /// The pointer's position in window pixels.
     pub fn cursor(&self) -> (f32, f32) {
         self.app.cursor
@@ -308,6 +327,30 @@ impl ModeContext<'_> {
     /// The scene's clock (seconds).
     pub fn scene_time(&self) -> f32 {
         self.app.scene_time()
+    }
+
+    /// The time of day now (0..1: 0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset), in a scene with a `clock`.
+    pub fn time_of_day(&self) -> Option<f32> {
+        let clock = self.app.scene.clock.as_ref()?;
+        Some((clock.start + self.app.scene_time() / clock.day_secs.max(1.0)).rem_euclid(1.0))
+    }
+
+    /// Moves the clock's haze: it begins `start` metres out and thickens by `density` per metre after that (a game whose world reaches as far
+    /// as the player chooses hides its edge there). Nothing without a `clock`.
+    pub fn set_haze(&mut self, start: f32, density: f32) {
+        if let Some(clock) = self.app.scene.clock.as_mut() {
+            clock.fog_start = start.max(0.0);
+            clock.fog = density.clamp(0.0, 0.05);
+        }
+    }
+
+    /// Sets the time of day (0..1, as [`Self::time_of_day`]) from now on: a game that keeps its day in a save, or sleeps through the night. The
+    /// sky, the sun and everything else that follows the clock follow it at once. Nothing without a `clock`.
+    pub fn set_time_of_day(&mut self, day_fraction: f32) {
+        let t = self.app.scene_time();
+        if let Some(clock) = self.app.scene.clock.as_mut() {
+            clock.start = (day_fraction - t / clock.day_secs.max(1.0)).rem_euclid(1.0);
+        }
     }
 
     /// The start card as it reads now, when it is up.
@@ -377,7 +420,7 @@ mod tests {
     #[test]
     fn a_mode_that_implements_only_its_name_changes_nothing() {
         let m = Quiet;
-        assert!(!m.input_frozen() && !m.owns_hud() && !m.owns_pause());
+        assert!(!m.input_frozen() && !m.owns_hud() && !m.owns_pause() && !m.typing());
         assert!(m.dump().is_null() && m.target_bounds("quiet:1").is_none());
         let fx = crate::feel::FxParams { flash: [1.0, 0.5, 0.25, 0.5], ..Default::default() };
         assert_eq!(m.fx(fx).flash, fx.flash);
