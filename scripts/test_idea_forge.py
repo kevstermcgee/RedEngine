@@ -146,6 +146,42 @@ class Brief(unittest.TestCase):
         self.assertNotIn("Story (optional", idea_forge.brief(idea_forge.make_idea(1, story=False), "2026-10-08"))
 
 
+    def test_the_brief_demands_a_fun_unique_and_clear_game_and_puts_it_above_fidelity_to_the_card(self):
+        for kind in ("2d", "3d"):
+            text = idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-08", kind=kind)
+            for must in ("Make it fun, unique and clear", "unfun, awkward, strange and confusing", "beat fidelity to the card", "or drop the BUT", "ls examples/2d examples/3d",
+                         "one-sentence goal on screen", "Check it as a stranger", "why a stranger would find it fun", "how a first-time player learns it"):
+                self.assertIn(must, text, kind)
+
+
+class Wiki(unittest.TestCase):
+    GOOD = {"tagline": "t", "overview": "o" * 200, "story": "s" * 150, "goal": "g", "rules": ["a", "b", "c"], "controls": [{"input": "x", "action": "y"}],
+            "characters": [{"name": "Hero", "role": "you", "description": "d", "shot": {}}], "gallery": [{"caption": f"c{i}", "shot": {"t": i}} for i in range(3)], "why_made": "w" * 100}
+
+    def test_a_complete_page_passes_and_each_gap_is_named(self):
+        self.assertEqual(idea_forge.wiki_problems(self.GOOD), [])
+        for key, bad, word in (("overview", "short", "overview"), ("rules", ["x"], "rules"), ("why_made", "", "why_made"), ("controls", [], "controls"), ("characters", [], "characters"),
+                               ("gallery", self.GOOD["gallery"][:2], "gallery")):
+            got = " ".join(idea_forge.wiki_problems(dict(self.GOOD, **{key: bad})))
+            self.assertIn(word, got)
+        same = dict(self.GOOD, gallery=[{"caption": "c", "shot": {"t": 1}}] * 3)
+        self.assertIn("repeats a view", " ".join(idea_forge.wiki_problems(same)))
+        self.assertIn("unknown shot keys", " ".join(idea_forge.wiki_problems(dict(self.GOOD, characters=[dict(self.GOOD["characters"][0], shot={"zoom": 2})]))))
+
+    def test_a_run_may_change_its_own_wiki_file_and_no_one_elses(self):
+        self.assertTrue(idea_forge.allowed_path(idea_forge.wiki_file("mine"), "mine"))
+        self.assertFalse(idea_forge.allowed_path(idea_forge.wiki_file("other"), "mine"))
+
+    def test_shots_become_frame_options_for_2d_and_3d(self):
+        self.assertEqual(idea_forge.shot_args({"t": 3, "scenario": "win"}, "2d"), ["--t", "3", "--scenario", "win"])
+        self.assertEqual(idea_forge.shot_args({"eye": "1,2,3", "at": "0,0,0", "hide": ["roof"]}, "3d"), ["--eye", "1,2,3", "--at", "0,0,0", "--hide", "roof"])
+
+    def test_the_brief_asks_for_the_wiki_page_and_why_the_agent_made_the_game(self):
+        text = idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-08")
+        for must in ("wiki --init", "wiki --preview", "wiki --check", "docs/analysis/idea-forge/wiki/electric-foundry.json", "`why_made` is YOU speaking", "NOT published"):
+            self.assertIn(must, text)
+
+
 class Feedback(unittest.TestCase):
     def test_findings_are_checked(self):
         self.assertEqual(idea_forge.check_findings([GOOD]), [])
@@ -1069,7 +1105,7 @@ class Publish(E2EBase):
 if [ "$1" = frame ]; then
   echo "$*" >> {self.frames}
   case "$2" in *blank*) : > "$3"; exit 0;; *nopng*) echo not-a-png > "$3"; exit 0;; esac
-  printf '\\211PNG\\r\\n\\032\\n' > "$3"; head -c 3000 /dev/zero >> "$3"; echo "wrote $3"; exit 0
+  printf '\\211PNG\\r\\n\\032\\n' > "$3"; head -c 3000 /dev/zero >> "$3"; echo "$*" >> "$3"; echo "wrote $3"; exit 0
 fi
 exit 0
 """)
@@ -1091,6 +1127,14 @@ exit 0
         git(self.engine_push, "commit", "-q", "-m", "merge " + rel)
         git(self.engine_push, "push", "-q", "origin", "main")
 
+    def wiki(self, slug, **change):
+        """Merge a complete wiki page for `slug` (shots, not pictures: `publish` draws them)."""
+        d = {"tagline": "t", "overview": "o" * 200, "story": "s" * 150, "goal": "g", "rules": ["a", "b", "c"], "controls": [{"input": "x", "action": "y"}],
+             "characters": [{"name": "Hero", "role": "you", "description": "d", "shot": {"t": 1}}],
+             "gallery": [{"caption": f"c{i}", "shot": {"t": i + 2}} for i in range(3)], "why_made": "w" * 100}
+        d.update(change)
+        self.land(idea_forge.wiki_file(slug), json.dumps(d))
+
     def row(self, code, slug, kind, **extra):
         st = idea_forge.load_state()
         st["runs"].append(dict({"code": code, "slug": slug, "kind": kind, "title": slug.replace("-", " ").title(), "date": "2026-10-09", "status": "shipped", "pr": f"https://example.test/pull/{code}", "merge": "merged"}, **extra))
@@ -1104,6 +1148,8 @@ exit 0
         self.land("examples/2d/alpha-game.game2d.json", '{"game2d": 1}')
         self.land("examples/3d/beta-game/beta-game.json", '{"rules": []}')
         self.land("examples/3d/beta-game/audio/dusk.json", '{"score": 1}')
+        self.wiki("alpha-game")
+        self.wiki("beta-game")
         self.row(1, "alpha-game", "2d")
         self.row(2, "beta-game", "3d")
         self.row(3, "gamma-game", "3d", feedback_only=True)   # the game did not build: only its feedback was merged
@@ -1120,14 +1166,24 @@ exit 0
         after = rd(os.path.join(d, ".release-games.json"))
         self.assertTrue(after.startswith(before.split('\n  ],\n  "native_playables"')[0] + ",\n"), "the hand-formatted manifest is only added to, never rewritten")
         changed = subprocess.run(["git", "-C", d, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
-        self.assertTrue(changed and all(c == ".release-games.json" or c.startswith(("projects/", "site/thumbs/")) for c in changed), changed)
+        self.assertTrue(changed and all(c in (".release-games.json", "site/games-meta.json") or c.startswith(("projects/", "site/thumbs/", "site/wiki/")) for c in changed), changed)
+        meta = json.loads(rd(os.path.join(d, "site", "games-meta.json")))
+        self.assertEqual([meta["alpha-game"]["author"], meta["beta-game"]["author"]], ["ai", "ai"], "every game the forge publishes is marked AI-designed for the site's filter")
+        self.assertNotIn("old-game", meta, "a game the forge did not publish is not claimed")
+        page = json.loads(rd(os.path.join(d, "site", "wiki", "alpha-game", "wiki.json")))
+        self.assertEqual([c["image"] for c in page["characters"]], ["c1.png"])
+        self.assertEqual([g["image"] for g in page["gallery"]], ["g1.png", "g2.png", "g3.png"])
+        self.assertNotIn("shot", json.dumps(page), "the published page has pictures, not shot specs")
+        self.assertTrue(os.path.getsize(os.path.join(d, "site", "wiki", "alpha-game", "g3.png")) > 2000)
+        self.assertNotEqual(rd(os.path.join(d, "site", "wiki", "alpha-game", "g1.png"), ) if False else open(os.path.join(d, "site", "wiki", "alpha-game", "g1.png"), "rb").read(),
+                            open(os.path.join(d, "site", "wiki", "alpha-game", "g2.png"), "rb").read())
         self.assertIn("site/thumbs/alpha-game.png", changed)
         self.assertIn("site/thumbs/beta-game.png", changed)
         self.assertIn("site/thumbs/old-game.png", changed, "a game that was listed without a screenshot gets one in the same commit")
         frames = rd(self.frames)
         self.assertIn("--size 640x360", frames)
-        self.assertEqual([l for l in frames.splitlines() if "alpha-game" in l and "--t 1" in l] != [], True, "a 2D game is drawn a second in")
-        self.assertFalse([l for l in frames.splitlines() if "beta-game" in l and "--t" in l], "a 3D scene is drawn from its own camera")
+        self.assertEqual([l for l in frames.splitlines() if "alpha-game" in l and "--t 1" in l and "site/thumbs" in l] != [], True, "a 2D game is drawn a second in")
+        self.assertFalse([l for l in frames.splitlines() if "beta-game" in l and "--t" in l and "site/thumbs" in l], "a 3D scene is drawn from its own camera")
         self.assertEqual(len(subprocess.run(["git", "-C", d, "log", "--format=%s"], capture_output=True, text=True).stdout.splitlines()), 2, "one commit for both games")
         rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
         self.assertTrue(rows["alpha-game"]["published"]["commit"] and rows["beta-game"]["published"])
@@ -1135,12 +1191,29 @@ exit 0
         self.assertNotIn("published", rows["delta-game"])
         self.assertEqual(idea_forge.publish_games(self.root), [], "a game is published once")
         self.land("examples/2d/delta-game.game2d.json", "{}")   # delta merges later: the next run publishes it
+        self.wiki("delta-game")
         self.assertEqual(idea_forge.publish_games(self.root), ["delta-game"])
+
+    def test_a_game_without_a_complete_wiki_page_is_not_published(self):
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.land("examples/2d/thin-game.game2d.json", "{}")
+        self.wiki("thin-game", rules=["only one"])
+        self.row(1, "nowiki-game", "2d")
+        self.row(2, "thin-game", "2d")
+        self.assertEqual(idea_forge.publish_games(self.root), [])
+        d, manifest = self.published_tree()
+        self.assertFalse({"nowiki-game", "thin-game"} & {p["slug"] for p in manifest["data_playables"]})
+        self.assertFalse(os.path.exists(os.path.join(d, "projects", "thin-game")))
+        self.wiki("nowiki-game")
+        self.assertEqual(idea_forge.publish_games(self.root), ["nowiki-game"], "once the page lands on main the game is published")
 
     def test_a_game_whose_screenshot_cannot_be_drawn_is_not_published_and_is_tried_again(self):
         self.land("examples/2d/blank-game.game2d.json", "{}")
+        self.wiki("blank-game")
         self.land("examples/2d/nopng-game.game2d.json", "{}")
+        self.wiki("nopng-game")
         self.land("examples/2d/fine-game.game2d.json", "{}")
+        self.wiki("fine-game")
         for i, slug in enumerate(("blank-game", "nopng-game", "fine-game"), 1):
             self.row(i, slug, "2d")
         out = io.StringIO()
@@ -1167,6 +1240,7 @@ exit 0
 
     def test_a_push_rejected_because_the_publish_workflow_committed_meanwhile_is_rebased_and_retried(self):
         self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.wiki("alpha-game")
         self.row(1, "alpha-game", "2d")
         real = idea_forge.check_release_manifest
 
@@ -1195,6 +1269,7 @@ exit 0
 
     def test_a_failure_is_reported_and_retried_never_raised_and_a_bad_manifest_is_never_pushed(self):
         self.land("examples/2d/Bad_Slug.game2d.json", "{}")
+        self.wiki("Bad_Slug")
         self.row(1, "Bad_Slug", "2d")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -1206,6 +1281,7 @@ exit 0
 
     def test_dry_run_and_the_off_switches_change_nothing(self):
         self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.wiki("alpha-game")
         self.row(1, "alpha-game", "2d")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -1224,6 +1300,7 @@ exit 0
 
     def test_the_night_publishes_what_it_merged_and_no_publish_skips_it(self):
         self.land("examples/2d/alpha-game.game2d.json", "{}")
+        self.wiki("alpha-game")
         self.row(1, "alpha-game", "2d")
         with mock.patch.object(idea_forge, "ROOT", self.root):
             try:

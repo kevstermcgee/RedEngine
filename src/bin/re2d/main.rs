@@ -4,7 +4,9 @@
 //! passes `verify` plays the same here and under `play2d`). What this file adds is what a player double-clicking an .exe needs: the game defaults to `game.game2d.json` next to the
 //! program, the release build on Windows has no console window, and every failure is also written to `re2d.log` next to the program (the only place such a player would find it).
 //!
-//! usage: `re2d [GAME.game2d.json] [--seed N]` (each launch picks a new seed and prints `seed N`; `--seed N` replays that run's random draws)
+//! usage: `re2d [GAME.game2d.json] [--seed N] [--fullscreen] [--intro]` (each launch picks a new seed and prints `seed N`; `--seed N` replays that run's
+//! random draws). Started by a player (`RE2_PLAYER=1`, which the game's `Play-<slug>.exe` and the RedEngine Games app set), it opens in fullscreen and
+//! plays the "RedEngine Games" title card first, as `--fullscreen --intro` do.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use red_engine2::play2d::{run, Options};
@@ -22,6 +24,8 @@ fn fail(msg: &str, code: i32) -> ! {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut given_seed = None;
+    let player = red_engine2::ui::title_card::for_player();
+    let (mut fullscreen, mut intro) = (player, player);
     let mut positional = Vec::new();
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -30,6 +34,10 @@ fn main() {
                 Some(n) => given_seed = Some(n),
                 None => fail("re2d: --seed needs a whole number (the `seed N` an earlier run printed)", 2),
             }
+        } else if a == "--fullscreen" {
+            fullscreen = true;
+        } else if a == "--intro" {
+            intro = true;
         } else {
             positional.push(a.clone());
         }
@@ -39,11 +47,11 @@ fn main() {
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("game.game2d.json"))).unwrap_or_default());
     if !game.is_file() {
-        fail(&format!("re2d: cannot find the game {}\nusage: re2d GAME.game2d.json [--seed N]", game.display()), 2);
+        fail(&format!("re2d: cannot find the game {}\nusage: re2d GAME.game2d.json [--seed N] [--fullscreen] [--intro]", game.display()), 2);
     }
     let seed = red_engine2::play2d::launch_seed(given_seed);
     eprintln!("seed {seed} (replay this run's random draws with --seed {seed})");
-    if let Err(e) = run(Options { game: game.clone(), seed, save: None, mute: false, max_ticks: None }) {
+    if let Err(e) = run(Options { game: game.clone(), seed, save: None, mute: false, max_ticks: None, fullscreen, intro }) {
         fail(&format!("re2d: {e}\n(run `red_engine2 validate {}` for the way out)", game.display()), 1);
     }
 }
