@@ -1,0 +1,16 @@
+{
+  "bpm": 90, "beats": 4, "bars": 4, "key": "D", "scale": "phrygian", "seed": 99, "lufs": -28,
+  "reverb": { "decay": 3, "size": 1.0, "damp": 0.7, "predelay": 0.02, "mix": 0.4 },
+  "instruments": {
+    "thud": { "seconds": 1, "level": 0.6, "layers": [
+      { "sine": 1, "decay": 7 },
+      { "noise": "lp 0.1", "decay": 20, "gain": 0.3 } ] },
+    "drone": { "seconds": 6, "level": 0.4, "layers": [
+      { "sine": 1, "attack": 1.5, "release": 2 },
+      { "sine": 1.02, "attack": 1.5, "release": 2, "gain": 0.7 } ] }
+  },
+  "tracks": [
+    { "inst": "thud", "play": "pattern", "pattern": "x... x... x... x.x.", "notes": "1", "octave": 2, "gain": 0.9 },
+    { "inst": "drone", "play": "chords", "chords": "i II", "every": "2 bars", "octave": 2, "gain": 0.6, "send": 0.4 }
+  ]
+}
