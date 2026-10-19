@@ -67,7 +67,8 @@ pub fn hud_layout(w: u32, h: u32, ui: &GameUi, vars: &[(&str, f64)], shown: &[(&
     }
 
     let counters = ui.counter_rows(vars);
-    let rows: Vec<(String, String)> = shown.iter().filter(|(n, _)| !ui.is_counted(n)).take(8).map(|(n, v)| (ui.label_of(n).to_string(), number(*v))).collect();
+    let rows: Vec<(String, String)> =
+        shown.iter().filter(|(n, _)| !ui.is_counted(n)).take(crate::hud_config::HUD_ROWS).map(|(n, v)| (ui.label_of(n).to_string(), number(*v))).collect();
     let event = event.map(|e| format!("EVENT: {}", e.to_uppercase()));
     let n = counters.len() + rows.len() + usize::from(event.is_some());
     if n > 0 || ui.title.is_some() {
