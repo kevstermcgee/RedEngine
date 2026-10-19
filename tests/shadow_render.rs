@@ -54,3 +54,47 @@ fn a_near_pillar_and_a_far_pillar_both_cast_a_shadow_that_the_unshadowed_scene_l
     assert!(far > 40, "the pillar 40 m away casts one too, from the far map: {far} darker pixels around 40 m to the right");
     assert!(dark.len() < lit.len() / 3 / 4, "shadows are patches, not a blackout: {} of {} pixels", dark.len(), lit.len() / 3);
 }
+
+/// Every game's painted surfaces (a `.wgsl` under `examples/` or `games/` defining `fn surface(`) composed into the scene shader, and the
+/// renderer's pipelines built from it on this machine's adapter. naga's HLSL check runs everywhere (`shader_validation`); on the Windows leg this
+/// is the only place a game's own shader goes through Microsoft's compiler before a player's machine does.
+#[test]
+fn every_games_painted_surfaces_build_the_renderers_pipelines_on_this_adapter() {
+    fn wgsl_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n == "target" || n == "out") {
+                    continue;
+                }
+                wgsl_files(&p, out);
+            } else if p.extension().is_some_and(|x| x == "wgsl") {
+                out.push(p);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    wgsl_files(&root.join("examples"), &mut files);
+    wgsl_files(&root.join("games"), &mut files);
+    files.sort();
+    let arts: Vec<(std::path::PathBuf, String)> = files
+        .into_iter()
+        .filter_map(|p| {
+            let code = std::fs::read_to_string(&p).ok()?;
+            code.lines().any(|l| l.trim_start().starts_with("fn surface(")).then_some((p, code))
+        })
+        .collect();
+    assert!(arts.iter().any(|(p, _)| p.ends_with("blocks.wgsl")), "RedCraft's block shader is found: {arts:?}");
+    let Ok(gpu) = red_engine2::gpu::Gpu::new() else {
+        eprintln!("no GPU adapter on this machine: the painted-surface pipeline test is skipped");
+        return;
+    };
+    for (path, code) in &arts {
+        let scope = gpu.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let _ = red_engine2::gpu::create_pipelines(&gpu.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, None, Some(code));
+        let err = pollster::block_on(scope.pop());
+        assert!(err.is_none(), "{} does not build the renderer's pipelines on {}: {err:?}", path.display(), gpu.adapter);
+    }
+}
