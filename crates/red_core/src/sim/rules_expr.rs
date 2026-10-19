@@ -342,6 +342,7 @@ impl Expr {
         match self {
             Expr::Var(i) => out.push(*i),
             Expr::Num(_) | Expr::Me(_) | Expr::Call(..) | Expr::Call2(..) => {}
+            Expr::Its(_) => {} // a prop's own variable (`self.name`), not one of the scene's
             Expr::Neg(e) | Expr::Not(e) => e.read_vars(out),
             Expr::Bin(_, l, r) | Expr::Random(l, r) => {
                 l.read_vars(out);
