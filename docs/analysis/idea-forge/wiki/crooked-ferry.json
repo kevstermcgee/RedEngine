@@ -1,0 +1,268 @@
+{
+ "tagline": "A forgotten statue gets one night a year to move: bridge the gaps of a crooked pier with tools that wear down, whistle for an echo to copy you, and climb before the ink rises.",
+ "overview": "Crooked Ferry is a short first-person climbing puzzle on an old ferry pier at night. The pier climbs in six crooked ledges to a plinth at the top, with a gap between each ledge too wide to jump. You have one tool to bridge them, and it never breaks: it wears down instead. Lay the long oar across a gap and a bridge appears, and the oar becomes a plank waiting further up; lay the plank and it becomes a peg.\n\nFive gaps and only three tools: you need help, and the help is your own echo. Whistle right after you lay a tool and a pale teal echo of you appears at the next gap; a beat later it lays the same tool there too. Meanwhile a tide of ink rises from below every eight seconds and erases the lowest piers and bridges, so there is no going back down.",
+ "story": "The statue on the old ferry pier has been forgotten for a hundred years, and one night each year it may move. Tonight a tide of ink is rising out of the dark water, erasing whatever it touches. The plinth stands at the very top of the crooked pier, and the ferryman's oar still lies where he left it.",
+ "goal": "Reach the plinth on the highest ledge: THE STATUE STANDS AT THE TOP. You lose if you fall into the ink, or if it rises to the ledge you are standing on: ERASED.",
+ "rules": [
+  "Pick up the tool with E, carry it to the edge of a gap and press E again to set it down in the gap: a bridge appears across it.",
+  "Tools never break, they wear down. Once it has made a bridge, the oar is gone and a plank appears further up the pier; the plank wears into a peg the same way.",
+  "The gaps get easier as you climb: the first two need the oar's full length, the next two need at least the plank, and the peg only reaches across the last. A tool that is too short leaves a stub you cannot cross.",
+  "With empty hands, swing (left click) right after laying a tool to whistle: an echo of you appears at the next gap and, a beat later, lays the same tool there.",
+  "You get one whistle for each tool you lay.",
+  "Every eight seconds the ink rises one step (INK RISING at the top left counts up to 11). Each step erases the lowest piers and bridges still standing.",
+  "A tool dropped into the water comes back to where you found it."
+ ],
+ "controls": [
+  {
+   "input": "WASD (or left stick)",
+   "action": "Walk"
+  },
+  {
+   "input": "Mouse (or right stick)",
+   "action": "Look around"
+  },
+  {
+   "input": "E (gamepad X)",
+   "action": "Pick up a tool / set it down"
+  },
+  {
+   "input": "Left click (gamepad right trigger)",
+   "action": "Swing: with empty hands, whistle for your echo"
+  },
+  {
+   "input": "Space (gamepad A)",
+   "action": "Jump"
+  },
+  {
+   "input": "Esc (gamepad Start)",
+   "action": "Pause menu"
+  }
+ ],
+ "characters": [
+  {
+   "name": "You",
+   "role": "Player",
+   "description": "The figure climbing the pier, seen here from behind with a plank held overhead. In first person you see your hands and the bat you swing to whistle.",
+   "shot": {
+    "eye": "-1.4,4.2,0",
+    "at": "10,3.5,0",
+    "fov": 70,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "name": "The Echo",
+   "role": "Helper",
+   "description": "A pale teal copy of you that appears at the next gap when you whistle, beside a glowing outline of the bridge it is about to lay. A beat later the bridge is real.",
+   "shot": {
+    "eye": "8.5,6.2,-3.5",
+    "at": "12,4.6,0",
+    "fov": 55,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_1",
+     "ghost_3",
+     "ghost_4",
+     "ghost_5",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "name": "The Oar",
+   "role": "Tool",
+   "description": "The ferryman's oar: the longest reach, the only tool that spans the first two gaps. Lying on the first ledge when the night begins.",
+   "shot": {
+    "eye": "-1.6,3.9,-1.6",
+    "at": "-0.2,2.8,0",
+    "fov": 45,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "name": "The Plank",
+   "role": "Tool",
+   "description": "What the oar wears into once it has made a bridge. Long enough for the middle gaps, too short for the first two.",
+   "shot": {
+    "eye": "60.6,6.2,58.4",
+    "at": "62,5.1,60",
+    "fov": 45,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "name": "The Peg",
+   "role": "Tool",
+   "description": "What the plank wears into: the shortest tool, which only bridges the last gap.",
+   "shot": {
+    "eye": "63,6,58.8",
+    "at": "64,5.1,60",
+    "fov": 40,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "name": "The Ink",
+   "role": "Hazard",
+   "description": "A dark, glossy tide that rises out of the water one step every eight seconds and erases every pier and bridge it reaches.",
+   "shot": {
+    "eye": "-4,5.5,-7",
+    "at": "4,2,0",
+    "fov": 60,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_4",
+     "ink_5",
+     "ink_6",
+     "ink_7",
+     "ink_8",
+     "ink_9",
+     "ink_10",
+     "ink_11"
+    ]
+   }
+  },
+  {
+   "name": "The Plinth",
+   "role": "Goal",
+   "description": "The stone plinth with its statue at the top of the pier, where the night ends.",
+   "shot": {
+    "eye": "44.5,10.6,-2.6",
+    "at": "47.2,10,0",
+    "fov": 50,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  }
+ ],
+ "tips": [
+  "Whistle right after the oar and right after the plank: their echoes bridge the second and the fourth gap for you.",
+  "Do not use the plank on the first two gaps: it only makes a stub there, and the oar is already gone.",
+  "Keep climbing: the first piers vanish about 24 seconds in."
+ ],
+ "gallery": [
+  {
+   "caption": "The crooked pier from the side: six ledges climbing to the plinth (bridges and ink hidden).",
+   "shot": {
+    "eye": "20,16,-20",
+    "at": "24,5,0",
+    "fov": 60,
+    "hide": [
+     "deck_*",
+     "stub_*",
+     "ghost_*",
+     "ink_*"
+    ]
+   }
+  },
+  {
+   "caption": "The oar laid across the first gap: a bridge appears and the oar is gone.",
+   "shot": {
+    "eye": "-1,6.5,-6",
+    "at": "5,3.5,0",
+    "fov": 60,
+    "hide": [
+     "deck_2",
+     "deck_3",
+     "deck_4",
+     "deck_5",
+     "stub_*",
+     "ghost_*",
+     "oar",
+     "ink_2",
+     "ink_3",
+     "ink_4",
+     "ink_5",
+     "ink_6",
+     "ink_7",
+     "ink_8",
+     "ink_9",
+     "ink_10",
+     "ink_11"
+    ]
+   }
+  },
+  {
+   "caption": "A whistle: a teal echo appears at the second gap, beside the span it is about to lay.",
+   "shot": {
+    "eye": "5,8,-8",
+    "at": "10,4,0",
+    "fov": 60,
+    "hide": [
+     "deck_2",
+     "deck_3",
+     "deck_4",
+     "deck_5",
+     "stub_*",
+     "ghost_1",
+     "ghost_3",
+     "ghost_4",
+     "ghost_5",
+     "oar",
+     "ink_2",
+     "ink_3",
+     "ink_4",
+     "ink_5",
+     "ink_6",
+     "ink_7",
+     "ink_8",
+     "ink_9",
+     "ink_10",
+     "ink_11"
+    ]
+   }
+  },
+  {
+   "caption": "Halfway up: four gaps bridged, by the oar, its echo, the plank and the plank's echo.",
+   "shot": {
+    "eye": "12,12,-12",
+    "at": "26,5,0",
+    "fov": 60,
+    "hide": [
+     "deck_5",
+     "stub_*",
+     "ghost_*",
+     "oar",
+     "ink_2",
+     "ink_3",
+     "ink_4",
+     "ink_5",
+     "ink_6",
+     "ink_7",
+     "ink_8",
+     "ink_9",
+     "ink_10",
+     "ink_11"
+    ]
+   }
+  }
+ ],
+ "why_made": "Idea Forge dealt this card: you whistle to call echoes that copy your last move a beat later; but tools never break, they wear down into different tools; a slow tide of ink rises from below and erases whatever it touches; reach the highest point without ever going down; and, as optional story, a forgotten statue that gets exactly one night each year to move.\n\nThe AI kept every part of the card and built it as a pier to climb. Your 'last move' became the last tool you laid, because the rules cannot see how the player moves, and the whistle became the swing of the bat, because the rules cannot hear a whistle key. The tools wear down each time they make a bridge (oar, plank, peg), and the gaps were sized so that the climb only works if you whistle after the oar and after the plank. 'Never going down' is kept by the ink and the fall rather than by a rule against stepping back."
+}
