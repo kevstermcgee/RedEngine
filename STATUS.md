@@ -37,6 +37,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
   code on 2026-10-10 (old binary `red_relay.prev-20261010` beside it).
 - Earlier milestones (hardening #74-#84, CI wall-clock #97, content formats #100-#106, agent loop #102-#105, aimed fields #115, the games) are in git and
   `docs/analysis/`.
+- 2026-10-19: RedCraft (games/redcraft): a Minecraft-like block game on the game-mode and world-layer seams, with seven small engine seams (ADR 2026-10-19-a-block-game-rides-on-the-mode-and-layer-seams); publishing waits on RedEngineGames PR #7
 
 ## Next
 - Phase 2 after the items in Now: (2) a fall-out height, (3) rules that change movement, gravity and scale, and a body swap, (4) 3D string tables, (5) 3D

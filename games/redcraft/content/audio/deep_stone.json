@@ -1,0 +1,162 @@
+{
+ "bpm": 54,
+ "beats": 4,
+ "bars": 12,
+ "key": "E",
+ "scale": "dorian",
+ "seed": 303,
+ "lufs": -28,
+ "reverb": {
+  "decay": 8,
+  "size": 1.5,
+  "damp": 0.55,
+  "predelay": 0.04,
+  "mix": 0.6
+ },
+ "delay": {
+  "time": 0.55,
+  "feedback": 0.35,
+  "damp": 0.7,
+  "mix": 0.16
+ },
+ "instruments": {
+  "piano": {
+   "seconds": 5,
+   "level": 0.42,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.38
+      ],
+      [
+       3,
+       0.14
+      ],
+      [
+       4,
+       0.06
+      ],
+      [
+       5,
+       0.025
+      ]
+     ],
+     "decay": 1.7,
+     "attack": 0.004
+    },
+    {
+     "sine": 1.0018,
+     "decay": 2.6,
+     "gain": 0.28
+    },
+    {
+     "sine": 0.5,
+     "decay": 3.2,
+     "gain": 0.08
+    }
+   ]
+  },
+  "pad": {
+   "seconds": 12,
+   "level": 0.34,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.18
+      ],
+      [
+       3,
+       0.05
+      ]
+     ],
+     "attack": 2.4,
+     "release": 4
+    },
+    {
+     "sine": 1.005,
+     "attack": 3.0,
+     "release": 4,
+     "gain": 0.6
+    },
+    {
+     "sine": 0.5,
+     "attack": 3.5,
+     "release": 4,
+     "gain": 0.25
+    }
+   ]
+  },
+  "bell": {
+   "seconds": 6,
+   "level": 0.24,
+   "layers": [
+    {
+     "sine": 1,
+     "decay": 1.1
+    },
+    {
+     "sine": 2.76,
+     "decay": 2.2,
+     "gain": 0.18
+    },
+    {
+     "sine": 5.4,
+     "decay": 3.6,
+     "gain": 0.06
+    }
+   ]
+  }
+ },
+ "tracks": [
+  {
+   "inst": "pad",
+   "play": "chords",
+   "chords": "i IV i VII | i v IV i",
+   "every": "3 bars",
+   "octave": 3,
+   "gain": 0.34,
+   "send": 0.7
+  },
+  {
+   "inst": "piano",
+   "play": "walk",
+   "every": "1 beat",
+   "density": 0.16,
+   "range": [
+    1,
+    8
+   ],
+   "leap": 3,
+   "octave": 4,
+   "gain": 0.6,
+   "vel": [
+    0.3,
+    0.6
+   ],
+   "send": 0.8,
+   "seed": 13
+  },
+  {
+   "inst": "bell",
+   "play": "walk",
+   "every": "2 beats",
+   "density": 0.12,
+   "range": [
+    8,
+    13
+   ],
+   "octave": 4,
+   "pan": "spread",
+   "gain": 0.5,
+   "send": 0.8,
+   "seed": 17,
+   "from": 4
+  }
+ ]
+}

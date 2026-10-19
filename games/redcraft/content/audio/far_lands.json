@@ -1,0 +1,188 @@
+{
+ "bpm": 60,
+ "beats": 4,
+ "bars": 16,
+ "key": "F",
+ "scale": "lydian",
+ "seed": 505,
+ "lufs": -28,
+ "reverb": {
+  "decay": 7,
+  "size": 1.4,
+  "damp": 0.5,
+  "predelay": 0.03,
+  "mix": 0.55
+ },
+ "delay": {
+  "time": 0.5,
+  "feedback": 0.33,
+  "damp": 0.6,
+  "mix": 0.15
+ },
+ "instruments": {
+  "piano": {
+   "seconds": 5,
+   "level": 0.42,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.38
+      ],
+      [
+       3,
+       0.14
+      ],
+      [
+       4,
+       0.06
+      ],
+      [
+       5,
+       0.025
+      ]
+     ],
+     "decay": 1.7,
+     "attack": 0.004
+    },
+    {
+     "sine": 1.0018,
+     "decay": 2.6,
+     "gain": 0.28
+    },
+    {
+     "sine": 0.5,
+     "decay": 3.2,
+     "gain": 0.08
+    }
+   ]
+  },
+  "pad": {
+   "seconds": 12,
+   "level": 0.34,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.18
+      ],
+      [
+       3,
+       0.05
+      ]
+     ],
+     "attack": 2.4,
+     "release": 4
+    },
+    {
+     "sine": 1.005,
+     "attack": 3.0,
+     "release": 4,
+     "gain": 0.6
+    },
+    {
+     "sine": 0.5,
+     "attack": 3.5,
+     "release": 4,
+     "gain": 0.25
+    }
+   ]
+  },
+  "bell": {
+   "seconds": 6,
+   "level": 0.24,
+   "layers": [
+    {
+     "sine": 1,
+     "decay": 1.1
+    },
+    {
+     "sine": 2.76,
+     "decay": 2.2,
+     "gain": 0.18
+    },
+    {
+     "sine": 5.4,
+     "decay": 3.6,
+     "gain": 0.06
+    }
+   ]
+  },
+  "low": {
+   "seconds": 5,
+   "level": 0.4,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.2
+      ]
+     ],
+     "decay": 1.0,
+     "attack": 0.01
+    }
+   ]
+  }
+ },
+ "tracks": [
+  {
+   "inst": "pad",
+   "play": "chords",
+   "chords": "I II iii I | I vii II I",
+   "every": "4 bars",
+   "octave": 3,
+   "gain": 0.3,
+   "send": 0.7
+  },
+  {
+   "inst": "low",
+   "play": "chords",
+   "chords": "I II iii I | I vii II I",
+   "voicing": [
+    1
+   ],
+   "every": "4 bars",
+   "octave": 2,
+   "gain": 0.28
+  },
+  {
+   "inst": "piano",
+   "play": "walk",
+   "every": "1 beat",
+   "density": 0.2,
+   "range": [
+    5,
+    12
+   ],
+   "leap": 2,
+   "octave": 4,
+   "pan": "spread",
+   "gain": 0.65,
+   "vel": [
+    0.3,
+    0.7
+   ],
+   "send": 0.7,
+   "seed": 25,
+   "from": 2,
+   "to": 14
+  },
+  {
+   "inst": "bell",
+   "play": "pattern",
+   "pattern": "x....... ........",
+   "notes": "8 10 12 9",
+   "every": "1 beat",
+   "octave": 4,
+   "gain": 0.35,
+   "send": 0.8,
+   "pan": 0.2
+  }
+ ]
+}

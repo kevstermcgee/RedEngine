@@ -295,7 +295,8 @@ const KILLCHAIN_ENGINE_FILES: &[&str] = &[
 ];
 
 /// Engine code the Frameless game (`games/frameless`) is written against: the client it plays in (its game-mode seam), the world-layer seam and both
-/// renderers its museum draws through, the shapes, serif and shaders it builds with, and the core (the scene parser its block plugs into).
+/// renderers its museum draws through, the shapes, serif and shaders it builds with, and the core (the scene parser its block plugs into). RedCraft
+/// (`games/redcraft`) is built on the same seams.
 const FRAMELESS_ENGINE_DIRS: &[&str] = &["src/client/", "src/procgen/", "src/ui/", "src/shaders/", "crates/red_core/src/"];
 const FRAMELESS_ENGINE_FILES: &[&str] = &[
     "src/world_layer.rs",
@@ -341,6 +342,14 @@ const GAME_CRATES: &[GameCrate] = &[
         engine_dirs: FRAMELESS_ENGINE_DIRS,
         engine_files: FRAMELESS_ENGINE_FILES,
         tests: "the museum's unit tests, its collection's drift check and its headless visit (seed 7, a save the next launch loads)",
+    },
+    GameCrate {
+        name: "redcraft",
+        dir: "redcraft",
+        title: "RedCraft",
+        engine_dirs: FRAMELESS_ENGINE_DIRS,
+        engine_files: FRAMELESS_ENGINE_FILES,
+        tests: "the block world's unit tests (generation, light, meshing, physics, crafting, saves), its shader check and its headless play",
     },
     GameCrate {
         name: "workshop_server",

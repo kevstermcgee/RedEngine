@@ -1,0 +1,161 @@
+{
+ "bpm": 72,
+ "beats": 4,
+ "bars": 16,
+ "key": "A",
+ "scale": "lydian",
+ "seed": 202,
+ "lufs": -27,
+ "reverb": {
+  "decay": 5,
+  "size": 1.2,
+  "damp": 0.45,
+  "predelay": 0.02,
+  "mix": 0.45
+ },
+ "delay": {
+  "time": 0.416,
+  "feedback": 0.28,
+  "damp": 0.6,
+  "mix": 0.12
+ },
+ "instruments": {
+  "piano": {
+   "seconds": 6,
+   "level": 0.36,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.25
+      ],
+      [
+       3,
+       0.08
+      ],
+      [
+       4,
+       0.03
+      ]
+     ],
+     "decay": 1.2,
+     "attack": 0.012
+    },
+    {
+     "sine": 1.0015,
+     "decay": 2.0,
+     "gain": 0.3
+    }
+   ]
+  },
+  "pad": {
+   "seconds": 12,
+   "level": 0.34,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.18
+      ],
+      [
+       3,
+       0.05
+      ]
+     ],
+     "attack": 2.4,
+     "release": 4
+    },
+    {
+     "sine": 1.005,
+     "attack": 3.0,
+     "release": 4,
+     "gain": 0.6
+    },
+    {
+     "sine": 0.5,
+     "attack": 3.5,
+     "release": 4,
+     "gain": 0.25
+    }
+   ]
+  },
+  "low": {
+   "seconds": 5,
+   "level": 0.4,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2,
+       0.2
+      ]
+     ],
+     "decay": 1.0,
+     "attack": 0.01
+    }
+   ]
+  }
+ },
+ "tracks": [
+  {
+   "inst": "pad",
+   "play": "chords",
+   "chords": "I II I vii",
+   "every": "4 bars",
+   "octave": 3,
+   "gain": 0.28,
+   "send": 0.6
+  },
+  {
+   "inst": "piano",
+   "play": "pattern",
+   "pattern": "x.x.x.x. x.x.x...",
+   "notes": "1 5 8 10 12 10 8 5  1 5 9 11 12 9 5",
+   "every": "1 beat",
+   "octave": 3,
+   "gain": 0.55,
+   "vel": [
+    0.35,
+    0.6
+   ],
+   "send": 0.6,
+   "pan": -0.15
+  },
+  {
+   "inst": "piano",
+   "play": "walk",
+   "every": "2 beats",
+   "density": 0.28,
+   "range": [
+    8,
+    14
+   ],
+   "octave": 4,
+   "pan": "spread",
+   "gain": 0.6,
+   "vel": [
+    0.3,
+    0.6
+   ],
+   "send": 0.7,
+   "seed": 9,
+   "from": 5
+  },
+  {
+   "inst": "low",
+   "play": "chords",
+   "chords": "I II I vii",
+   "voicing": [
+    1
+   ],
+   "every": "4 bars",
+   "octave": 2,
+   "gain": 0.3
+  }
+ ]
+}
