@@ -240,7 +240,8 @@ pub struct HudRead {
 /// The variables the standard client's in-game HUD reads, each once: the counters, the objective's conditions and texts, then the plain rows the state
 /// panel lists. `vars` are the scene's own variable names in declaration order. Online the HUD has only the variables the server sent
 /// (`net::protocol::MAX_RULE_VARS` of them), so these are sent first (`net::protocol::rule_vars_to_send`), and `lint` reports a HUD that reads more
-/// ([`check_hud_reads`]). Cards and the pause line are not here: online they do not read the server's variables.
+/// ([`check_hud_reads`]). The title is here for the HUD's top line; the pause menu (which shows the title and `ui.pause` even with the HUD off) and the
+/// audio layers are added by [`client_reads`]. Cards are not here: online they do not read the server's variables.
 pub fn hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, vars: &[String]) -> Vec<HudRead> {
     let mut out: Vec<HudRead> = Vec::new();
     if !hud.enabled {
@@ -285,14 +286,18 @@ pub fn hud_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, vars: 
     out
 }
 
-/// Everything the standard client reads from the server's variables: the HUD's ([`hud_reads`]), then the pause menu's line (`ui.pause`, shown even
-/// with the HUD off) and the audio layers' variables (`audio.layers[].var`, the names in `audio_vars`). The online client copies what arrives into its
-/// own rules, which it does not run, so these follow the match too.
+/// Everything the standard client reads from the server's variables: the HUD's ([`hud_reads`]), then the title's placeholders and the pause menu's
+/// line (the pause menu shows both, even with the HUD off: `ui.title`, `ui.pause`) and the audio layers' variables (`audio.layers[].var`, the names in
+/// `audio_vars`). The online client copies what arrives into its own rules, which it does not run, so these follow the match too.
 pub fn client_reads(ui: Option<&GameUi>, hud: &crate::hud_config::HudConfig, audio_vars: &[&str], vars: &[String]) -> Vec<HudRead> {
     let mut out = hud_reads(ui, hud, vars);
+    let title = ui.and_then(|u| u.title.as_deref()).map(placeholders).unwrap_or_default();
     let pause = ui.and_then(|u| u.pause.as_deref()).map(placeholders).unwrap_or_default();
-    let extra =
-        pause.into_iter().map(|n| (n, "ui.pause".to_string())).chain(audio_vars.iter().enumerate().map(|(i, n)| (*n, format!("audio.layers[{i}].var"))));
+    let extra = title
+        .into_iter()
+        .map(|n| (n, "ui.title".to_string()))
+        .chain(pause.into_iter().map(|n| (n, "ui.pause".to_string())))
+        .chain(audio_vars.iter().enumerate().map(|(i, n)| (*n, format!("audio.layers[{i}].var"))));
     for (name, at) in extra {
         if let Some(var) = vars.iter().position(|v| v == name).filter(|i| !out.iter().any(|r| r.var == *i)) {
             out.push(HudRead { var, at });
@@ -724,7 +729,11 @@ mod tests {
             .unwrap();
         let hidden = crate::hud_config::HudConfig { enabled: false, ..Default::default() };
         let reads: Vec<(usize, String)> = client_reads(Some(&u), &hidden, &["v07"], &names).into_iter().map(|r| (r.var, r.at)).collect();
-        assert_eq!(reads, [(5, "ui.pause".to_string()), (7, "audio.layers[0].var".to_string())], "with the HUD off only the pause line and the audio read");
+        assert_eq!(
+            reads,
+            [(6, "ui.title".to_string()), (5, "ui.pause".to_string()), (7, "audio.layers[0].var".to_string())],
+            "with the HUD off the pause menu still shows the title and its line, and the audio reads"
+        );
         let shown = crate::hud_config::HudConfig { show_rules_vars: false, ..Default::default() };
         let reads: Vec<(usize, String)> = client_reads(Some(&u), &shown, &["v07", "v01"], &names).into_iter().map(|r| (r.var, r.at)).collect();
         assert_eq!(reads[..2], [(1, "ui.counters[0].var".to_string()), (6, "ui.title".to_string())], "{reads:?}");
