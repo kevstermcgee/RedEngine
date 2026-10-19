@@ -211,6 +211,16 @@ impl Runner<'_> {
         }
     }
 
+    /// A failed wait that crossed a level change says so: the level swap moves things and resets positions, which a bare "found 52" hides.
+    fn level_note(&self, at_start: usize) -> String {
+        let now = self.sim.level;
+        if now == at_start {
+            return String::new();
+        }
+        let id = |i: usize| self.sim.def.levels.get(i).map(|l| l.id.clone()).unwrap_or_else(|| i.to_string());
+        format!(" (the level changed from `{}` to `{}` while waiting: the things in it were replaced)", id(at_start), id(now))
+    }
+
     fn step_script(&mut self, st: &Step) {
         match st {
             Step::Wait(s) => self.run(*s),
@@ -228,13 +238,18 @@ impl Runner<'_> {
                     self.sim.set_action(a, true);
                 }
                 let limit = self.sim.tick + (timeout * TPS as f32).round() as u64;
+                let level_at_start = self.sim.level;
                 loop {
                     if check(&self.sim, until).is_ok() {
                         break;
                     }
                     if self.sim.tick >= limit {
                         let why = check(&self.sim, until).err().unwrap_or_default();
-                        self.failures.push(format!("held {} for {timeout} s and it never became true: {why}", actions.join("+")));
+                        self.failures.push(format!(
+                            "held {} for {timeout} s and it never became true: {why}{}",
+                            actions.join("+"),
+                            self.level_note(level_at_start)
+                        ));
                         break;
                     }
                     if !self.tick() {
@@ -268,13 +283,14 @@ impl Runner<'_> {
             Step::Approach(tag, s) => self.approach(tag, *s),
             Step::WaitUntil(e, timeout) => {
                 let limit = self.sim.tick + (timeout * TPS as f32).round() as u64;
+                let level_at_start = self.sim.level;
                 loop {
                     if check(&self.sim, e).is_ok() {
                         break;
                     }
                     if self.sim.tick >= limit {
                         let why = check(&self.sim, e).err().unwrap_or_default();
-                        self.failures.push(format!("waited {timeout} s and it never held: {why}"));
+                        self.failures.push(format!("waited {timeout} s and it never held: {why}{}", self.level_note(level_at_start)));
                         break;
                     }
                     if !self.tick() {
@@ -518,6 +534,30 @@ mod tests {
         assert!(all.contains("event `nothing` emitted 1..any, found 0 time(s) (events seen: none)"), "{all}");
         assert!(all.contains("count of `coin` eq 0, found 2"), "{all}");
         assert!(all.contains("`p` within 1 px of (0, 0), found it at (20.0, 45.0)"), "{all}");
+    }
+
+    #[test]
+    fn a_wait_that_fails_across_a_level_change_names_both_levels() {
+        let text = r##"{"game2d":1,"id":"t","title":"T","description":"d",
+          "capabilities":{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":[]},
+          "view":{"width":160,"height":90},"vars":{"score":0},
+          "prefabs":{"coin":{"tag":"coin","shape":{"rect":[4,4],"color":"#ff0"}}},
+          "levels":[{"id":"one","scene":[{"prefab":"coin","at":[10,10]}]},{"id":"two","scene":[{"prefab":"coin","at":[20,10]}]}],
+          "rules":[{"when":{"every":0.2},"if":"level == 0","do":[{"level":"1"}]}],
+          "checks":{"scenarios":[{"name":"s","script":[{"wait":0.1}],"expect":[{"var":"score","eq":0}]}]}}"##;
+        let def = Arc::new(parse(text).unwrap_or_else(|e| panic!("{e:?}")));
+        let mut sc = def.scenarios[0].clone();
+        sc.script = vec![Step::WaitUntil(Expect::Var(0, Cmp::Eq, 9.0), 1.0)];
+        let (rep, _) = run_scenario(&def, &sc, None);
+        assert!(
+            rep.failures[0].contains("never held: expected score eq 9, found 0 (the level changed from `one` to `two` while waiting"),
+            "{:?}",
+            rep.failures
+        );
+        let mut sc = def.scenarios[0].clone();
+        sc.script = vec![Step::WaitUntil(Expect::Var(0, Cmp::Eq, 9.0), 0.1)];
+        let (rep, _) = run_scenario(&def, &sc, None);
+        assert!(!rep.failures[0].contains("level changed"), "no change, no note: {:?}", rep.failures);
     }
 
     #[test]
