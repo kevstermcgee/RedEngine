@@ -1,0 +1,3779 @@
+{
+ "schema_version": 1,
+ "recipe": {
+  "title": "Paper Foundry: your colour is a rule",
+  "summary": "Carry coloured jars; you glow the colour you carry and only matching gates and tiles are safe. Each mistake doubles the Shade's steps.",
+  "teaches": [
+   "colour as a variable set by pickup/drop events",
+   "pad zones that burn on mismatch",
+   "dread = dread*2+1 compounding penalty",
+   "a clock that runs only while the creature is carried"
+  ],
+  "tips": [
+   "fog plus flashlight makes the lantern the only light"
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "ember": "#ff5a3c",
+   "moss": "#4fd16e",
+   "sky": "#4aa8ff",
+   "paper": "#f1e6c8",
+   "ink": "#1b2040",
+   "primary": "#f1e6c8",
+   "secondary": "#1b2040",
+   "accent": "#ffd27a",
+   "floor": "#2f3556",
+   "wall": "#3b4270",
+   "trim": "#cbbf9f",
+   "lamp": "#ffd58a",
+   "wood": "#5a4a3a",
+   "metal": "#8a8fa8"
+  },
+  "materials": {
+   "paper": {
+    "color": "@paper",
+    "roughness": 1.0
+   }
+  },
+  "light": {
+   "ambient": {
+    "color": "#3a4580",
+    "intensity": 0.18
+   }
+  },
+  "sky": {
+   "top": "#05060f",
+   "bottom": "#0c0f22"
+  },
+  "fog": {
+   "color": "#080a18",
+   "density": 0.11
+  },
+  "post": {
+   "ao": 0.9,
+   "outline": 0.7
+  }
+ },
+ "camera": {
+  "fov": 75,
+  "position": [
+   0,
+   1.7,
+   -11
+  ],
+  "target": [
+   0,
+   1.5,
+   0
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 4.5,
+  "jump_speed": 1.0
+ },
+ "flashlight": true,
+ "hud": {
+  "show_rules_vars": false,
+  "show_combat": false,
+  "show_events": false
+ },
+ "music": false,
+ "audio": {
+  "music": {
+   "night": "audio/calm.json",
+   "dusk": "audio/calm.json",
+   "dawn": "audio/calm.json",
+   "day": "audio/calm.json"
+  },
+  "music_volume": 0.7,
+  "layers": [
+   {
+    "score": "audio/dread.json",
+    "var": "dread",
+    "above": 0.5,
+    "fade": 1.5,
+    "volume": 0.8
+   }
+  ]
+ },
+ "spawns": [
+  {
+   "id": "start",
+   "position": [
+    0,
+    0,
+    -10.5
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  }
+ ],
+ "zones": [
+  {
+   "id": "gate_1_pad",
+   "rect": [
+    -5,
+    -2.2,
+    5,
+    -0.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "gate_2_pad",
+   "rect": [
+    -5,
+    9.8,
+    5,
+    11.8
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "gate_3_pad",
+   "rect": [
+    -5,
+    23.8,
+    5,
+    25.8
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "origin",
+   "rect": [
+    -2.2,
+    -12.2,
+    2.2,
+    -7.8
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_4_0",
+   "rect": [
+    -4.95,
+    3.3,
+    -3.05,
+    5.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_4_1",
+   "rect": [
+    -2.95,
+    3.3,
+    -1.05,
+    5.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_4_2",
+   "rect": [
+    -0.95,
+    3.3,
+    0.95,
+    5.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_4_3",
+   "rect": [
+    1.05,
+    3.3,
+    2.95,
+    5.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_4_4",
+   "rect": [
+    3.05,
+    3.3,
+    4.95,
+    5.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_8_0",
+   "rect": [
+    -4.95,
+    7.3,
+    -3.05,
+    9.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_8_1",
+   "rect": [
+    -2.95,
+    7.3,
+    -1.05,
+    9.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_8_2",
+   "rect": [
+    -0.95,
+    7.3,
+    0.95,
+    9.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_8_3",
+   "rect": [
+    1.05,
+    7.3,
+    2.95,
+    9.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_b_8_4",
+   "rect": [
+    3.05,
+    7.3,
+    4.95,
+    9.7
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_17_0",
+   "rect": [
+    -4.95,
+    15.8,
+    -3.05,
+    18.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_17_1",
+   "rect": [
+    -2.95,
+    15.8,
+    -1.05,
+    18.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_17_2",
+   "rect": [
+    -0.95,
+    15.8,
+    0.95,
+    18.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_17_3",
+   "rect": [
+    1.05,
+    15.8,
+    2.95,
+    18.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_17_4",
+   "rect": [
+    3.05,
+    15.8,
+    4.95,
+    18.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_20_0",
+   "rect": [
+    -4.95,
+    18.8,
+    -3.05,
+    21.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_20_1",
+   "rect": [
+    -2.95,
+    18.8,
+    -1.05,
+    21.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_20_2",
+   "rect": [
+    -0.95,
+    18.8,
+    0.95,
+    21.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_20_3",
+   "rect": [
+    1.05,
+    18.8,
+    2.95,
+    21.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_20_4",
+   "rect": [
+    3.05,
+    18.8,
+    4.95,
+    21.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_23_0",
+   "rect": [
+    -4.95,
+    21.8,
+    -3.05,
+    24.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_23_1",
+   "rect": [
+    -2.95,
+    21.8,
+    -1.05,
+    24.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_23_2",
+   "rect": [
+    -0.95,
+    21.8,
+    0.95,
+    24.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_23_3",
+   "rect": [
+    1.05,
+    21.8,
+    2.95,
+    24.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "z_t_c_23_4",
+   "rect": [
+    3.05,
+    21.8,
+    4.95,
+    24.2
+   ],
+   "y": 0,
+   "kind": "pad"
+  }
+ ],
+ "vars": {
+  "hue": 0,
+  "want": 1,
+  "gates": 0,
+  "dread": 0,
+  "hot": 0,
+  "burn_t": 0,
+  "grace": 0
+ },
+ "ui": {
+  "title": "Paper Foundry",
+  "labels": {
+   "dread": "Shade",
+   "gates": "Gates open"
+  },
+  "counters": [
+   {
+    "var": "gates",
+    "of": 3,
+    "label": "Gates open"
+   },
+   {
+    "var": "dread",
+    "of": 8,
+    "label": "Shade"
+   }
+  ],
+  "objective": [
+   {
+    "if": "hot == 1",
+    "text": "Carry it into the HOME ring and set it down (E)! The Shade creeps closer every 3 seconds"
+   },
+   {
+    "if": "burn_t > 0",
+    "text": "Wrong colour! The Shade doubles its steps. Match your glow"
+   },
+   {
+    "if": "want == 4",
+    "text": "All gates open. Lift the lost creature (E) and carry it to the HOME ring"
+   },
+   {
+    "if": "hue == 1 && want == 1",
+    "text": "You glow RED. Walk it to the red gate."
+   },
+   {
+    "if": "hue == 2 && want == 2",
+    "text": "You glow GREEN. Walk it to the green gate. Floor tiles of another colour burn you."
+   },
+   {
+    "if": "hue == 3 && want == 3",
+    "text": "You glow BLUE. Walk it to the blue gate. Floor tiles of another colour burn you."
+   },
+   {
+    "if": "hue > 0 && hue != want && want == 1",
+    "text": "Wrong jar for this gate. Put it down (E), fetch the red one"
+   },
+   {
+    "if": "hue > 0 && hue != want && want == 2",
+    "text": "Wrong jar for this gate. Put it down (E), fetch the green one"
+   },
+   {
+    "if": "hue > 0 && hue != want && want == 3",
+    "text": "Wrong jar for this gate. Put it down (E), fetch the blue one"
+   },
+   {
+    "if": "want == 1",
+    "text": "Pick up the red jar (E) and carry it to the red gate"
+   },
+   {
+    "if": "want == 2",
+    "text": "Pick up the green jar (E) and carry it to the green gate"
+   },
+   {
+    "if": "want == 3",
+    "text": "Pick up the blue jar (E) and carry it to the blue gate"
+   },
+   {
+    "text": "Find the lost creature"
+   }
+  ],
+  "start": {
+   "title": "Paper Foundry",
+   "text": "Your lantern is the only light. You glow the colour of the jar you carry (E picks up, E puts down); a gate opens only for its own colour. Free the lost creature and bring it HOME. Wrong colours wake the Shade: each mistake doubles it.",
+   "button": "Light the lantern"
+  },
+  "end": {
+   "victory": {
+    "title": "Home",
+    "text": "The creature is back where it first appeared.",
+    "button": "Again"
+   },
+   "lose": {
+    "title": "The Shade caught you",
+    "text": "Wrong colours doubled its steps, or the way home took too long.",
+    "button": "Again"
+   }
+  }
+ },
+ "prefabs": {
+  "gate_slab": {
+   "desc": "a folded-paper gate glowing in one colour",
+   "params": {
+    "color": {
+     "default": "#ff5a3c",
+     "palette": "ember"
+    }
+   },
+   "objects": [
+    {
+     "id": "slab",
+     "type": "box",
+     "size": [
+      10,
+      3.2,
+      0.4
+     ],
+     "position": [
+      0,
+      1.6,
+      0
+     ],
+     "material": {
+      "color": "$color",
+      "emissive": "$color",
+      "roughness": 1
+     }
+    },
+    {
+     "id": "fold",
+     "type": "box",
+     "size": [
+      9,
+      0.1,
+      0.6
+     ],
+     "position": [
+      0,
+      2.4,
+      0
+     ],
+     "material": {
+      "color": "@paper",
+      "emissive": "@paper"
+     }
+    },
+    {
+     "id": "fold2",
+     "type": "box",
+     "size": [
+      9,
+      0.1,
+      0.6
+     ],
+     "position": [
+      0,
+      0.8,
+      0
+     ],
+     "material": {
+      "color": "@paper",
+      "emissive": "@paper"
+     }
+    }
+   ]
+  },
+  "jar_shelf": {
+   "desc": "a low paper plinth tinted with a jar's colour",
+   "params": {
+    "color": {
+     "default": "#ff5a3c",
+     "palette": "ember"
+    }
+   },
+   "objects": [
+    {
+     "id": "base",
+     "type": "cylinder",
+     "radius": 0.7,
+     "height": 0.12,
+     "position": [
+      0,
+      0.06,
+      0
+     ],
+     "material": {
+      "color": "@ink",
+      "emissive": "$color"
+     }
+    },
+    {
+     "id": "ring",
+     "type": "cylinder",
+     "radius": 0.85,
+     "height": 0.04,
+     "position": [
+      0,
+      0.02,
+      0
+     ],
+     "material": {
+      "color": "$color",
+      "emissive": "$color"
+     }
+    }
+   ]
+  },
+  "ink_tile": {
+   "desc": "a floor tile that is only safe for its own colour",
+   "params": {
+    "color": {
+     "default": "#ff5a3c",
+     "palette": "ember"
+    }
+   },
+   "objects": [
+    {
+     "id": "tile",
+     "type": "box",
+     "size": [
+      1.9,
+      0.06,
+      2.4
+     ],
+     "position": [
+      0,
+      0.03,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$color",
+      "emissive": "$color",
+      "roughness": 1
+     }
+    }
+   ]
+  },
+  "shade": {
+   "desc": "the quiet Shade: a tall cut-paper figure with pale eyes",
+   "params": {
+    "color": {
+     "default": "#1b2040",
+     "palette": "ink"
+    }
+   },
+   "objects": [
+    {
+     "id": "body",
+     "type": "box",
+     "size": [
+      1.1,
+      2.8,
+      0.12
+     ],
+     "position": [
+      0,
+      1.4,
+      0
+     ],
+     "material": {
+      "color": "$color",
+      "emissive": "#2a1a50"
+     }
+    },
+    {
+     "id": "head",
+     "type": "sphere",
+     "radius": 0.4,
+     "position": [
+      0,
+      3.0,
+      0
+     ],
+     "material": {
+      "color": "$color",
+      "emissive": "#2a1a50"
+     }
+    },
+    {
+     "id": "eye_l",
+     "type": "sphere",
+     "radius": 0.08,
+     "position": [
+      -0.15,
+      3.05,
+      0.3
+     ],
+     "material": {
+      "color": "@paper",
+      "emissive": "@paper"
+     }
+    },
+    {
+     "id": "eye_r",
+     "type": "sphere",
+     "radius": 0.08,
+     "position": [
+      0.15,
+      3.05,
+      0.3
+     ],
+     "material": {
+      "color": "@paper",
+      "emissive": "@paper"
+     }
+    }
+   ]
+  },
+  "origin_ring": {
+   "desc": "the glowing ring where the creature first appeared",
+   "params": {
+    "color": {
+     "default": "#f1e6c8",
+     "palette": "paper"
+    }
+   },
+   "objects": [
+    {
+     "id": "outer",
+     "type": "cylinder",
+     "radius": 2.1,
+     "height": 0.04,
+     "position": [
+      0,
+      0.02,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "$color",
+      "emissive": "$color"
+     }
+    },
+    {
+     "id": "inner",
+     "type": "cylinder",
+     "radius": 1.8,
+     "height": 0.05,
+     "position": [
+      0,
+      0.025,
+      0
+     ],
+     "collide": false,
+     "material": {
+      "color": "@ink"
+     }
+    }
+   ]
+  }
+ },
+ "phases": {
+  "gate1": [
+   "open_1"
+  ],
+  "gate2": [
+   "open_1",
+   "open_2"
+  ],
+  "gate3": [
+   "open_1",
+   "open_2",
+   "open_3"
+  ]
+ },
+ "rules": [
+  {
+   "id": "setup",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "hide": "shade_1"
+    },
+    {
+     "hide": "shade_2"
+    },
+    {
+     "hide": "shade_3"
+    }
+   ]
+  },
+  {
+   "id": "take_ember",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "jar_a_e",
+     "jar_c_e"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      1
+     ]
+    },
+    {
+     "emit": "dyed"
+    }
+   ]
+  },
+  {
+   "id": "take_moss",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "jar_b_m",
+     "jar_c_m"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      2
+     ]
+    },
+    {
+     "emit": "dyed"
+    }
+   ]
+  },
+  {
+   "id": "take_sky",
+   "when": {
+    "event": "pickup",
+    "prop": [
+     "jar_b_s",
+     "jar_c_s"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      3
+     ]
+    },
+    {
+     "emit": "dyed"
+    }
+   ]
+  },
+  {
+   "id": "drop_jar",
+   "when": {
+    "event": "drop",
+    "prop": [
+     "jar_a_e",
+     "jar_b_m",
+     "jar_b_s",
+     "jar_c_e",
+     "jar_c_m",
+     "jar_c_s"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "take_creature",
+   "when": {
+    "event": "pickup",
+    "prop": "creature"
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      4
+     ]
+    },
+    {
+     "set": [
+      "hot",
+      1
+     ]
+    },
+    {
+     "emit": "lifted"
+    }
+   ]
+  },
+  {
+   "id": "drop_creature",
+   "when": {
+    "event": "drop",
+    "prop": "creature"
+   },
+   "do": [
+    {
+     "set": [
+      "hue",
+      0
+     ]
+    },
+    {
+     "set": [
+      "hot",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "open_1",
+   "when": {
+    "enter": {
+     "zone": "gate_1_pad"
+    }
+   },
+   "if": "hue == 1 && want == 1",
+   "do": [
+    {
+     "deactivate": "gate_1"
+    },
+    {
+     "hide": "gate_1_sign"
+    },
+    {
+     "add": [
+      "gates",
+      1
+     ]
+    },
+    {
+     "set": [
+      "want",
+      2
+     ]
+    },
+    {
+     "set": [
+      "hue",
+      0
+     ]
+    },
+    {
+     "reset": [
+      "jar_a_e",
+      "jar_b_m",
+      "jar_b_s",
+      "jar_c_e",
+      "jar_c_m",
+      "jar_c_s"
+     ]
+    },
+    {
+     "emit": "open"
+    }
+   ]
+  },
+  {
+   "id": "refuse_1",
+   "when": {
+    "enter": {
+     "zone": "gate_1_pad"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && want == 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      -4.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "open_2",
+   "when": {
+    "enter": {
+     "zone": "gate_2_pad"
+    }
+   },
+   "if": "hue == 2 && want == 2",
+   "do": [
+    {
+     "deactivate": "gate_2"
+    },
+    {
+     "hide": "gate_2_sign"
+    },
+    {
+     "add": [
+      "gates",
+      1
+     ]
+    },
+    {
+     "set": [
+      "want",
+      3
+     ]
+    },
+    {
+     "set": [
+      "hue",
+      0
+     ]
+    },
+    {
+     "reset": [
+      "jar_a_e",
+      "jar_b_m",
+      "jar_b_s",
+      "jar_c_e",
+      "jar_c_m",
+      "jar_c_s"
+     ]
+    },
+    {
+     "emit": "open"
+    }
+   ]
+  },
+  {
+   "id": "refuse_2",
+   "when": {
+    "enter": {
+     "zone": "gate_2_pad"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && want == 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      7.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "open_3",
+   "when": {
+    "enter": {
+     "zone": "gate_3_pad"
+    }
+   },
+   "if": "hue == 3 && want == 3",
+   "do": [
+    {
+     "deactivate": "gate_3"
+    },
+    {
+     "hide": "gate_3_sign"
+    },
+    {
+     "add": [
+      "gates",
+      1
+     ]
+    },
+    {
+     "set": [
+      "want",
+      4
+     ]
+    },
+    {
+     "set": [
+      "hue",
+      0
+     ]
+    },
+    {
+     "reset": [
+      "jar_a_e",
+      "jar_b_m",
+      "jar_b_s",
+      "jar_c_e",
+      "jar_c_m",
+      "jar_c_s"
+     ]
+    },
+    {
+     "emit": "open"
+    }
+   ]
+  },
+  {
+   "id": "refuse_3",
+   "when": {
+    "enter": {
+     "zone": "gate_3_pad"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && want == 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      21.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_4_0",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_4_0"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_4_1",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_4_1"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_4_2",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_4_2"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_4_3",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_4_3"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_4_4",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_4_4"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_8_0",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_8_0"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_8_1",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_8_1"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_8_2",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_8_2"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_8_3",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_8_3"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_b_8_4",
+   "when": {
+    "enter": {
+     "zone": "z_t_b_8_4"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      2.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_17_0",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_17_0"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_17_1",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_17_1"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_17_2",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_17_2"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_17_3",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_17_3"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_17_4",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_17_4"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_20_0",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_20_0"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_20_1",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_20_1"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_20_2",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_20_2"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_20_3",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_20_3"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_20_4",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_20_4"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_23_0",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_23_0"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 2 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_23_1",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_23_1"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_23_2",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_23_2"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_23_3",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_23_3"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 1 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_t_c_23_4",
+   "when": {
+    "enter": {
+     "zone": "z_t_c_23_4"
+    }
+   },
+   "if": "hue > 0 && hue < 4 && hue != 3 && grace == 0",
+   "do": [
+    {
+     "set": [
+      "dread",
+      "dread * 2 + 1"
+     ]
+    },
+    {
+     "set": [
+      "burn_t",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "burn_clear",
+      3
+     ]
+    },
+    {
+     "set": [
+      "grace",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "grace_clear",
+      1.5
+     ]
+    },
+    {
+     "emit": "burn"
+    },
+    {
+     "teleport": [
+      0,
+      0,
+      14.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "grace_off",
+   "when": {
+    "timer": "grace_clear"
+   },
+   "do": [
+    {
+     "set": [
+      "grace",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "burn_clear",
+   "when": {
+    "timer": "burn_clear"
+   },
+   "do": [
+    {
+     "set": [
+      "burn_t",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "shade1",
+   "when": {
+    "every": 0.2
+   },
+   "if": "dread >= 1",
+   "do": [
+    {
+     "show": "shade_1"
+    }
+   ]
+  },
+  {
+   "id": "shade2",
+   "when": {
+    "every": 0.2
+   },
+   "if": "dread >= 3",
+   "do": [
+    {
+     "show": "shade_2"
+    }
+   ]
+  },
+  {
+   "id": "shade3",
+   "when": {
+    "every": 0.2
+   },
+   "if": "dread >= 6",
+   "do": [
+    {
+     "show": "shade_3"
+    }
+   ]
+  },
+  {
+   "id": "clock",
+   "when": {
+    "every": 3
+   },
+   "if": "hot == 1",
+   "do": [
+    {
+     "add": [
+      "dread",
+      1
+     ]
+    },
+    {
+     "emit": "creep"
+    }
+   ]
+  },
+  {
+   "id": "caught",
+   "when": {
+    "every": 0.1
+   },
+   "if": "dread >= 8",
+   "do": [
+    {
+     "emit": "caught"
+    },
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "home",
+   "when": {
+    "prop_enter": {
+     "zone": "origin"
+    },
+    "prop": "creature"
+   },
+   "do": [
+    {
+     "emit": "home"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  }
+ ],
+ "objects": [
+  {
+   "id": "floor",
+   "type": "box",
+   "size": [
+    10,
+    0.2,
+    50
+   ],
+   "position": [
+    0,
+    -0.1,
+    12.0
+   ],
+   "material": {
+    "color": "@floor",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "wall_w",
+   "type": "box",
+   "size": [
+    0.4,
+    4,
+    50
+   ],
+   "position": [
+    -5.2,
+    2,
+    12.0
+   ],
+   "material": {
+    "color": "@wall",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "wall_e",
+   "type": "box",
+   "size": [
+    0.4,
+    4,
+    50
+   ],
+   "position": [
+    5.2,
+    2,
+    12.0
+   ],
+   "material": {
+    "color": "@wall",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "wall_s",
+   "type": "box",
+   "size": [
+    10.8,
+    4,
+    0.4
+   ],
+   "position": [
+    0,
+    2,
+    -13
+   ],
+   "material": {
+    "color": "@wall",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "wall_n",
+   "type": "box",
+   "size": [
+    10.8,
+    4,
+    0.4
+   ],
+   "position": [
+    0,
+    2,
+    37
+   ],
+   "material": {
+    "color": "@wall",
+    "roughness": 0.95
+   }
+  },
+  {
+   "id": "gate_1",
+   "type": "prefab",
+   "prefab": "gate_slab",
+   "position": [
+    0,
+    0,
+    0
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "gate_1_sign",
+   "type": "text",
+   "text": "RED GATE",
+   "position": [
+    0,
+    3.4,
+    -0.3
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "height": 0.5,
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "gate_2",
+   "type": "prefab",
+   "prefab": "gate_slab",
+   "position": [
+    0,
+    0,
+    12
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "gate_2_sign",
+   "type": "text",
+   "text": "GREEN GATE",
+   "position": [
+    0,
+    3.4,
+    11.7
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "height": 0.5,
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "gate_3",
+   "type": "prefab",
+   "prefab": "gate_slab",
+   "position": [
+    0,
+    0,
+    26
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "gate_3_sign",
+   "type": "text",
+   "text": "BLUE GATE",
+   "position": [
+    0,
+    3.4,
+    25.7
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "height": 0.5,
+   "material": {
+    "color": "@sky",
+    "emissive": "@sky"
+   }
+  },
+  {
+   "id": "origin_ring",
+   "type": "prefab",
+   "prefab": "origin_ring",
+   "position": [
+    0,
+    0,
+    -10
+   ]
+  },
+  {
+   "id": "origin_sign",
+   "type": "text",
+   "text": "HOME",
+   "position": [
+    0,
+    2.2,
+    -12.7
+   ],
+   "height": 0.6,
+   "material": {
+    "color": "@paper",
+    "emissive": "@paper"
+   }
+  },
+  {
+   "id": "shelf_a_e",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    -2.5,
+    0,
+    -6
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "jar_a_e",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    -2.5,
+    0.12,
+    -6
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "shelf_b_m",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    -2.5,
+    0,
+    1.6
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "jar_b_m",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    -2.5,
+    0.12,
+    1.6
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "shelf_b_s",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    2.5,
+    0,
+    1.6
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "jar_b_s",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    2.5,
+    0.12,
+    1.6
+   ],
+   "material": {
+    "color": "@sky",
+    "emissive": "@sky"
+   }
+  },
+  {
+   "id": "shelf_c_e",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    -3.5,
+    0,
+    13.6
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "jar_c_e",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    -3.5,
+    0.12,
+    13.6
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "shelf_c_m",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    0,
+    0,
+    13.6
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "jar_c_m",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    0,
+    0.12,
+    13.6
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "shelf_c_s",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    3.5,
+    0,
+    13.6
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "jar_c_s",
+   "type": "prop",
+   "prop": "barrel",
+   "movable": true,
+   "position": [
+    3.5,
+    0.12,
+    13.6
+   ],
+   "material": {
+    "color": "@sky",
+    "emissive": "@sky"
+   }
+  },
+  {
+   "id": "shelf_c",
+   "type": "prefab",
+   "prefab": "jar_shelf",
+   "position": [
+    0,
+    0,
+    33
+   ],
+   "params": {
+    "color": "@paper"
+   }
+  },
+  {
+   "id": "creature",
+   "type": "prop",
+   "prop": "potted_plant",
+   "movable": true,
+   "position": [
+    0,
+    0.12,
+    33
+   ],
+   "material": {
+    "color": "@paper",
+    "emissive": "@paper"
+   }
+  },
+  {
+   "id": "shade_1",
+   "type": "prefab",
+   "prefab": "shade",
+   "position": [
+    -2,
+    0,
+    30
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "shade_2",
+   "type": "prefab",
+   "prefab": "shade",
+   "position": [
+    2,
+    0,
+    19
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "shade_3",
+   "type": "prefab",
+   "prefab": "shade",
+   "position": [
+    0,
+    0,
+    7
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "t_b_4_0",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -4,
+    0,
+    4.5
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_b_4_1",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -2,
+    0,
+    4.5
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_b_4_2",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    0,
+    0,
+    4.5
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_b_4_3",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    2,
+    0,
+    4.5
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_b_4_4",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    4,
+    0,
+    4.5
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_b_8_0",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -4,
+    0,
+    8.5
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_b_8_1",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -2,
+    0,
+    8.5
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_b_8_2",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    0,
+    0,
+    8.5
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_b_8_3",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    2,
+    0,
+    8.5
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_b_8_4",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    4,
+    0,
+    8.5
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_c_17_0",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -4,
+    0,
+    17
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_c_17_1",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -2,
+    0,
+    17
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_c_17_2",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    0,
+    0,
+    17
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_c_17_3",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    2,
+    0,
+    17
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_c_17_4",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    4,
+    0,
+    17
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_c_20_0",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -4,
+    0,
+    20
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_c_20_1",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -2,
+    0,
+    20
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_c_20_2",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    0,
+    0,
+    20
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_c_20_3",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    2,
+    0,
+    20
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_c_20_4",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    4,
+    0,
+    20
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_c_23_0",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -4,
+    0,
+    23
+   ],
+   "params": {
+    "color": "@moss"
+   }
+  },
+  {
+   "id": "t_c_23_1",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    -2,
+    0,
+    23
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_c_23_2",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    0,
+    0,
+    23
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  },
+  {
+   "id": "t_c_23_3",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    2,
+    0,
+    23
+   ],
+   "params": {
+    "color": "@ember"
+   }
+  },
+  {
+   "id": "t_c_23_4",
+   "type": "prefab",
+   "prefab": "ink_tile",
+   "position": [
+    4,
+    0,
+    23
+   ],
+   "params": {
+    "color": "@sky"
+   }
+  }
+ ],
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "interest"
+   ]
+  },
+  "sim": [
+   {
+    "name": "the red jar opens the red gate",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "jar_a_e"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-1.2"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "hue",
+      "eq": 0
+     },
+     {
+      "var": "gates",
+      "eq": 1
+     },
+     {
+      "event": "open",
+      "count": 1
+     },
+     {
+      "var": "dread",
+      "eq": 0
+     },
+     {
+      "not_ended": true
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "carrying a jar makes you its colour",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "jar_a_e"
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "var": "hue",
+      "eq": 1
+     },
+     {
+      "event": "dyed",
+      "count": 1
+     },
+     {
+      "prop": "jar_a_e",
+      "held_by": "p1"
+     }
+    ],
+    "max_seconds": 20
+   },
+   {
+    "name": "wrong colour burns and the Shade doubles: 1, 3, 7",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "jar_a_e"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-1.2"
+     },
+     {
+      "player": "p1",
+      "walk": "0,2.5"
+     },
+     {
+      "player": "p1",
+      "interact": "jar_b_s"
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     }
+    ],
+    "expect": [
+     {
+      "event": "burn",
+      "min": 3
+     },
+     {
+      "var": "dread",
+      "gte": 7
+     },
+     {
+      "shown": "shade_3"
+     }
+    ],
+    "max_seconds": 90
+   },
+   {
+    "name": "four mistakes: the Shade catches you (lose)",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "jar_a_e"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-1.2"
+     },
+     {
+      "player": "p1",
+      "walk": "0,2.5"
+     },
+     {
+      "player": "p1",
+      "interact": "jar_b_s"
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     },
+     {
+      "player": "p1",
+      "walk": "-4,2.0; -4,4.0"
+     },
+     {
+      "player": "p1",
+      "wait": 1.7
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     },
+     {
+      "event": "caught",
+      "count": 1
+     }
+    ],
+    "max_seconds": 90
+   },
+   {
+    "name": "right colours all the way, carry the creature home (win)",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "start"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "interact": "jar_a_e"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-1.2"
+     },
+     {
+      "player": "p1",
+      "walk": "0,2.5"
+     },
+     {
+      "player": "p1",
+      "interact": "jar_b_m"
+     },
+     {
+      "player": "p1",
+      "walk": "-2.5,2.6; -4,2.6; -4,3.0; -4,6.0; -4,7.0; -4,10.0; 0,10.6"
+     },
+     {
+      "player": "p1",
+      "walk": "0,14.5"
+     },
+     {
+      "player": "p1",
+      "interact": "jar_c_s"
+     },
+     {
+      "player": "p1",
+      "walk": "1.75,13.0; 1.75,14.6; -4,14.6; -4,15.5; -4,18.5; -2,18.5; -2,21.5; -2,21.5; -2,24.5; -2,25.2"
+     },
+     {
+      "player": "p1",
+      "walk": "0,31"
+     },
+     {
+      "player": "p1",
+      "interact": "creature"
+     },
+     {
+      "player": "p1",
+      "walk": "0,-9.5"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "interact": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "ended": "victory"
+     },
+     {
+      "var": "gates",
+      "eq": 3
+     },
+     {
+      "var": "dread",
+      "lt": 8
+     },
+     {
+      "event": "home",
+      "count": 1
+     }
+    ],
+    "max_seconds": 120
+   }
+  ],
+  "walk": [
+   {
+    "name": "start to the red gate",
+    "path": "0,-10; 0,-1.5",
+    "ends_near": [
+     0,
+     -1.5
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   },
+   {
+    "name": "through gate 1 to gate 2",
+    "phase": "gate1",
+    "path": "0,-1.5; 0,10.5",
+    "ends_near": [
+     0,
+     10.5
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   },
+   {
+    "name": "to the creature",
+    "phase": "gate3",
+    "path": "0,10.5; 1.75,13; 1.75,15; 0,32",
+    "ends_near": [
+     0,
+     32
+    ],
+    "tol": 0.4,
+    "floor_y": 0
+   }
+  ]
+ }
+}
