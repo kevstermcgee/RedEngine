@@ -1,0 +1,2986 @@
+{
+ "game2d": 1,
+ "id": "moth-harvest",
+ "title": "Moth Harvest",
+ "description": "A kite maker lends their weight to a scale between two rival mountains while hungry moths eat the numbered crates around them.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#1b2233",
+  "scale": "fit"
+ },
+ "sprites": {
+  "kite": {
+   "rows": [
+    "..yy..",
+    ".yrry.",
+    "yrrrry",
+    ".yrry.",
+    "..yy..",
+    "..bb.."
+   ],
+   "palette": {
+    "y": "#fd4",
+    "r": "#e33",
+    "b": "#6cf"
+   }
+  },
+  "moth": {
+   "rows": [
+    "w.ww.w",
+    "wwwwww",
+    ".wbbw.",
+    "..bb.."
+   ],
+   "palette": {
+    "w": "#ddd",
+    "b": "#a8a"
+   },
+   "fps": 6
+  },
+  "ground": {
+   "rows": [
+    "gg"
+   ],
+   "palette": {
+    "g": "#2b3a52"
+   }
+  }
+ },
+ "sounds": {
+  "thud": {
+   "seconds": 0.12,
+   "layers": [
+    {
+     "sine": 140,
+     "decay": 25
+    }
+   ]
+  },
+  "munch": {
+   "seconds": 0.1,
+   "layers": [
+    {
+     "sine": 520,
+     "decay": 30
+    },
+    {
+     "sine": 330,
+     "decay": 30
+    }
+   ]
+  },
+  "bell": {
+   "seconds": 0.9,
+   "layers": [
+    {
+     "sine": 660,
+     "decay": 4
+    },
+    {
+     "sine": 990,
+     "decay": 5
+    }
+   ]
+  },
+  "warn": {
+   "seconds": 0.15,
+   "layers": [
+    {
+     "sine": 220,
+     "decay": 12
+    }
+   ]
+  },
+  "fail": {
+   "seconds": 0.6,
+   "layers": [
+    {
+     "sine": 110,
+     "decay": 4
+    }
+   ]
+  }
+ },
+ "persist": [
+  "best"
+ ],
+ "tables": {
+  "hint": [
+   "Keep the scale level until the bell (2 min). You weigh 6: stand on the LIGHTER mountain. Arrows/WASD",
+   "Numbers are weights: a 9 is nine times a 1. Keep the needle in the green!",
+   "Moths follow you (+1 weight each) and eat crates near you. Keep moving!",
+   "Survive until the bell! Cross over before the needle leaves the green."
+  ]
+ },
+ "vars": {
+  "best": 0,
+  "lt": 0,
+  "rt": 0,
+  "tilt": 0,
+  "danger": 0,
+  "hint": 0,
+  "mothgap": 5,
+  "r": 0,
+  "side": 0,
+  "spawned": 0,
+  "drain": 0,
+  "left": 120
+ },
+ "prefabs": {
+  "player": {
+   "tag": "player",
+   "shape": {
+    "sprite": "kite",
+    "scale": 2
+   },
+   "size": [
+    10,
+    10
+   ],
+   "layer": 3,
+   "move": {
+    "keys": {
+     "mode": "topdown",
+     "speed": 80
+    }
+   },
+   "clamp": true
+  },
+  "moth": {
+   "tag": "moth",
+   "shape": {
+    "sprite": "moth",
+    "scale": 2
+   },
+   "size": [
+    10,
+    6
+   ],
+   "layer": 4,
+   "move": {
+    "chase": {
+     "target": "player",
+     "speed": 24
+    }
+   },
+   "ttl": 22
+  },
+  "wall": {
+   "tag": "wall",
+   "shape": {
+    "rect": [
+     320,
+     2
+    ],
+    "color": "#445"
+   },
+   "size": [
+    320,
+    2
+   ],
+   "layer": 0,
+   "body": {
+    "type": "static"
+   }
+  },
+  "mid": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     2,
+     92
+    ],
+    "color": "#3a4a6a"
+   },
+   "size": [
+    2,
+    92
+   ],
+   "layer": 0
+  },
+  "needle": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     4,
+     12
+    ],
+    "color": "#fff"
+   },
+   "size": [
+    4,
+    12
+   ],
+   "layer": 5
+  },
+  "beam": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     250,
+     4
+    ],
+    "color": "#556"
+   },
+   "size": [
+    250,
+    4
+   ],
+   "layer": 1
+  },
+  "safe": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     110,
+     10
+    ],
+    "color": "#2a6a3a"
+   },
+   "size": [
+    110,
+    10
+   ],
+   "layer": 0
+  },
+  "padL": {
+   "tag": "deco",
+   "shape": {
+    "rect": [
+     150,
+     92
+    ],
+    "color": "#222d44"
+   },
+   "size": [
+    150,
+    92
+   ],
+   "layer": 0
+  },
+  "cL1": {
+   "tag": [
+    "crate",
+    "wL1"
+   ],
+   "shape": {
+    "text": "1",
+    "color": "#9fe",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cL2": {
+   "tag": [
+    "crate",
+    "wL2"
+   ],
+   "shape": {
+    "text": "2",
+    "color": "#8f8",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cL3": {
+   "tag": [
+    "crate",
+    "wL3"
+   ],
+   "shape": {
+    "text": "3",
+    "color": "#ef6",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cL5": {
+   "tag": [
+    "crate",
+    "wL5"
+   ],
+   "shape": {
+    "text": "5",
+    "color": "#fa4",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cL7": {
+   "tag": [
+    "crate",
+    "wL7"
+   ],
+   "shape": {
+    "text": "7",
+    "color": "#f77",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cL9": {
+   "tag": [
+    "crate",
+    "wL9"
+   ],
+   "shape": {
+    "text": "9",
+    "color": "#f4c",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR1": {
+   "tag": [
+    "crate",
+    "wR1"
+   ],
+   "shape": {
+    "text": "1",
+    "color": "#9fe",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR2": {
+   "tag": [
+    "crate",
+    "wR2"
+   ],
+   "shape": {
+    "text": "2",
+    "color": "#8f8",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR3": {
+   "tag": [
+    "crate",
+    "wR3"
+   ],
+   "shape": {
+    "text": "3",
+    "color": "#ef6",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR5": {
+   "tag": [
+    "crate",
+    "wR5"
+   ],
+   "shape": {
+    "text": "5",
+    "color": "#fa4",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR7": {
+   "tag": [
+    "crate",
+    "wR7"
+   ],
+   "shape": {
+    "text": "7",
+    "color": "#f77",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  },
+  "cR9": {
+   "tag": [
+    "crate",
+    "wR9"
+   ],
+   "shape": {
+    "text": "9",
+    "color": "#f4c",
+    "scale": 2
+   },
+   "size": [
+    10,
+    12
+   ],
+   "layer": 2,
+   "ttl": 13
+  }
+ },
+ "scene": [
+  {
+   "prefab": "padL",
+   "at": [
+    82,
+    107
+   ]
+  },
+  {
+   "prefab": "padL",
+   "at": [
+    238,
+    107
+   ]
+  },
+  {
+   "prefab": "mid",
+   "at": [
+    160,
+    107
+   ]
+  },
+  {
+   "prefab": "beam",
+   "at": [
+    160,
+    28
+   ]
+  },
+  {
+   "prefab": "safe",
+   "at": [
+    160,
+    28
+   ]
+  },
+  {
+   "prefab": "needle",
+   "at": [
+    160,
+    28
+   ],
+   "id": "needle"
+  },
+  {
+   "prefab": "player",
+   "at": [
+    150,
+    130
+   ],
+   "id": "p"
+  }
+ ],
+ "ui": [
+  {
+   "text": "MOTH HARVEST",
+   "at": [
+    4,
+    2
+   ],
+   "color": "#fd4"
+  },
+  {
+   "text": {
+    "pick": "hint",
+    "by": "hint"
+   },
+   "at": [
+    4,
+    160
+   ],
+   "color": "#fff",
+   "width": 312
+  },
+  {
+   "text": "LEFT MOUNTAIN {lt}",
+   "at": [
+    8,
+    40
+   ],
+   "color": "#8cf"
+  },
+  {
+   "text": "RIGHT MOUNTAIN {rt}",
+   "at": [
+    312,
+    40
+   ],
+   "color": "#fc8",
+   "align": "right"
+  },
+  {
+   "text": "BELL IN {left:.0}",
+   "at": [
+    316,
+    2
+   ],
+   "color": "#fff",
+   "align": "right"
+  },
+  {
+   "text": "BEST {best:.0}s",
+   "at": [
+    316,
+    12
+   ],
+   "color": "#999",
+   "align": "right"
+  },
+  {
+   "panel": {
+    "at": [
+     110,
+     47
+    ],
+    "size": [
+     100,
+     7
+    ],
+    "color": "#000"
+   }
+  },
+  {
+   "bar": {
+    "var": "danger",
+    "max": 3,
+    "at": [
+     111,
+     48
+    ],
+    "size": [
+     98,
+     5
+    ]
+   }
+  },
+  {
+   "text": "SCALE TIPPING!",
+   "at": [
+    160,
+    56
+   ],
+   "color": "#f55",
+   "align": "center",
+   "show": "danger > 0.1"
+  },
+  {
+   "text": "THE BELL RINGS! Both mountains are at peace. Press SPACE to play again",
+   "at": [
+    160,
+    84
+   ],
+   "color": "#fd4",
+   "align": "center",
+   "show": "ended == 1",
+   "width": 240
+  },
+  {
+   "text": "THE SCALE TIPPED! Too heavy on one side. Press SPACE to try again",
+   "at": [
+    160,
+    84
+   ],
+   "color": "#f66",
+   "align": "center",
+   "show": "ended == 2",
+   "width": 240
+  }
+ ],
+ "rules": [
+  {
+   "id": "weigh",
+   "when": {
+    "every": 0.05
+   },
+   "do": [
+    {
+     "set": [
+      "lt",
+      "1*count_wL1 + 2*count_wL2 + 3*count_wL3 + 5*count_wL5 + 7*count_wL7 + 9*count_wL9 + (p_x < 160) * (6 + count_moth)"
+     ]
+    },
+    {
+     "set": [
+      "rt",
+      "1*count_wR1 + 2*count_wR2 + 3*count_wR3 + 5*count_wR5 + 7*count_wR7 + 9*count_wR9 + (p_x >= 160) * (6 + count_moth)"
+     ]
+    },
+    {
+     "set": [
+      "tilt",
+      "max(-20, min(20, lt - rt))"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:needle",
+      "to": [
+       "160 + tilt * 5",
+       28
+      ]
+     }
+    },
+    {
+     "set": [
+      "left",
+      "max(0, 120 - time)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "danger_up",
+   "when": {
+    "every": 0.05
+   },
+   "if": "abs(tilt) >= 11",
+   "do": [
+    {
+     "add": [
+      "danger",
+      0.05
+     ]
+    }
+   ]
+  },
+  {
+   "id": "danger_down",
+   "when": {
+    "every": 0.05
+   },
+   "if": "abs(tilt) < 11 && danger > 0",
+   "do": [
+    {
+     "set": [
+      "danger",
+      "max(0, danger - 0.1)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "warn",
+   "when": {
+    "every": 0.5
+   },
+   "if": "danger > 0.1",
+   "do": [
+    {
+     "play": "warn"
+    }
+   ]
+  },
+  {
+   "id": "tip",
+   "when": {
+    "every": 0.05
+   },
+   "if": "danger >= 3",
+   "do": [
+    {
+     "set": [
+      "danger",
+      3
+     ]
+    },
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "bell",
+   "when": {
+    "every": 0.05
+   },
+   "if": "time >= 120",
+   "do": [
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "h1",
+   "when": {
+    "after": 12
+   },
+   "do": [
+    {
+     "set": [
+      "hint",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "h2",
+   "when": {
+    "after": 26
+   },
+   "do": [
+    {
+     "set": [
+      "hint",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "h3",
+   "when": {
+    "after": 45
+   },
+   "do": [
+    {
+     "set": [
+      "hint",
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a_roll",
+   "when": {
+    "every": 2.5
+   },
+   "if": "time < 40",
+   "do": [
+    {
+     "set": [
+      "r",
+      "random(0, min(5, 1 + floor(time / 22)))"
+     ]
+    },
+    {
+     "set": [
+      "side",
+      "(tilt > 8) + (tilt >= -8) * (tilt <= 8) * random(0,1)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a_L1",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL1",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_L2",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL2",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_L3",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL3",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_L5",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL5",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_L7",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL7",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_L9",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 0 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL9",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R1",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR1",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R2",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR2",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R3",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR3",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R5",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR5",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R7",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR7",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "a_R9",
+   "when": {
+    "every": 2.5
+   },
+   "if": "(time < 40) && side == 1 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR9",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_roll",
+   "when": {
+    "every": 2.1
+   },
+   "if": "time >= 40 && time < 80",
+   "do": [
+    {
+     "set": [
+      "r",
+      "random(0, min(5, 1 + floor(time / 22)))"
+     ]
+    },
+    {
+     "set": [
+      "side",
+      "(tilt > 8) + (tilt >= -8) * (tilt <= 8) * random(0,1)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b_L1",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL1",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_L2",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL2",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_L3",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL3",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_L5",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL5",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_L7",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL7",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_L9",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 0 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL9",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R1",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR1",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R2",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR2",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R3",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR3",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R5",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR5",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R7",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR7",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "b_R9",
+   "when": {
+    "every": 2.1
+   },
+   "if": "(time >= 40 && time < 80) && side == 1 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR9",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_roll",
+   "when": {
+    "every": 2.0
+   },
+   "if": "time >= 80",
+   "do": [
+    {
+     "set": [
+      "r",
+      "random(0, min(5, 1 + floor(time / 22)))"
+     ]
+    },
+    {
+     "set": [
+      "side",
+      "(tilt > 8) + (tilt >= -8) * (tilt <= 8) * random(0,1)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "c_L1",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL1",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_L2",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL2",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_L3",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL3",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_L5",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL5",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_L7",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL7",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_L9",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 0 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cL9",
+      "at": {
+       "x": [
+        18,
+        146
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R1",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR1",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R2",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR2",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R3",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR3",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R5",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR5",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R7",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 4",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR7",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "c_R9",
+   "when": {
+    "every": 2.0
+   },
+   "if": "(time >= 80) && side == 1 && r == 5",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "cR9",
+      "at": {
+       "x": [
+        174,
+        302
+       ],
+       "y": [
+        70,
+        145
+       ]
+      }
+     }
+    },
+    {
+     "play": "thud"
+    }
+   ]
+  },
+  {
+   "id": "m1",
+   "when": {
+    "every": 5
+   },
+   "if": "time >= 20 && time < 60",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "moth",
+      "at": {
+       "x": [
+        10,
+        310
+       ],
+       "y": [
+        60,
+        70
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "m2",
+   "when": {
+    "every": 4
+   },
+   "if": "time >= 60 && time < 90",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "moth",
+      "at": {
+       "x": [
+        10,
+        310
+       ],
+       "y": [
+        60,
+        70
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "m3",
+   "when": {
+    "every": 4
+   },
+   "if": "time >= 90",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "moth",
+      "at": {
+       "x": [
+        10,
+        310
+       ],
+       "y": [
+        60,
+        70
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "eat",
+   "when": {
+    "touch": [
+     "moth",
+     "crate"
+    ]
+   },
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "play": "munch"
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 6,
+      "color": "#fa4",
+      "speed": 30,
+      "life": 0.4,
+      "size": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "end_lose",
+   "when": {
+    "end": "lose"
+   },
+   "do": [
+    {
+     "play": "fail"
+    },
+    {
+     "shake": 4
+    },
+    {
+     "set": [
+      "best",
+      "max(best, time)"
+     ]
+    },
+    {
+     "set": [
+      "hint",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "end_win",
+   "when": {
+    "end": "win"
+   },
+   "do": [
+    {
+     "play": "bell"
+    },
+    {
+     "set": [
+      "best",
+      "max(best, time)"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "restart",
+   "when": {
+    "press": "action"
+   },
+   "if": "ended > 0",
+   "do": [
+    {
+     "restart": true
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "never crossing loses",
+    "seed": 1,
+    "max_seconds": 125,
+    "smoke": false,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 120
+     }
+    ],
+    "expect": [
+     {
+      "ended": "lose"
+     }
+    ]
+   },
+   {
+    "name": "balancing keeps the bell",
+    "seed": 1,
+    "max_seconds": 140,
+    "script": [
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "right"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     },
+     {
+      "hold": [
+       "left"
+      ],
+      "seconds": 0.8
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     }
+    ],
+    "smoke": true
+   },
+   {
+    "name": "crates arrive and weigh",
+    "seed": 1,
+    "max_seconds": 10,
+    "script": [
+     {
+      "wait": 8
+     }
+    ],
+    "expect": [
+     {
+      "var": "lt",
+      "gte": 1
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "standing left weighs six more",
+    "seed": 1,
+    "max_seconds": 3,
+    "script": [
+     {
+      "wait": 2
+     }
+    ],
+    "expect": [
+     {
+      "var": "lt",
+      "gte": 6
+     },
+     {
+      "var": "rt",
+      "lte": 4
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   }
+  ]
+ }
+}
