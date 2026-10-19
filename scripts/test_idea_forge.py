@@ -1426,8 +1426,9 @@ class RestartAfterRefresh(unittest.TestCase):
         subprocess.run(["git", "clone", "-q", remote, work], check=True, capture_output=True)
         git(work, "checkout", "-q", "-b", "main")
         os.makedirs(os.path.join(work, "scripts"))
-        for f in ("idea_forge.py", "proc_supervisor.py"):
-            shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
+        for f in os.listdir(HERE):   # every module the tool may import at load (proc_supervisor, game_generators, ...)
+            if f.endswith(".py"):
+                shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
         shutil.copytree(idea_forge.FORGE_DIR, os.path.join(work, os.path.relpath(idea_forge.FORGE_DIR, idea_forge.ROOT)),   # the idea vocabulary the state loader reads
                         ignore=shutil.ignore_patterns("__pycache__"))
         wr(os.path.join(work, ".gitignore"), "__pycache__/\n")   # as the real repo: running the tool must not make the checkout look edited
