@@ -410,6 +410,12 @@ impl Default for RuleSet {
 }
 
 impl RuleSet {
+    /// The scene's own variable names (`vars`, declaration order), the built-ins left out: the order of `RulesEngine::vars` and of a networked
+    /// `RuleState`'s variable indices.
+    pub fn own_var_names(&self) -> &[String] {
+        &self.var_names[BUILTIN_VARS.len().min(self.var_names.len())..]
+    }
+
     /// Top-level objects the player cannot collide with in `phase` (`None` = the initial state): what the unconditional `start`
     /// rules switch off, then what each of the phase's rules switches off or back on, in order. An unknown phase is an error
     /// that names the declared ones.

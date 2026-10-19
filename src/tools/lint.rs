@@ -27,7 +27,7 @@
 //! | `style-palette` | a game (it has a `ui`) with no `style.palette`, or one that is all default colours                     |
 //! | `style-lamp`   | a game whose point lights are all the default lamp colour                    |
 //! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
-//! | `net-hud`      | a HUD that reads more variables than a networked match sends (16), or a name over 32 bytes: online it shows 0 |
+//! | `net-hud`      | a HUD that reads more variables than a networked match sends (64): online it shows 0 |
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
@@ -1282,20 +1282,20 @@ mod silent_failure_tests {
     }
 
     #[test]
-    fn a_hud_reading_more_than_a_networked_match_sends_is_an_error_and_sixteen_late_ones_are_not() {
+    fn a_hud_reading_more_than_a_networked_match_sends_is_an_error_and_sixty_four_late_ones_are_not() {
         let with_counters = |n: usize| {
-            let vars: Vec<String> = (0..20).map(|i| format!("\"v{i:02}\": 0")).collect();
+            let vars: Vec<String> = (0..70).map(|i| format!("\"v{i:02}\": 0")).collect();
             // The last `n` variables: late in declaration order, the ones the server used to drop.
-            let counters: Vec<String> = (20 - n..20).map(|i| format!("{{\"var\": \"v{i:02}\"}}")).collect();
+            let counters: Vec<String> = (70 - n..70).map(|i| format!("{{\"var\": \"v{i:02}\"}}")).collect();
             let top = format!(r#""vars": {{{}}}, "hud": {{"show_rules_vars": false}}, "ui": {{"counters": [{}]}},"#, vars.join(", "), counters.join(", "));
             run(&room("", "", &top))
         };
-        let sixteen = with_counters(16);
-        assert!(codes(&sixteen, "net-hud").is_empty(), "the HUD's sixteen go first: {}", format_report(&sixteen));
-        let f = with_counters(17);
+        let fits = with_counters(64);
+        assert!(codes(&fits, "net-hud").is_empty(), "the HUD's 64 go first: {}", format_report(&fits));
+        let f = with_counters(65);
         let found = codes(&f, "net-hud");
         assert!(found.len() == 1 && f.iter().any(|x| x.code == "net-hud" && x.sev == Severity::Error), "{}", format_report(&f));
-        assert!(found[0].contains("reads 17 variables") && found[0].contains("at most 16"), "{}", found[0]);
+        assert!(found[0].contains("reads 65 variables") && found[0].contains("at most 64"), "{}", found[0]);
     }
 
     #[test]

@@ -1159,10 +1159,9 @@ impl Server {
             (limit.min(u16::MAX as u32) as u16, f.settings().round_secs.clamp(0.0, 65_535.0) as u16)
         });
         let rules = self.sim.rules();
-        // At most MAX_RULE_VARS travel, the ones the HUD reads first (`MatchSim::sent_rule_vars`): a counter on a late variable used to show 0 online.
+        // At most MAX_RULE_VARS travel, by index, the ones the HUD reads first (`MatchSim::sent_rule_vars`): a counter on a late variable used to show 0 online.
         let all = rules.vars();
-        let vars: Vec<RuleVar> =
-            self.sim.sent_rule_vars().iter().filter_map(|&i| all.get(i)).map(|&(name, value)| RuleVar { name: name.to_string(), value }).collect();
+        let vars: Vec<RuleVar> = self.sim.sent_rule_vars().iter().filter_map(|&i| all.get(i).map(|&(_, value)| RuleVar { index: i as u16, value })).collect();
         let hidden: Vec<u16> = rules.hidden().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_HIDDEN).collect();
         let collision_disabled: Vec<u16> = rules.collision_disabled().filter_map(|id| self.sim.rule_object_index(id)).take(MAX_RULE_COLLISION).collect();
         let latest_event = rules.history().iter().rev().find(|e| !e.name.starts_with("end:"));
