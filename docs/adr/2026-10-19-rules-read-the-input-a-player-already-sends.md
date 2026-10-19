@@ -1,5 +1,5 @@
 # 2026-10-19. Rules read the input a player already sends
-Status: proposed
+Status: accepted
 Summary: A rule can fire when a player presses or releases a key and can read whether it is held, from the `PlayerInput` the server already receives; rules games send the right mouse as a free key, and 2D gets a change-of-speed built-in. No protocol change.
 
 ## Context
@@ -28,8 +28,10 @@ which only the loadout shooter uses. `MatchSim::run_rules` builds a `RulePlayer`
    - `input(crouch)` is 1 while the rule's player (`me`) holds it.
 
    The names are `jump`, `crouch`, `sprint`, `interact`, `attack` and `alt`. `alt` is new to rules games: the right mouse button and the left
-   trigger. The client sends it as `aim`, which it hard-wires to `false` outside the loadout shooter today (`build_input`); that `false` becomes
-   the key's state, and nothing else changes. `attack` fires even while carrying, so a press is not lost because the bat cannot swing.
+   trigger. The client sends it as `aim`, which it hard-wired to `false` (`build_input`). Built: it sends the key's state only in a scene whose
+   rules read `alt` (`rule_input::reads`), because the server's loadout kit aims with `aim`, and that must not change. `attack` fires even while
+   carrying, so a press is not lost because the bat cannot swing. Offline, E and the click act at once instead of travelling as input, so the
+   client hands those presses to its rules too.
 
    "For as long as you hold" is a press starting a timer and a release cancelling it, with the timers from ADR
    2026-10-17-rule-timers-and-prop-variables-are-server-state. No held-seconds built-in is needed.
@@ -52,8 +54,8 @@ Not in this decision:
 - **A new key or wire bit.**
 
 ## Consequences
-- **Estimated, to be measured while building:** the 3D side is about 150 lines (the bits on `RulePlayer`, edges in `RulesEngine`, the trigger and
-  `input()` in the rule parser and its typed definition and schema, `alt` in `SimHold`) plus one line in the client. The 2D side is two
+- **Built (owner's OK, 2026-10-18):** 404 lines added outside the generated schemas, about 160 of them tests; estimated 150 of code. The offline client, which runs its own rules, was the part the estimate missed. The 3D side is the bits on `RulePlayer`, edges in `RulesEngine`, the trigger and `input()` in the rule parser and its typed definition and schema, and `alt`
+  in `SimHold`. The `checks.sim` harness's `aim` flag was dead (not in `HOLD_KEYS`) and became `alt`. The 2D side is two
   built-ins in red2d. Server cost: a byte of input bits per player per tick, kept for one tick.
 - **The checksum gains nothing for a scene without input rules.** A scene with them hashes its rule state as now, and inputs are already in
   traces.
