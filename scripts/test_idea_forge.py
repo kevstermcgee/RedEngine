@@ -328,6 +328,24 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
         self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
 
+    def test_a_2d_games_generator_ships_beside_it_and_feedback_check_runs_it(self):
+        self.run_it()
+        slug = self.idea["slug"]
+        game = rd(os.path.join(self.wt, "examples", "2d", f"{slug}.game2d.json"))
+        os.makedirs(os.path.join(self.wt, "examples", "2d", slug))
+        gen = os.path.join(self.wt, "examples", "2d", slug, "build.py")
+        wr(gen, f"from pathlib import Path\n(Path(__file__).resolve().parent.parent / {slug + '.game2d.json'!r}).write_text({game!r})\n")
+        env = dict(self.env, IDEA_FORGE_RUN=os.path.join(self.wt, ".idea-forge"))
+        self.assertIn("feedback OK", cli("feedback", "--check", cwd=self.wt, env=env).stdout)
+        wr(gen, "print('writes nothing')\n")
+        p = cli("feedback", "--check", cwd=self.wt, env=env, check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn(f"examples/2d/{slug}/build.py: did not write examples/2d/{slug}.game2d.json", p.stdout)
+        wr(gen, f"from pathlib import Path\n(Path(__file__).resolve().parent.parent / {slug + '.game2d.json'!r}).write_text({game!r})\n")
+        cli("ship", slug, "--no-push")
+        files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"examples/2d/{slug}/build.py", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
+
     def test_ship_refuses_unfinished_feedback(self):
         self.run_it()
         slug = self.idea["slug"]
@@ -354,7 +372,13 @@ class Kinds(unittest.TestCase):
         self.assertTrue(idea_forge.allowed_path("examples/3d/x/audio/dusk.json", "x", "3d"))
         self.assertFalse(idea_forge.allowed_path("examples/3d/y/y.json", "x", "3d"))
         self.assertFalse(idea_forge.allowed_path("examples/2d/x.game2d.json", "x", "3d"))
-        self.assertFalse(idea_forge.allowed_path("examples/2d/x/extra.json", "x", "2d"), "a 2D game is one file")
+        self.assertTrue(idea_forge.allowed_path("examples/2d/x/build.py", "x", "2d"), "a 2D game's generator lives in its own folder beside the one game file")
+        for kind in ("2d", "3d"):   # the generator's folder (#180) and the wiki page (#185) together
+            self.assertTrue(idea_forge.allowed_path(idea_forge.wiki_file("x"), "x", kind), kind)
+            self.assertTrue(idea_forge.allowed_path(f"examples/{kind}/x/build.py", "x", kind), kind)
+            self.assertFalse(idea_forge.allowed_path(idea_forge.wiki_file("y"), "x", kind), kind)
+        self.assertFalse(idea_forge.allowed_path("examples/2d/y/build.py", "x", "2d"))
+        self.assertFalse(idea_forge.allowed_path("examples/2d/x.py", "x", "2d"))
         self.assertEqual(idea_forge.feedback_name("2026-10-09", "3d", "x"), "2026-10-09-3d-x.md")
         self.assertEqual(idea_forge.feedback_name({"date": "2026-10-07", "slug": "x"}), "2026-10-07-x.md", "runs from before kinds keep their name")
 
@@ -407,6 +431,26 @@ esac
         del game["checks"]["lint"]   # without a declaration the bare command is the judge, as before
         wr(os.path.join(root, "examples", "3d", "x", "x.json"), json.dumps(game))
         self.assertFalse(idea_forge.score(root, "x", "3d")[1]["ok"])
+
+    def test_both_briefs_say_where_a_generator_lives_and_that_it_is_kept(self):
+        i = idea_forge.make_idea(123456789)
+        for kind, folder in (("2d", "examples/2d/electric-foundry/build.py"), ("3d", "examples/3d/electric-foundry/build.py")):
+            b = idea_forge.brief(i, "2026-10-09", kind=kind)
+            for must in (folder, "never in /tmp", "examples/2d/honeybound/", "byte for byte", "scripts/game_generators.py check"):
+                self.assertIn(must, b, f"{kind}: {must}")
+
+    def test_scripts_written_outside_the_game_folder_are_counted_from_the_transcript(self):
+        d = tempfile.mkdtemp()
+        events = [
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "mkdir -p /tmp/g && cat > /tmp/g/gen.py <<'EOF'\nprint(1)\nEOF"}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Write", "input": {"file_path": os.path.join(d, "examples/3d/x/build.py"), "content": ""}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "cat > gen.py <<'EOF'\nEOF"}}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python3 /x/scripts/idea_forge.py note y"}}]}},
+            {"type": "user", "message": {"content": "a plain string"}},
+        ]
+        session = os.path.join(d, "session.jsonl")
+        wr(session, "\n".join(json.dumps(e) for e in events) + "\nnot json\n")
+        self.assertEqual(idea_forge.scripts_not_kept(session, d, "examples/3d/x/"), [os.path.normpath("/tmp/g/gen.py"), os.path.join(d, "gen.py")])
 
     def test_the_3d_brief_tells_the_agent_to_declare_checks_lint(self):
         self.assertIn("Declare `checks.lint`", idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-09", kind="3d"))
@@ -1382,8 +1426,9 @@ class RestartAfterRefresh(unittest.TestCase):
         subprocess.run(["git", "clone", "-q", remote, work], check=True, capture_output=True)
         git(work, "checkout", "-q", "-b", "main")
         os.makedirs(os.path.join(work, "scripts"))
-        for f in ("idea_forge.py", "proc_supervisor.py"):
-            shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
+        for f in os.listdir(HERE):   # every module the tool may import at load (proc_supervisor, game_generators, ...)
+            if f.endswith(".py"):
+                shutil.copy(os.path.join(HERE, f), os.path.join(work, "scripts", f))
         shutil.copytree(idea_forge.FORGE_DIR, os.path.join(work, os.path.relpath(idea_forge.FORGE_DIR, idea_forge.ROOT)),   # the idea vocabulary the state loader reads
                         ignore=shutil.ignore_patterns("__pycache__"))
         wr(os.path.join(work, ".gitignore"), "__pycache__/\n")   # as the real repo: running the tool must not make the checkout look edited
