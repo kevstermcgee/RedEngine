@@ -241,6 +241,8 @@ pub enum When {
     PropExit(Volume),
     /// A timer ran out (`sim::rule_timers`); a per-prop timer fires once for each prop whose own ran out, as its subject.
     Timer(TimerRef),
+    /// A player presses an input, or lets go of it (`sim::rule_input`); `me` is that player.
+    Input(super::rule_input::InputTrigger),
     /// A loose prop's origin drops below a height (index into [`RuleSet::prop_ids`]).
     PropBelow {
         /// The prop.
@@ -514,9 +516,9 @@ pub struct Refs {
 
 const RULE_KEYS: &[&str] = &["id", "when", "who", "if", "once", "cooldown", "do"];
 /// The trigger keys (exactly one per `when`).
-const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer"];
+const TRIGGER_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer", "input"];
 /// Everything a `when` may contain: a trigger plus the optional `prop` filter of `prop_enter` / `prop_exit`.
-const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer", "prop"];
+const WHEN_KEYS: &[&str] = &["start", "enter", "exit", "event", "every", "after", "prop_enter", "prop_exit", "prop_below", "timer", "input", "release", "prop"];
 const VOLUME_KEYS: &[&str] = &["zone", "object", "box", "pad", "height"];
 const FIELD_KEYS: &[&str] = &["id", "zone", "object", "box", "pad", "height", "velocity", "lift", "rate", "toward", "speed", "props"];
 const ZONE_HEIGHT: f32 = 3.0;
@@ -834,6 +836,7 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
     }
     let key = present[0];
     let sub = format!("{path}.{key}");
+    super::rule_input::release_only_on_input(o, key, path, errs);
     let props = match o.get("prop") {
         None => None,
         Some(p) => {
@@ -866,6 +869,7 @@ fn parse_when(v: &Value, set: &RuleSet, refs: &Refs, path: &str, errs: &mut Vec<
             }
         },
         "timer" => When::Timer(timer_ref(o[key].as_str(), set, &sub, errs)?),
+        "input" => When::Input(super::rule_input::trigger(&o[key], o.get("release"), &sub, errs)?),
         "every" => When::Every(secs(&o[key], &sub, errs)),
         "after" => When::After(secs(&o[key], &sub, errs)),
         "prop_enter" => When::PropEnter(parse_volume(&o[key], refs, &sub, errs)?),
@@ -1376,7 +1380,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 });
             if let (Some(kind), true) = (slotless, uses_me) {
                 errs.push(format!(
-                    "{p}: uses `me.` but a `{kind}` trigger has no player (use enter, exit, or an event a player causes, such as `kill` or an `emit` from such a rule)"
+                    "{p}: uses `me.` but a `{kind}` trigger has no player (use enter, exit, input, or an event a player causes, such as `kill` or an `emit` from such a rule)"
                 ));
             }
             // `teleport` moves the player that triggered the rule, so with no player it silently moved nobody.
@@ -1392,6 +1396,7 @@ pub fn parse_rules(root: &Map<String, Value>, refs: &Refs) -> Result<RuleSet, Ve
                 When::After(_) => Some("an `after` trigger".to_string()),
                 When::Enter(_) => Some("an `enter` trigger (a player, not a prop)".to_string()),
                 When::Exit(_) => Some("an `exit` trigger (a player, not a prop)".to_string()),
+                When::Input(_) => Some("an `input` trigger (a player, not a prop)".to_string()),
                 When::Timer(TimerRef::Global(_)) => Some("a scene timer's trigger (only a `self.` timer belongs to a prop)".to_string()),
                 When::Event(e) if ENGINE_EVENTS.contains(&e.as_str()) && !SUBJECT_EVENTS.contains(&e.as_str()) => {
                     Some(format!("the engine event `{e}` (it is about no prop; {} are)", SUBJECT_EVENTS.join(", ")))

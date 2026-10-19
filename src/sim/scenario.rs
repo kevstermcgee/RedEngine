@@ -33,7 +33,7 @@ const SCENARIO_KEYS: &[&str] = &["name", "spawn_group", "players", "script", "ma
 const PLAYER_KEYS: &[&str] = &["id", "character", "spawn"];
 const STEP_KEYS: &[&str] = &["player", "walk", "wait", "hold", "approach", "look_at", "interact", "within", "timeout", "until_event"];
 const HOLD_KEYS: &[&str] =
-    &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "reload", "switch", "seconds"];
+    &["forward", "strafe", "sprint", "crouch", "jump", "yaw_deg", "pitch_deg", "look_at", "interact", "attack", "alt", "reload", "switch", "seconds"];
 const EXPECT_KEYS: &[&str] = &[
     "event",
     "no_event",
@@ -694,7 +694,7 @@ pub fn parse(v: &Value, rules: &RuleSet, object_ids: &[String]) -> Result<Scenar
                 let mut flag = |k: &str| hold_flag(h, k, &hp, &mut errs);
                 let (jump, sprint, crouch) = (flag("jump"), flag("sprint"), flag("crouch"));
                 let (interact, attack, reload, switch_weapon, aim, drop) =
-                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("aim"), flag("drop"));
+                    (flag("interact"), flag("attack"), flag("reload"), flag("switch"), flag("alt"), flag("drop"));
                 let select = hold_select(h, &hp, &mut errs);
                 let yaw = hold_degrees(h, "yaw_deg", &hp, &mut errs);
                 let ticks = h.get("seconds").map_or(1, |s| ticks_of(s, &format!("{hp}.seconds"), &mut errs));

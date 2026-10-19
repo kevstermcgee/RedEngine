@@ -54,6 +54,7 @@ pub use red_core::sim::player;
 pub use red_core::sim::race;
 pub mod replay;
 pub use red_core::sim::rule_groups;
+pub use red_core::sim::rule_input;
 pub use red_core::sim::rule_timers;
 pub use red_core::sim::rules;
 pub use red_core::sim::rules_expr;

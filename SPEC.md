@@ -571,7 +571,10 @@ condition holds, and then **does** its actions:
 - **`when`** (exactly one): `{enter: VOLUME}`, `{exit: VOLUME}` (a player crosses the boundary), `{event: "name"}` (another
   rule `emit`ted it; chains are bounded to 4 per tick), `{every: secs}`, `{after: secs}`, `{start: true}`,
   `{prop_enter: VOLUME}` / `{prop_exit: VOLUME}` (a loose prop's origin crosses in or out; each prop that crosses fires the rule once;
-  `"prop": id | [ids]` beside it restricts the rule to those props), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres).
+  `"prop": id | [ids]` beside it restricts the rule to those props), `{prop_below: [prop_id, y]}` (its origin drops below `y` metres),
+  `{input: name}` (a player presses `jump`, `crouch`, `sprint`, `interact`, `attack` or `alt`, the right mouse or left trigger; with
+  `"release": true`, lets go; `me` is that player, and `input(name)` in an expression is 1 while they hold it. ADR
+  2026-10-19-rules-read-the-input-a-player-already-sends).
   A prop is *inside* when its origin is inside in x/z and its height band overlaps in y; a carried prop counts where it was picked up
   until it is dropped. Prop triggers fire with no triggering player (`teleport` does nothing).
 - **The rule's subject, `self`**: a rule fired by one loose prop — `prop_enter`, `prop_exit`, `prop_below`, or the engine events `pickup`,
