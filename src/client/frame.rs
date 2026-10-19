@@ -524,6 +524,17 @@ impl App {
         if let Some(net) = self.net.as_mut() {
             let now = Instant::now();
             net.poll(now);
+            // The client runs no rules online: copy the server's variables into its own, so what reads them (the title, the pause line, the audio
+            // layers, the state dump) follows the match instead of the scene's starting values. By name, from the map that was hashed when joining
+            // (`ClientWorld::rule_var_names`): the scene behind `self.rules` was parsed at startup and may be older.
+            if let Some(st) = net.client.rule_state().filter(|st| self.adopted_rule_seq != Some(st.seq)) {
+                for v in &st.vars {
+                    if let Some(name) = net.world.rule_var_names.get(v.index as usize) {
+                        self.rules.set_var(name, v.value);
+                    }
+                }
+                self.adopted_rule_seq = Some(st.seq);
+            }
             server_weapon = net.own.map(|o| Weapon::from_wire(o.weapon));
             if let Some(st) = net.teleport.take() {
                 // Joined, or resumed after a reconnect: go where the server says.

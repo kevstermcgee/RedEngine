@@ -73,12 +73,18 @@ Every variable is cheaper; a scene with more than 16 now sends more of them, so 
 Redline's HUD reads 42, under 64: its `net-hud` lint error is gone. A v16 client and a v17 server refuse each other with the version message, as for
 every bump.
 
-## Found along the way (not fixed here)
+## Found along the way, then fixed (the online-HUD follow-up PR)
 
-- Online, the pause menu's `ui.pause` line and the audio layers (`audio.layers[].var`) read the client's own `RulesEngine`, which a networked client does
-  not step: they show the scene's starting values, not the match's (`client::window`, `client::ambient`).
-- `ui.title` is checked for `{var}` placeholders, but the HUD prints the title without filling them.
-- Event and outcome names over 32 bytes are cut on the wire; online only the banner text shows it.
+- **The pause line and the audio layers online showed the scene's starting values.** They read the client's own `RulesEngine`, which a networked client
+  does not run. The client now copies each new `RuleState` (by sequence number) into its rules with `RulesEngine::set_own_var`. The pause line, the
+  audio layers and the state dump then follow the match. What they read is sent first too (`ui_config::client_reads`: the HUD's reads, then
+  `ui.title`, `ui.pause`, `audio.layers[].var`). Proven by `tests/client_headless.rs::an_online_client_follows_the_servers_variables_and_fills_the_title`
+  (the real client hosting and joining headless). With the copy removed it fails with `n = 0` in the client's rules while the server has 1; with it,
+  it passes.
+- **`ui.title` placeholders were validated but printed raw** (`TINY GAME {N}`). `GameUi::title_text` fills them on the HUD and in the pause menu
+  (the same test reads `TINY GAME 1`).
+- **Event and outcome names over 32 bytes are cut on the wire.** They still travel as text after v17, and a longer `MAX_RULE_TEXT` would break the
+  worst-case packet. So `lint` `net-hud` reports such a name with the fix. None of the 127 scenes in this repository and RedEngineGames has one.
 
 ## Verification
 

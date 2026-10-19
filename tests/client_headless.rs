@@ -348,6 +348,51 @@ fn an_online_player_still_reads_the_outcome_when_the_scene_declares_an_end_card(
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Online the client runs no rules of its own, so what reads them used to show the scene's starting values: the pause menu's line, the audio
+/// layers, the state dump. It now copies the server's variables into its rules; and the title's `{var}` placeholders are filled, not printed.
+#[test]
+fn an_online_client_follows_the_servers_variables_and_fills_the_title() {
+    let dir = scratch("online_vars");
+    let scene = dir.join("tiny.json");
+    let mut game = tiny_game();
+    game["rules"] = json!([{"id": "count", "when": {"after": 0.4}, "do": [{"add": ["n", 1]}]}]);
+    game["ui"]["title"] = json!("Tiny game {n}");
+    game["ui"]["pause"] = json!("{n:win|wins} so far");
+    game["ui"].as_object_mut().unwrap().remove("end"); // no rule ends this one
+    std::fs::write(&scene, game.to_string()).unwrap();
+    let script = dir.join("play.json");
+    let dump = dir.join("state.json");
+    std::fs::write(
+        &script,
+        json!({"steps": [
+            {"wait_for": {"at": "/online/connected", "eq": true, "within": 20, "msg": "never joined the hosted match"}},
+            {"wait": 2.0},
+            {"snapshot": "end"}]})
+        .to_string(),
+    )
+    .unwrap();
+    let o = re2(&[
+        scene.to_str().unwrap(),
+        "--host",
+        "--as",
+        "human",
+        "--name",
+        "Tester",
+        "--headless",
+        "--script",
+        script.to_str().unwrap(),
+        "--dump",
+        dump.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    let d: Value = serde_json::from_str(&std::fs::read_to_string(&dump).unwrap()).unwrap();
+    let n = d["rules"]["vars"].as_array().unwrap().iter().find(|v| v["name"] == "n").map(|v| v["value"].clone());
+    assert_eq!(n, Some(json!(1.0)), "the client's own rules hold the server's value (the pause line and the audio layers read them): {}", d["rules"]);
+    let lines: Vec<String> = d["hud"]["lines"].as_array().unwrap().iter().filter_map(|l| l["text"].as_str().map(str::to_string)).collect();
+    assert!(lines.iter().any(|l| l == "TINY GAME 1"), "the title is filled from the server's variable: {lines:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Split-screen guests do not carry props, and the engine says so instead of letting a game find out: the client names the limit when it starts with `--players`, and a
 /// script that makes a guest `interact` with a crate fails at once with the reason and the way out. Player 1, in the same scene, can. If guests are ever given props,
 /// this test fails and `splitscreen::GUEST_LIMITS` (and with it `describe multiplayer`) must change with them.

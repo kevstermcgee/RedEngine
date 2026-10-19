@@ -27,7 +27,7 @@
 //! | `style-palette` | a game (it has a `ui`) with no `style.palette`, or one that is all default colours                     |
 //! | `style-lamp`   | a game whose point lights are all the default lamp colour                    |
 //! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
-//! | `net-hud`      | a HUD that reads more variables than a networked match sends (64): online it shows 0 |
+//! | `net-hud`      | the client reads more variables than a networked match sends (64), or an event/outcome name is over 32 bytes |
 
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
@@ -167,8 +167,33 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
 /// when that cannot fit; a scene still loads and plays offline (`ui_config::check_hud_reads`).
 fn check_net_hud(world: &MapWorld, out: &mut Vec<Finding>) {
     let names: Vec<String> = world.scene.rules.var_names.iter().skip(crate::sim::rules::BUILTIN_VARS.len()).cloned().collect();
-    for message in crate::ui_config::check_hud_reads(world.scene.ui.as_ref(), &world.scene.hud, &names) {
+    let audio: Vec<&str> = world.scene.audio.iter().flat_map(|a| a.layers.iter().map(|l| l.var.as_str())).collect();
+    for message in crate::ui_config::check_hud_reads(world.scene.ui.as_ref(), &world.scene.hud, &audio, &names) {
         out.push(finding(Severity::Error, "net-hud", message, None, &[]));
+    }
+    // An event or an outcome still travels as text, cut to MAX_RULE_TEXT bytes: online its HUD line or banner would show the cut name.
+    let max = crate::net::protocol::MAX_RULE_TEXT;
+    let mut long: Vec<(&str, &str)> = Vec::new();
+    for r in &world.scene.rules.rules {
+        for a in &r.actions {
+            let (kind, name) = match a {
+                crate::sim::rules::Action::Emit(n) => ("event", n.as_str()),
+                crate::sim::rules::Action::End(n) => ("outcome", n.as_str()),
+                _ => continue,
+            };
+            if name.len() > max && !long.contains(&(kind, name)) {
+                long.push((kind, name));
+            }
+        }
+    }
+    for (kind, name) in long {
+        out.push(finding(
+            Severity::Error,
+            "net-hud",
+            format!("the {kind} `{name}` is {} bytes, but a networked match sends at most {max} of its name (net::protocol::MAX_RULE_TEXT), so online the HUD shows it cut; rename it to at most {max} bytes", name.len()),
+            None,
+            &[],
+        ));
     }
 }
 
@@ -1296,6 +1321,12 @@ mod silent_failure_tests {
         let found = codes(&f, "net-hud");
         assert!(found.len() == 1 && f.iter().any(|x| x.code == "net-hud" && x.sev == Severity::Error), "{}", format_report(&f));
         assert!(found[0].contains("reads 65 variables") && found[0].contains("at most 64"), "{}", found[0]);
+        let long = "the_parcel_reached_the_far_lighthouse";
+        let top = format!(r#""vars": {{"n": 0}}, "rules": [{{"id": "r", "when": {{"start": true}}, "do": [{{"emit": "{long}"}}, {{"end": "{long}"}}]}}],"#);
+        let f = run(&room("", "", &top));
+        let found = codes(&f, "net-hud");
+        assert_eq!(found.len(), 2, "the event and the outcome: {}", format_report(&f));
+        assert!(found.iter().all(|m| m.contains("37 bytes") && m.contains("rename it to at most 32 bytes")), "{found:?}");
     }
 
     #[test]

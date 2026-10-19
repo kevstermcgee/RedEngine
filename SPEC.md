@@ -626,7 +626,8 @@ and the field pushes, feeds the engine
 events into the rules, and shows scene-defined variables, recent events and the terminal outcome in a generic HUD. Online rule
 state remains server-authoritative; protocol v7 and later repeatedly send the complete bounded presentation state (64 variables, by index since v17, 256 hidden
 objects, 64 collision-disabled objects, recent event and outcome), so loss, reconnect and late join recover it. Of the variables, the ones the HUD reads
-(`ui` counters and objective, then its plain rows) go first; a HUD that reads more than 64 is a `lint` error (`net-hud`), since online it would show 0. `red_engine2 describe rules` prints this with a
+(`ui` counters and objective, then its plain rows) go first; a client that reads more than 64 (HUD, title, `ui.pause`, `audio.layers`; the online client copies them into its own rules) is a `lint` error
+(`net-hud`), since online it would show 0, and so is an event or outcome name over 32 bytes, which the wire cuts. `red_engine2 describe rules` prints this with a
 runnable example; `recipe coin_run` is a complete game.
 
 ### Proving gameplay headless (`checks.sim`, `sim`)

@@ -348,6 +348,8 @@ struct App {
     rule_event_until: u64,
     /// Last `(width, height, content)` painted into the offline rules HUD.
     rule_hud_painted: Option<(u32, u32, String)>,
+    /// The sequence number of the server's rule state last copied into `rules` (online: the pause line, audio layers and the dump read them).
+    adopted_rule_seq: Option<u16>,
     /// What each split-screen view's HUD was last painted from (nothing is repainted while it is the same).
     split_hud_painted: Vec<Option<String>>,
     /// Where each local player's ears are (see `coop::note_listeners`).
@@ -636,6 +638,7 @@ impl App {
             rule_event: None,
             rule_event_until: 0,
             rule_hud_painted: None,
+            adopted_rule_seq: None,
             split_hud_painted: Vec::new(),
             listeners: Vec::new(),
             card: None,
