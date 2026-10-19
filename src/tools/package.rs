@@ -563,7 +563,7 @@ mod tests {
             vec!["kc".to_string()],
             "a member with a binary of its own name; not a library, not a non-member, not one kept out of the release"
         );
-        assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["frameless".to_string(), "killchain".to_string()]);
+        assert_eq!(game_binaries(Path::new(env!("CARGO_MANIFEST_DIR"))), vec!["frameless".to_string(), "killchain".to_string(), "redcraft".to_string()]);
     }
 
     #[test]

@@ -29,6 +29,7 @@ pub struct GlobalUniform {
     pub ambient: [f32; 4],
     pub light_pos_or_dir: [[f32; 4]; MAX_LIGHTS],
     pub light_color_intensity: [[f32; 4]; MAX_LIGHTS],
+    /// x: lights in use, y: the index of the shadow-casting light (negative: none), z: shadow cascades, w: metres from the eye where the haze begins.
     pub counts: [f32; 4],
     pub bg_top: [f32; 4],
     pub bg_bottom: [f32; 4],
@@ -92,6 +93,7 @@ pub struct ObjectUniform {
     pub model: [[f32; 4]; 4],
     pub normal_mat: [[f32; 4]; 4],
     pub base_color: [f32; 4],
+    /// x metallic, y roughness, z 1 when the mesh's vertex colours are a painted surface's data rather than a tint (see `SurfaceIn.vertex`), w unused.
     pub material: [f32; 4],
     pub emissive: [f32; 4],
     /// A game-painted surface (`museum.art`): `x > 0.5` hands every pixel to the game's `surface` function with these numbers and [`Self::palette`]; zero for anything else.

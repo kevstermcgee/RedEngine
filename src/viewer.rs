@@ -1032,6 +1032,9 @@ impl LiveRenderer {
                 main_pass.set_pipeline(&self.pipelines.main);
             }
             for layer in &self.layers {
+                layer.draw_blended(&mut main_pass, &self.pipelines.main_alpha);
+            }
+            for layer in &self.layers {
                 layer.draw_glow(&mut main_pass, &self.pipelines.main_glow);
             }
             // The water goes last: it is depth-tested against everything opaque above and blends over the seabed under it.

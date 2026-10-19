@@ -3164,6 +3164,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "redcraft"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "clap",
+ "glam 0.33.8",
+ "image",
+ "red_engine2",
+ "serde",
+ "serde_json",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

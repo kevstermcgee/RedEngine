@@ -82,10 +82,11 @@ impl ApplicationHandler for App {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         // Fullscreen is a property of the window, not of a screen of the game: `F11` everywhere, and `F` everywhere the keyboard is not
-        // typing (the connect form). It used to be handled only while playing, so the connect form, the pause menu and the lobby ignored it.
+        // typing (the connect form, a game mode's text field). It used to be handled only while playing, so the connect form, the pause menu and the lobby ignored it.
         if let WindowEvent::KeyboardInput { event: key, .. } = &event {
             if let (PhysicalKey::Code(code), ElementState::Pressed, false) = (key.physical_key, key.state, key.repeat) {
-                if code == KeyCode::F11 || (code == KeyCode::KeyF && self.phase != Phase::Connect) {
+                let typing = self.phase == Phase::Connect || self.mode.as_ref().is_some_and(|m| m.typing());
+                if code == KeyCode::F11 || (code == KeyCode::KeyF && !typing) {
                     self.toggle_fullscreen();
                     return;
                 }
@@ -412,6 +413,11 @@ impl ApplicationHandler for App {
             }
             _ => {}
         }
+    }
+
+    /// The program is ending (the window closed, the pause menu's quit, a mode's own): the game's mode saves what it keeps.
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.with_mode(|m, cx| m.closing(cx));
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {

@@ -1,0 +1,22 @@
+{
+  "camera": { "fov": 72, "position": [8, 80, 8], "target": [8, 79, 0], "near": 0.05, "far": 420 },
+  "clock": { "day_secs": 1200, "start": 0.27, "fog": 0.012, "fog_start": 90, "stars": 1.2, "moon": true, "night_light": 0.28, "sun_max_deg": 64 },
+  "lights": [
+    { "id": "sun", "type": "directional", "direction": [-0.4, -1, -0.3], "cast_shadows": true, "shadow_radius": 72, "shadow_follow": true, "intensity": 1.0 }
+  ],
+  "player": { "humans_play_as": "human", "view": "first", "mode": "peaceful", "fov": 72 },
+  "hud": { "enabled": false },
+  "post": { "outline": 0.0, "ao": 0.5 },
+  "ui": {
+    "title": "RedCraft"
+  },
+  "audio": {
+    "journey": { "scores": ["audio/first_light.json", "audio/hearth.json", "audio/meadow.json", "audio/far_lands.json", "audio/deep_stone.json"], "seed": "launch", "fade": 14, "repeats": 2 },
+    "ambience": "nature",
+    "music_volume": 0.5,
+    "ambience_volume": 0.35
+  },
+  "redcraft": { "art": "shaders/blocks.wgsl", "view": 10, "seed": "launch" },
+  "spawns": [ { "id": "start", "position": [8, 80, 8], "yaw_deg": 0 } ],
+  "objects": []
+}

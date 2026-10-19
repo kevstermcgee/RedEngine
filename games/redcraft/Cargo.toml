@@ -1,0 +1,25 @@
+# RedCraft: an endless world of blocks to mine, craft and build with, a first-person game on Red Engine 2's public API (`red_engine2::client`
+# with a game mode, a world layer and a scene block of its own, as Frameless; ADR 2026-10-14-a-game-ships-as-its-own-binary-the-client-is-a-library).
+# A workspace member (one lock file, one target directory), not a default member: `cargo build -p redcraft`, `cargo test -p redcraft`.
+[package]
+name = "redcraft"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "RedCraft: an endless block world on Red Engine 2"
+
+[[bin]]
+name = "redcraft"
+path = "src/main.rs"
+
+[dependencies]
+red_engine2 = { path = "../.." }
+bytemuck = { version = "1.25.2", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
+glam = { workspace = true }
+image = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wgpu = "30.0.1"
+winit = "0.30"
