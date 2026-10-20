@@ -46,5 +46,10 @@
   "summary": "2D games have string tables, `pick`, `wrap` and a dialogue widget since #99 (ADR 2026-10-10-story-is-rules-and-tables-not-a-story-system).",
   "partial": true,
   "remaining": "3D scenes have no tables or `pick` (ADR 2026-10-13-the-next-phase, phase 2 item 4)"
+ },
+ {
+  "key": "peaceful-silently-disables-swing",
+  "date": "2026-10-20",
+  "summary": "lint warns `peaceful-swing` when a rule waits for `swing` in a `player.mode: peaceful` scene (no bat, so it never fires), listed in describe lint; written by the nightly of 2026-10-19 and salvaged from its stranded branch"
  }
 ]
