@@ -46,5 +46,17 @@
   "summary": "2D games have string tables, `pick`, `wrap` and a dialogue widget since #99 (ADR 2026-10-10-story-is-rules-and-tables-not-a-story-system).",
   "partial": true,
   "remaining": "3D scenes have no tables or `pick` (ADR 2026-10-13-the-next-phase, phase 2 item 4)"
+ },
+ {
+  "key": "nightly-work-stranded-on-branches",
+  "date": "2026-10-20",
+  "summary": "scripts/daily_improve.py lands each night's work as a pull request that merges itself once every hosted check passes (settled the next day if CI is slow); a failed one stays open for a maintainer and is closed after three days, never stranded on a branch"
+ },
+ {
+  "key": "backlog-fixes-not-recorded",
+  "date": "2026-10-20",
+  "partial": true,
+  "summary": "the daily improver checks the two oldest open keys against main every run and records fixes.json entries for what is already fixed",
+  "remaining": "the 132 keys open on 2026-10-20 close two a night unless someone triages them sooner; nothing yet checks that a fix commit records its key"
  }
 ]
