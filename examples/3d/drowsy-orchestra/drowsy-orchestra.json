@@ -1,0 +1,4983 @@
+{
+ "recipe": {
+  "title": "Drowsy Orchestra",
+  "summary": "Chalk words on walls: the wall behaves like the word (MELT, LOW, STILL) while a ten-second bell makes you pick a law and a clock-faced beast eats your minutes.",
+  "teaches": [
+   "pickup of a loose prop as a verb (a word)",
+   "timers that restart themselves (the bell)",
+   "a beast driven by `every` rules and zone columns"
+  ]
+ },
+ "meta": {
+  "fps": 30,
+  "duration": 6,
+  "resolution": [
+   1280,
+   720
+  ]
+ },
+ "style": {
+  "palette": {
+   "ember": "#ff7a3d",
+   "moss": "#7fd36b",
+   "frost": "#7fc8ff",
+   "bone": "#f3e6c4",
+   "brass": "#d9a441",
+   "slate": "#2b2740",
+   "primary": "#2b2740",
+   "secondary": "#d9a441",
+   "accent": "#ff7a3d",
+   "wood": "#4a2f27",
+   "metal": "#d9a441",
+   "fabric": "#6a4a8a",
+   "floor": "#25203a",
+   "wall": "#3d3560",
+   "trim": "#f3e6c4",
+   "lamp": "#ffc27a"
+  },
+  "materials": {
+   "flagstone": {
+    "color": "@floor",
+    "roughness": 0.6,
+    "metallic": 0.1
+   },
+   "plaster": {
+    "color": "@wall",
+    "roughness": 0.9
+   },
+   "gate_wall": {
+    "color": "#8f7ab8",
+    "roughness": 0.8
+   },
+   "gate_low": {
+    "color": "#8f7ab8",
+    "roughness": 0.8
+   },
+   "brass_dark": {
+    "color": "@brass",
+    "metallic": 0.8,
+    "roughness": 0.4
+   }
+  },
+  "light": {
+   "ambient": {
+    "color": "#8a7ab8",
+    "intensity": 0.9
+   },
+   "lamp": {
+    "color": "#ffc27a",
+    "intensity": 12
+   }
+  },
+  "sky": {
+   "top": "#0c0818",
+   "bottom": "#2a1a3a"
+  },
+  "post": {
+   "ao": 0.8,
+   "outline": 0.5
+  }
+ },
+ "camera": {
+  "fov": 75,
+  "position": [
+   0,
+   1.7,
+   1.0
+  ],
+  "target": [
+   0,
+   1.5,
+   8.0
+  ]
+ },
+ "player": {
+  "character": "human",
+  "walk_speed": 4,
+  "jump_speed": 4.5
+ },
+ "post": {
+  "ao": 0.8,
+  "outline": 0.5
+ },
+ "lights": [
+  {
+   "id": "l0",
+   "type": "point",
+   "position": [
+    -4,
+    3.6,
+    3
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l1",
+   "type": "point",
+   "position": [
+    4,
+    3.6,
+    3
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l2",
+   "type": "point",
+   "position": [
+    -4,
+    3.6,
+    16
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l3",
+   "type": "point",
+   "position": [
+    4,
+    3.6,
+    16
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l4",
+   "type": "point",
+   "position": [
+    -4,
+    3.6,
+    28
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l5",
+   "type": "point",
+   "position": [
+    4,
+    3.6,
+    28
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l6",
+   "type": "point",
+   "position": [
+    -4,
+    3.6,
+    35
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l7",
+   "type": "point",
+   "position": [
+    4,
+    3.6,
+    35
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  },
+  {
+   "id": "l8",
+   "type": "point",
+   "position": [
+    0,
+    3.6,
+    41
+   ],
+   "color": "#ffc27a",
+   "intensity": 14,
+   "range": 14
+  }
+ ],
+ "zones": [
+  {
+   "id": "c1",
+   "rect": [
+    -7.0,
+    0,
+    7.0,
+    10
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "c2",
+   "rect": [
+    -7.0,
+    10.4,
+    7.0,
+    22
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "c3",
+   "rect": [
+    -7.0,
+    22.4,
+    7.0,
+    38
+   ],
+   "y": 0,
+   "kind": "room"
+  },
+  {
+   "id": "exit",
+   "rect": [
+    -7.0,
+    38.5,
+    7.0,
+    44.5
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "in_wall_1",
+   "rect": [
+    -7.0,
+    9.1,
+    7.0,
+    10.9
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "in_wall_2",
+   "rect": [
+    -7.0,
+    21.1,
+    7.0,
+    22.9
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "in_wall_3",
+   "rect": [
+    -7.0,
+    37.1,
+    7.0,
+    38.9
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_0",
+   "rect": [
+    -7,
+    31.0,
+    -5,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_1",
+   "rect": [
+    -5,
+    31.0,
+    -3,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_2",
+   "rect": [
+    -3,
+    31.0,
+    -1,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_3",
+   "rect": [
+    -1,
+    31.0,
+    1,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_4",
+   "rect": [
+    1,
+    31.0,
+    3,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_5",
+   "rect": [
+    3,
+    31.0,
+    5,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  },
+  {
+   "id": "col_6",
+   "rect": [
+    5,
+    31.0,
+    7,
+    33.0
+   ],
+   "y": 0,
+   "kind": "pad"
+  }
+ ],
+ "spawns": [
+  {
+   "id": "door",
+   "position": [
+    0,
+    0,
+    1.5
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  },
+  {
+   "id": "c3",
+   "position": [
+    0,
+    0,
+    24.0
+   ],
+   "yaw_deg": 0,
+   "group": "solo"
+  }
+ ],
+ "vars": {
+  "words": 0,
+  "lost": 0,
+  "law": 0,
+  "choosing": 0,
+  "bellglow": 0,
+  "ch": 1,
+  "still": 0,
+  "beast_on": 0,
+  "bi": 0,
+  "bdir": 1,
+  "bc": 0,
+  "px": -1,
+  "hit": 0,
+  "inwall_1": 0,
+  "inwall_2": 0,
+  "inwall_3": 0,
+  "lowed_1": 0,
+  "lowed_2": 0,
+  "lowed_3": 0
+ },
+ "prefabs": {
+  "tock": {
+   "desc": "the Tock: a clock-faced beast on four brass legs that eats a minute of your day",
+   "params": {
+    "face": {
+     "default": "#eadcc2",
+     "palette": "bone"
+    },
+    "hide": {
+     "default": "#8a3b2a",
+     "palette": "ember"
+    },
+    "brass": {
+     "default": "#d9a441",
+     "palette": "brass"
+    }
+   },
+   "objects": [
+    {
+     "id": "body",
+     "type": "box",
+     "size": [
+      1.5,
+      1.0,
+      1.1
+     ],
+     "position": [
+      0,
+      0.9,
+      0
+     ],
+     "material": {
+      "color": "$hide",
+      "roughness": 0.8
+     }
+    },
+    {
+     "id": "head",
+     "type": "cylinder",
+     "radius": 0.85,
+     "height": 0.4,
+     "position": [
+      0,
+      1.9,
+      0.25
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$face",
+      "emissive": "$face"
+     }
+    },
+    {
+     "id": "rim",
+     "type": "cylinder",
+     "radius": 0.95,
+     "height": 0.3,
+     "position": [
+      0,
+      1.9,
+      0.12
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.3
+     }
+    },
+    {
+     "id": "hand_h",
+     "type": "box",
+     "size": [
+      0.12,
+      0.6,
+      0.06
+     ],
+     "position": [
+      0,
+      2.1,
+      0.5
+     ],
+     "material": {
+      "color": "#1a1226"
+     }
+    },
+    {
+     "id": "hand_m",
+     "type": "box",
+     "size": [
+      0.5,
+      0.1,
+      0.06
+     ],
+     "position": [
+      0.22,
+      1.9,
+      0.52
+     ],
+     "material": {
+      "color": "#1a1226"
+     }
+    },
+    {
+     "id": "leg_a",
+     "type": "box",
+     "size": [
+      0.2,
+      0.5,
+      0.2
+     ],
+     "position": [
+      -0.55,
+      0.25,
+      0.35
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.8
+     }
+    },
+    {
+     "id": "leg_b",
+     "type": "box",
+     "size": [
+      0.2,
+      0.5,
+      0.2
+     ],
+     "position": [
+      0.55,
+      0.25,
+      0.35
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.8
+     }
+    },
+    {
+     "id": "leg_c",
+     "type": "box",
+     "size": [
+      0.2,
+      0.5,
+      0.2
+     ],
+     "position": [
+      -0.55,
+      0.25,
+      -0.35
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.8
+     }
+    },
+    {
+     "id": "leg_d",
+     "type": "box",
+     "size": [
+      0.2,
+      0.5,
+      0.2
+     ],
+     "position": [
+      0.55,
+      0.25,
+      -0.35
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.8
+     }
+    }
+   ]
+  },
+  "bell": {
+   "desc": "the hall bell that rings every ten seconds: a brass dome with a clapper",
+   "params": {
+    "brass": {
+     "default": "#d9a441",
+     "palette": "brass"
+    },
+    "glow": {
+     "default": "#f6d27a",
+     "palette": "bone"
+    }
+   },
+   "objects": [
+    {
+     "id": "dome",
+     "type": "sphere",
+     "radius": 0.8,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.25
+     }
+    },
+    {
+     "id": "lip",
+     "type": "cylinder",
+     "radius": 0.9,
+     "height": 0.12,
+     "position": [
+      0,
+      -0.45,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.25
+     }
+    },
+    {
+     "id": "clapper",
+     "type": "sphere",
+     "radius": 0.18,
+     "position": [
+      0,
+      -0.65,
+      0
+     ],
+     "material": {
+      "color": "$glow",
+      "emissive": "$glow"
+     }
+    },
+    {
+     "id": "yoke",
+     "type": "box",
+     "size": [
+      0.12,
+      0.8,
+      0.12
+     ],
+     "position": [
+      0,
+      0.9,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.7
+     }
+    }
+   ]
+  },
+  "chalk_plinth": {
+   "desc": "a small slate plinth with a glowing ring where a word of chalk waits",
+   "params": {
+    "slate": {
+     "default": "#2b2740",
+     "palette": "slate"
+    },
+    "ring": {
+     "default": "#f6d27a",
+     "palette": "bone"
+    }
+   },
+   "objects": [
+    {
+     "id": "base",
+     "type": "cylinder",
+     "radius": 0.5,
+     "height": 0.8,
+     "position": [
+      0,
+      0.4,
+      0
+     ],
+     "material": {
+      "color": "$slate",
+      "roughness": 0.7
+     }
+    },
+    {
+     "id": "ring",
+     "type": "cylinder",
+     "radius": 0.5,
+     "height": 0.06,
+     "position": [
+      0,
+      0.82,
+      0
+     ],
+     "material": {
+      "color": "$ring",
+      "emissive": "$ring"
+     }
+    }
+   ]
+  },
+  "cog": {
+   "desc": "a great brass cogwheel set in a wall, stopped mid-turn",
+   "params": {
+    "brass": {
+     "default": "#d9a441",
+     "palette": "brass"
+    }
+   },
+   "objects": [
+    {
+     "id": "disc",
+     "type": "cylinder",
+     "radius": 1.2,
+     "height": 0.2,
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.35
+     }
+    },
+    {
+     "id": "hub",
+     "type": "cylinder",
+     "radius": 0.3,
+     "height": 0.3,
+     "position": [
+      0,
+      0,
+      0.05
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "material": {
+      "color": "#1a1226"
+     }
+    },
+    {
+     "id": "t1",
+     "type": "box",
+     "size": [
+      0.4,
+      2.7,
+      0.2
+     ],
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.35
+     }
+    },
+    {
+     "id": "t2",
+     "type": "box",
+     "size": [
+      2.7,
+      0.4,
+      0.2
+     ],
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "material": {
+      "color": "$brass",
+      "metallic": 0.9,
+      "roughness": 0.35
+     }
+    }
+   ]
+  }
+ },
+ "ui": {
+  "title": "Drowsy Orchestra",
+  "labels": {
+   "words": "Words written",
+   "lost": "Minutes lost"
+  },
+  "counters": [
+   {
+    "var": "words",
+    "label": "Words written"
+   },
+   {
+    "var": "lost",
+    "of": 5,
+    "label": "Minutes lost"
+   }
+  ],
+  "objective": [
+   {
+    "if": "choosing == 1",
+    "text": "BELL! Pick a law: LEFT-CLICK Hush (slow Tock) | RIGHT-CLICK Loud (walls stay open) | C Sleep (no Tock, words cost 2)"
+   },
+   {
+    "if": "ch == 1",
+    "text": "Press E on the orange MELT chalk: it is written on the wall and the wall melts. Walk through."
+   },
+   {
+    "if": "ch == 2 && law == 0",
+    "text": "MELT: wall opens a while. LOW: wall stays, hop it. The bell rings every 10 s: pick a law."
+   },
+   {
+    "if": "ch == 3 && law == 0",
+    "text": "Cross the red band: the Tock eats a minute if it catches you. STILL freezes it."
+   },
+   {
+    "if": "ch == 4",
+    "text": "You made it."
+   },
+   {
+    "if": "law == 1 && ch == 3",
+    "text": "Law HUSH: slow Tock, walls close fast. Reach the clock."
+   },
+   {
+    "if": "law == 1",
+    "text": "Law HUSH: slow Tock, walls close fast. MELT opens, LOW hops, STILL freezes."
+   },
+   {
+    "if": "law == 2 && ch == 3",
+    "text": "Law LOUD: fast Tock, walls stay open. Reach the clock."
+   },
+   {
+    "if": "law == 2",
+    "text": "Law LOUD: fast Tock, walls stay open. MELT opens, LOW hops, STILL freezes."
+   },
+   {
+    "if": "law == 3 && ch == 3",
+    "text": "Law SLEEP: no Tock, words cost 2. Reach the clock."
+   },
+   {
+    "if": "law == 3",
+    "text": "Law SLEEP: no Tock, words cost 2. MELT opens, LOW hops, STILL freezes."
+   },
+   {
+    "text": "Reach the stopped clock with the fewest words and the fewest minutes lost."
+   }
+  ],
+  "start": {
+   "title": "Drowsy Orchestra",
+   "text": "The clockmaker stopped time. Walk to his stopped clock at the far end. Write words on the walls with chalk (E): the wall obeys the word. Fewer words, fewer lost minutes: a quieter run.",
+   "button": "Start"
+  },
+  "end": {
+   "victory": {
+    "title": "The clock hears you",
+    "text": "{words} words written, {lost} minutes lost. Quieter next time?",
+    "button": "Play again"
+   },
+   "default": {
+    "title": "The day is gone",
+    "text": "The Tock ate five minutes. {words} words written.",
+    "button": "Try again"
+   }
+  }
+ },
+ "rules": [
+  {
+   "id": "setup",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "deactivate": "low_1"
+    },
+    {
+     "deactivate": "low_2"
+    },
+    {
+     "deactivate": "low_3"
+    },
+    {
+     "hide": "puddle_1"
+    },
+    {
+     "hide": "puddle_2"
+    },
+    {
+     "hide": "puddle_3"
+    },
+    {
+     "hide": "w1_MELT"
+    },
+    {
+     "hide": "law1_1"
+    },
+    {
+     "hide": "law1_2"
+    },
+    {
+     "hide": "law1_3"
+    },
+    {
+     "hide": "w2_MELT"
+    },
+    {
+     "hide": "w2_LOW"
+    },
+    {
+     "hide": "law2_1"
+    },
+    {
+     "hide": "law2_2"
+    },
+    {
+     "hide": "law2_3"
+    },
+    {
+     "hide": "w3_MELT"
+    },
+    {
+     "hide": "w3_LOW"
+    },
+    {
+     "hide": "w3_STILL"
+    },
+    {
+     "hide": "law3_1"
+    },
+    {
+     "hide": "law3_2"
+    },
+    {
+     "hide": "law3_3"
+    },
+    {
+     "hide": "tock_0"
+    },
+    {
+     "hide": "tock_1"
+    },
+    {
+     "hide": "tock_2"
+    },
+    {
+     "hide": "tock_3"
+    },
+    {
+     "hide": "tock_4"
+    },
+    {
+     "hide": "tock_5"
+    },
+    {
+     "hide": "tock_6"
+    },
+    {
+     "hide": "band_floor"
+    },
+    {
+     "hide": "band_sign"
+    },
+    {
+     "set": [
+      "ch",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "enter_c1",
+   "when": {
+    "enter": {
+     "zone": "c1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "ch",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "enter_c2",
+   "when": {
+    "enter": {
+     "zone": "c2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "ch",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "bell_start",
+   "when": {
+    "enter": {
+     "zone": "c2"
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "timer": [
+      "bell",
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "id": "enter_c3",
+   "when": {
+    "enter": {
+     "zone": "c3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "ch",
+      3
+     ]
+    },
+    {
+     "set": [
+      "beast_on",
+      1
+     ]
+    },
+    {
+     "set": [
+      "bi",
+      0
+     ]
+    },
+    {
+     "set": [
+      "bdir",
+      1
+     ]
+    },
+    {
+     "set": [
+      "bc",
+      0
+     ]
+    },
+    {
+     "show": "band_floor"
+    },
+    {
+     "show": "band_sign"
+    },
+    {
+     "show": "tock_0"
+    }
+   ]
+  },
+  {
+   "id": "enter_exit",
+   "when": {
+    "enter": {
+     "zone": "exit"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "beast_on",
+      0
+     ]
+    },
+    {
+     "set": [
+      "ch",
+      4
+     ]
+    }
+   ]
+  },
+  {
+   "id": "win",
+   "when": {
+    "enter": {
+     "zone": "exit"
+    }
+   },
+   "do": [
+    {
+     "emit": "victory"
+    },
+    {
+     "end": "victory"
+    }
+   ]
+  },
+  {
+   "id": "in_wall_1_on",
+   "when": {
+    "enter": {
+     "zone": "in_wall_1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_1",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "in_wall_1_off",
+   "when": {
+    "exit": {
+     "zone": "in_wall_1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_1",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "in_wall_2_on",
+   "when": {
+    "enter": {
+     "zone": "in_wall_2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_2",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "in_wall_2_off",
+   "when": {
+    "exit": {
+     "zone": "in_wall_2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_2",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "in_wall_3_on",
+   "when": {
+    "enter": {
+     "zone": "in_wall_3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_3",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "in_wall_3_off",
+   "when": {
+    "exit": {
+     "zone": "in_wall_3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "inwall_3",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "write_1_MELT",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_1_MELT"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w1_MELT"
+    },
+    {
+     "hide": "w1_BLANK"
+    },
+    {
+     "show": "w1_MELT"
+    },
+    {
+     "deactivate": "wall_1"
+    },
+    {
+     "show": "puddle_1"
+    },
+    {
+     "timer": [
+      "melt_1",
+      "(6 + (law == 2) * 6 - (law == 1) * 2.5)"
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "melt_end_1",
+   "when": {
+    "timer": "melt_1"
+   },
+   "if": "inwall_1 == 0 && lowed_1 == 0",
+   "do": [
+    {
+     "activate": "wall_1"
+    },
+    {
+     "hide": "puddle_1"
+    },
+    {
+     "hide": "w1_MELT"
+    },
+    {
+     "show": "w1_BLANK"
+    },
+    {
+     "emit": "closed"
+    }
+   ]
+  },
+  {
+   "id": "melt_wait_1",
+   "when": {
+    "timer": "melt_1"
+   },
+   "if": "inwall_1 == 1 && lowed_1 == 0",
+   "do": [
+    {
+     "timer": [
+      "melt_1",
+      0.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "write_2_MELT",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_2_MELT"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w2_MELT"
+    },
+    {
+     "hide": "w2_LOW"
+    },
+    {
+     "hide": "w2_BLANK"
+    },
+    {
+     "show": "w2_MELT"
+    },
+    {
+     "deactivate": "wall_2"
+    },
+    {
+     "show": "puddle_2"
+    },
+    {
+     "timer": [
+      "melt_2",
+      "(6 + (law == 2) * 6 - (law == 1) * 2.5)"
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "write_2_LOW",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_2_LOW"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w2_MELT"
+    },
+    {
+     "hide": "w2_LOW"
+    },
+    {
+     "hide": "w2_BLANK"
+    },
+    {
+     "show": "w2_LOW"
+    },
+    {
+     "cancel": "melt_2"
+    },
+    {
+     "deactivate": "wall_2"
+    },
+    {
+     "activate": "low_2"
+    },
+    {
+     "hide": "puddle_2"
+    },
+    {
+     "set": [
+      "lowed_2",
+      1
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "melt_end_2",
+   "when": {
+    "timer": "melt_2"
+   },
+   "if": "inwall_2 == 0 && lowed_2 == 0",
+   "do": [
+    {
+     "activate": "wall_2"
+    },
+    {
+     "hide": "puddle_2"
+    },
+    {
+     "hide": "w2_MELT"
+    },
+    {
+     "show": "w2_BLANK"
+    },
+    {
+     "emit": "closed"
+    }
+   ]
+  },
+  {
+   "id": "melt_wait_2",
+   "when": {
+    "timer": "melt_2"
+   },
+   "if": "inwall_2 == 1 && lowed_2 == 0",
+   "do": [
+    {
+     "timer": [
+      "melt_2",
+      0.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "write_3_MELT",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_3_MELT"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w3_MELT"
+    },
+    {
+     "hide": "w3_LOW"
+    },
+    {
+     "hide": "w3_STILL"
+    },
+    {
+     "hide": "w3_BLANK"
+    },
+    {
+     "show": "w3_MELT"
+    },
+    {
+     "deactivate": "wall_3"
+    },
+    {
+     "show": "puddle_3"
+    },
+    {
+     "timer": [
+      "melt_3",
+      "(6 + (law == 2) * 6 - (law == 1) * 2.5)"
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "write_3_LOW",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_3_LOW"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w3_MELT"
+    },
+    {
+     "hide": "w3_LOW"
+    },
+    {
+     "hide": "w3_STILL"
+    },
+    {
+     "hide": "w3_BLANK"
+    },
+    {
+     "show": "w3_LOW"
+    },
+    {
+     "cancel": "melt_3"
+    },
+    {
+     "deactivate": "wall_3"
+    },
+    {
+     "activate": "low_3"
+    },
+    {
+     "hide": "puddle_3"
+    },
+    {
+     "set": [
+      "lowed_3",
+      1
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "write_3_STILL",
+   "when": {
+    "event": "pickup",
+    "prop": "tile_3_STILL"
+   },
+   "do": [
+    {
+     "add": [
+      "words",
+      "1 + (law == 3)"
+     ]
+    },
+    {
+     "hide": "w3_MELT"
+    },
+    {
+     "hide": "w3_LOW"
+    },
+    {
+     "hide": "w3_STILL"
+    },
+    {
+     "hide": "w3_BLANK"
+    },
+    {
+     "show": "w3_STILL"
+    },
+    {
+     "set": [
+      "still",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "still",
+      6
+     ]
+    },
+    {
+     "reset": "self"
+    },
+    {
+     "emit": "wrote"
+    }
+   ]
+  },
+  {
+   "id": "melt_end_3",
+   "when": {
+    "timer": "melt_3"
+   },
+   "if": "inwall_3 == 0 && lowed_3 == 0",
+   "do": [
+    {
+     "activate": "wall_3"
+    },
+    {
+     "hide": "puddle_3"
+    },
+    {
+     "hide": "w3_MELT"
+    },
+    {
+     "show": "w3_BLANK"
+    },
+    {
+     "emit": "closed"
+    }
+   ]
+  },
+  {
+   "id": "melt_wait_3",
+   "when": {
+    "timer": "melt_3"
+   },
+   "if": "inwall_3 == 1 && lowed_3 == 0",
+   "do": [
+    {
+     "timer": [
+      "melt_3",
+      0.5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "still_end",
+   "when": {
+    "timer": "still"
+   },
+   "do": [
+    {
+     "set": [
+      "still",
+      0
+     ]
+    },
+    {
+     "hide": "w3_STILL"
+    },
+    {
+     "show": "w3_BLANK"
+    }
+   ]
+  },
+  {
+   "id": "bell_ring",
+   "when": {
+    "timer": "bell"
+   },
+   "do": [
+    {
+     "set": [
+      "choosing",
+      1
+     ]
+    },
+    {
+     "set": [
+      "bellglow",
+      1
+     ]
+    },
+    {
+     "timer": [
+      "bell",
+      10
+     ]
+    },
+    {
+     "emit": "bell"
+    }
+   ]
+  },
+  {
+   "id": "law_hush",
+   "when": {
+    "input": "attack"
+   },
+   "if": "choosing == 1",
+   "do": [
+    {
+     "set": [
+      "law",
+      1
+     ]
+    },
+    {
+     "set": [
+      "choosing",
+      0
+     ]
+    },
+    {
+     "set": [
+      "bellglow",
+      0
+     ]
+    },
+    {
+     "emit": "law_set"
+    },
+    {
+     "hide": "law1_0"
+    },
+    {
+     "hide": "law1_1"
+    },
+    {
+     "hide": "law1_2"
+    },
+    {
+     "hide": "law1_3"
+    },
+    {
+     "show": "law1_1"
+    },
+    {
+     "hide": "law2_0"
+    },
+    {
+     "hide": "law2_1"
+    },
+    {
+     "hide": "law2_2"
+    },
+    {
+     "hide": "law2_3"
+    },
+    {
+     "show": "law2_1"
+    },
+    {
+     "hide": "law3_0"
+    },
+    {
+     "hide": "law3_1"
+    },
+    {
+     "hide": "law3_2"
+    },
+    {
+     "hide": "law3_3"
+    },
+    {
+     "show": "law3_1"
+    }
+   ]
+  },
+  {
+   "id": "law_loud",
+   "when": {
+    "input": "alt"
+   },
+   "if": "choosing == 1",
+   "do": [
+    {
+     "set": [
+      "law",
+      2
+     ]
+    },
+    {
+     "set": [
+      "choosing",
+      0
+     ]
+    },
+    {
+     "set": [
+      "bellglow",
+      0
+     ]
+    },
+    {
+     "emit": "law_set"
+    },
+    {
+     "hide": "law1_0"
+    },
+    {
+     "hide": "law1_1"
+    },
+    {
+     "hide": "law1_2"
+    },
+    {
+     "hide": "law1_3"
+    },
+    {
+     "show": "law1_2"
+    },
+    {
+     "hide": "law2_0"
+    },
+    {
+     "hide": "law2_1"
+    },
+    {
+     "hide": "law2_2"
+    },
+    {
+     "hide": "law2_3"
+    },
+    {
+     "show": "law2_2"
+    },
+    {
+     "hide": "law3_0"
+    },
+    {
+     "hide": "law3_1"
+    },
+    {
+     "hide": "law3_2"
+    },
+    {
+     "hide": "law3_3"
+    },
+    {
+     "show": "law3_2"
+    }
+   ]
+  },
+  {
+   "id": "law_sleep",
+   "when": {
+    "input": "crouch"
+   },
+   "if": "choosing == 1",
+   "do": [
+    {
+     "set": [
+      "law",
+      3
+     ]
+    },
+    {
+     "set": [
+      "choosing",
+      0
+     ]
+    },
+    {
+     "set": [
+      "bellglow",
+      0
+     ]
+    },
+    {
+     "emit": "law_set"
+    },
+    {
+     "hide": "law1_0"
+    },
+    {
+     "hide": "law1_1"
+    },
+    {
+     "hide": "law1_2"
+    },
+    {
+     "hide": "law1_3"
+    },
+    {
+     "show": "law1_3"
+    },
+    {
+     "hide": "law2_0"
+    },
+    {
+     "hide": "law2_1"
+    },
+    {
+     "hide": "law2_2"
+    },
+    {
+     "hide": "law2_3"
+    },
+    {
+     "show": "law2_3"
+    },
+    {
+     "hide": "law3_0"
+    },
+    {
+     "hide": "law3_1"
+    },
+    {
+     "hide": "law3_2"
+    },
+    {
+     "hide": "law3_3"
+    },
+    {
+     "show": "law3_3"
+    }
+   ]
+  },
+  {
+   "id": "law_first_text",
+   "when": {
+    "enter": {
+     "zone": "c2"
+    }
+   },
+   "once": true,
+   "do": [
+    {
+     "show": "law1_0"
+    },
+    {
+     "show": "law2_0"
+    },
+    {
+     "show": "law3_0"
+    }
+   ]
+  },
+  {
+   "id": "tock_tick",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && still == 0",
+   "do": [
+    {
+     "add": [
+      "bc",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tock_step",
+   "when": {
+    "every": 0.25
+   },
+   "if": "bc >= (3 + (law == 1) * 3 - (law == 2))",
+   "do": [
+    {
+     "set": [
+      "bc",
+      0
+     ]
+    },
+    {
+     "add": [
+      "bi",
+      "bdir"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tock_turn_hi",
+   "when": {
+    "every": 0.25
+   },
+   "if": "bi >= 6",
+   "do": [
+    {
+     "set": [
+      "bdir",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tock_turn_lo",
+   "when": {
+    "every": 0.25
+   },
+   "if": "bi <= 0",
+   "do": [
+    {
+     "set": [
+      "bdir",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tock_show_0",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 0",
+   "do": [
+    {
+     "show": "tock_0"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_0",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 0",
+   "do": [
+    {
+     "hide": "tock_0"
+    }
+   ]
+  },
+  {
+   "id": "col_0_on",
+   "when": {
+    "enter": {
+     "zone": "col_0"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_0_off",
+   "when": {
+    "exit": {
+     "zone": "col_0"
+    }
+   },
+   "if": "px == 0",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_0_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_0"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 0",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_0_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_0"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_1",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 1",
+   "do": [
+    {
+     "show": "tock_1"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_1",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 1",
+   "do": [
+    {
+     "hide": "tock_1"
+    }
+   ]
+  },
+  {
+   "id": "col_1_on",
+   "when": {
+    "enter": {
+     "zone": "col_1"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_1_off",
+   "when": {
+    "exit": {
+     "zone": "col_1"
+    }
+   },
+   "if": "px == 1",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_1_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_1"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_1_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_1"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_2",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 2",
+   "do": [
+    {
+     "show": "tock_2"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_2",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 2",
+   "do": [
+    {
+     "hide": "tock_2"
+    }
+   ]
+  },
+  {
+   "id": "col_2_on",
+   "when": {
+    "enter": {
+     "zone": "col_2"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_2_off",
+   "when": {
+    "exit": {
+     "zone": "col_2"
+    }
+   },
+   "if": "px == 2",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_2_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_2"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 2",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_2_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_2"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_3",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 3",
+   "do": [
+    {
+     "show": "tock_3"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_3",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 3",
+   "do": [
+    {
+     "hide": "tock_3"
+    }
+   ]
+  },
+  {
+   "id": "col_3_on",
+   "when": {
+    "enter": {
+     "zone": "col_3"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_3_off",
+   "when": {
+    "exit": {
+     "zone": "col_3"
+    }
+   },
+   "if": "px == 3",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_3_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_3"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 3",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_3_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_3"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_4",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 4",
+   "do": [
+    {
+     "show": "tock_4"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_4",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 4",
+   "do": [
+    {
+     "hide": "tock_4"
+    }
+   ]
+  },
+  {
+   "id": "col_4_on",
+   "when": {
+    "enter": {
+     "zone": "col_4"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      4
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_4_off",
+   "when": {
+    "exit": {
+     "zone": "col_4"
+    }
+   },
+   "if": "px == 4",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_4_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_4"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 4",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_4_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_4"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_5",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 5",
+   "do": [
+    {
+     "show": "tock_5"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_5",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 5",
+   "do": [
+    {
+     "hide": "tock_5"
+    }
+   ]
+  },
+  {
+   "id": "col_5_on",
+   "when": {
+    "enter": {
+     "zone": "col_5"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_5_off",
+   "when": {
+    "exit": {
+     "zone": "col_5"
+    }
+   },
+   "if": "px == 5",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_5_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_5"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 5",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_5_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_5"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_show_6",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && bi == 6",
+   "do": [
+    {
+     "show": "tock_6"
+    }
+   ]
+  },
+  {
+   "id": "tock_hide_6",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 0 || bi != 6",
+   "do": [
+    {
+     "hide": "tock_6"
+    }
+   ]
+  },
+  {
+   "id": "col_6_on",
+   "when": {
+    "enter": {
+     "zone": "col_6"
+    }
+   },
+   "do": [
+    {
+     "set": [
+      "px",
+      6
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_6_off",
+   "when": {
+    "exit": {
+     "zone": "col_6"
+    }
+   },
+   "if": "px == 6",
+   "do": [
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "col_6_catch_in",
+   "when": {
+    "enter": {
+     "zone": "col_6"
+    }
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && bi == 6",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "col_6_catch_out",
+   "when": {
+    "exit": {
+     "zone": "col_6"
+    }
+   },
+   "if": "hit == 1",
+   "do": [
+    {
+     "add": [
+      "lost",
+      1
+     ]
+    },
+    {
+     "set": [
+      "px",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hit",
+      0
+     ]
+    },
+    {
+     "teleport": "c3"
+    },
+    {
+     "emit": "caught"
+    }
+   ]
+  },
+  {
+   "id": "tock_mark",
+   "when": {
+    "every": 0.25
+   },
+   "if": "beast_on == 1 && still == 0 && law != 3 && px >= 0 && px == bi",
+   "do": [
+    {
+     "set": [
+      "hit",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "day_gone",
+   "when": {
+    "event": "caught"
+   },
+   "if": "lost >= 5",
+   "do": [
+    {
+     "end": "defeat"
+    }
+   ]
+  }
+ ],
+ "audio": {
+  "music": {
+   "dawn": "audio/tick.json",
+   "day": "audio/tick.json",
+   "dusk": "audio/tick.json",
+   "night": "audio/tick.json"
+  },
+  "music_volume": 0.6,
+  "layers": [
+   {
+    "score": "audio/bell.json",
+    "var": "bellglow",
+    "above": 0.5,
+    "fade": 0.3,
+    "volume": 0.7
+   }
+  ]
+ },
+ "music": false,
+ "hud": {
+  "show_rules_vars": false
+ },
+ "objects": [
+  {
+   "id": "floor",
+   "type": "box",
+   "size": [
+    14.4,
+    0.2,
+    46
+   ],
+   "position": [
+    0,
+    -0.1,
+    22.0
+   ],
+   "material": {
+    "preset": "flagstone"
+   }
+  },
+  {
+   "id": "wall_w",
+   "type": "box",
+   "size": [
+    0.4,
+    5,
+    46
+   ],
+   "position": [
+    -7.2,
+    2.5,
+    22.0
+   ],
+   "material": {
+    "preset": "plaster"
+   }
+  },
+  {
+   "id": "wall_e",
+   "type": "box",
+   "size": [
+    0.4,
+    5,
+    46
+   ],
+   "position": [
+    7.2,
+    2.5,
+    22.0
+   ],
+   "material": {
+    "preset": "plaster"
+   }
+  },
+  {
+   "id": "wall_back",
+   "type": "box",
+   "size": [
+    14.8,
+    5,
+    0.4
+   ],
+   "position": [
+    0,
+    2.5,
+    -0.9
+   ],
+   "material": {
+    "preset": "plaster"
+   }
+  },
+  {
+   "id": "wall_front",
+   "type": "box",
+   "size": [
+    14.8,
+    5,
+    0.4
+   ],
+   "position": [
+    0,
+    2.5,
+    45.0
+   ],
+   "material": {
+    "preset": "plaster"
+   }
+  },
+  {
+   "id": "ceiling",
+   "type": "box",
+   "size": [
+    14.8,
+    0.3,
+    46
+   ],
+   "position": [
+    0,
+    5.1,
+    22.0
+   ],
+   "material": {
+    "preset": "plaster"
+   }
+  },
+  {
+   "id": "door_frame",
+   "type": "box",
+   "size": [
+    4.4,
+    3.6,
+    0.3
+   ],
+   "position": [
+    0,
+    1.8,
+    44.6
+   ],
+   "material": {
+    "preset": "brass_dark"
+   },
+   "collide": false
+  },
+  {
+   "id": "door_glow",
+   "type": "box",
+   "size": [
+    3.6,
+    3.0,
+    0.1
+   ],
+   "position": [
+    0,
+    1.5,
+    44.4
+   ],
+   "collide": false,
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "door_sign",
+   "type": "text",
+   "text": "THE STOPPED CLOCK",
+   "position": [
+    0,
+    3.9,
+    44.2
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "cog_a",
+   "type": "prefab",
+   "prefab": "cog",
+   "position": [
+    -6.7,
+    3.0,
+    17.0
+   ],
+   "rotation": [
+    0,
+    90,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "cog_b",
+   "type": "prefab",
+   "prefab": "cog",
+   "position": [
+    6.7,
+    3.0,
+    30.0
+   ],
+   "rotation": [
+    0,
+    -90,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "bell_obj",
+   "type": "prefab",
+   "prefab": "bell",
+   "position": [
+    0,
+    4.0,
+    3.0
+   ],
+   "collide": false
+  },
+  {
+   "id": "wall_1",
+   "type": "box",
+   "size": [
+    14.0,
+    3.6,
+    0.5
+   ],
+   "position": [
+    0,
+    1.8,
+    10.0
+   ],
+   "material": {
+    "preset": "gate_wall"
+   }
+  },
+  {
+   "id": "low_1",
+   "type": "box",
+   "size": [
+    14.0,
+    0.55,
+    0.5
+   ],
+   "position": [
+    0,
+    0.275,
+    10.0
+   ],
+   "material": {
+    "preset": "gate_low"
+   }
+  },
+  {
+   "id": "puddle_1",
+   "type": "box",
+   "size": [
+    14.0,
+    0.05,
+    1.2
+   ],
+   "position": [
+    0,
+    0.03,
+    10.0
+   ],
+   "collide": false,
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "w1_BLANK",
+   "type": "text",
+   "text": "????",
+   "position": [
+    0,
+    4.2,
+    9.7
+   ],
+   "height": 0.5,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "w1_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    0,
+    4.2,
+    9.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "law1_1",
+   "type": "text",
+   "text": "LAW: HUSH",
+   "position": [
+    0,
+    4.3,
+    1.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law1_2",
+   "type": "text",
+   "text": "LAW: LOUD",
+   "position": [
+    0,
+    4.3,
+    1.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law1_3",
+   "type": "text",
+   "text": "LAW: SLEEP",
+   "position": [
+    0,
+    4.3,
+    1.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law1_0",
+   "type": "text",
+   "text": "LAW: NONE",
+   "position": [
+    0,
+    4.3,
+    1.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "plinth_1_MELT",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    -3.5,
+    0,
+    4.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_1_MELT",
+   "type": "prop",
+   "prop": "fire_extinguisher",
+   "movable": true,
+   "position": [
+    -3.5,
+    0.88,
+    4.0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "lab_1_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    -3.5,
+    1.7,
+    3.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "wall_2",
+   "type": "box",
+   "size": [
+    14.0,
+    3.6,
+    0.5
+   ],
+   "position": [
+    0,
+    1.8,
+    22.0
+   ],
+   "material": {
+    "preset": "gate_wall"
+   }
+  },
+  {
+   "id": "low_2",
+   "type": "box",
+   "size": [
+    14.0,
+    0.55,
+    0.5
+   ],
+   "position": [
+    0,
+    0.275,
+    22.0
+   ],
+   "material": {
+    "preset": "gate_low"
+   }
+  },
+  {
+   "id": "puddle_2",
+   "type": "box",
+   "size": [
+    14.0,
+    0.05,
+    1.2
+   ],
+   "position": [
+    0,
+    0.03,
+    22.0
+   ],
+   "collide": false,
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "w2_BLANK",
+   "type": "text",
+   "text": "????",
+   "position": [
+    0,
+    4.2,
+    21.7
+   ],
+   "height": 0.5,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "w2_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    0,
+    4.2,
+    21.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "w2_LOW",
+   "type": "text",
+   "text": "LOW",
+   "position": [
+    0,
+    4.2,
+    21.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "law2_1",
+   "type": "text",
+   "text": "LAW: HUSH",
+   "position": [
+    0,
+    4.3,
+    11.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law2_2",
+   "type": "text",
+   "text": "LAW: LOUD",
+   "position": [
+    0,
+    4.3,
+    11.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law2_3",
+   "type": "text",
+   "text": "LAW: SLEEP",
+   "position": [
+    0,
+    4.3,
+    11.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law2_0",
+   "type": "text",
+   "text": "LAW: NONE",
+   "position": [
+    0,
+    4.3,
+    11.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "plinth_2_MELT",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    -4.0,
+    0,
+    14.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_2_MELT",
+   "type": "prop",
+   "prop": "fire_extinguisher",
+   "movable": true,
+   "position": [
+    -4.0,
+    0.88,
+    14.0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "lab_2_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    -4.0,
+    1.7,
+    13.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "plinth_2_LOW",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    4.0,
+    0,
+    14.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_2_LOW",
+   "type": "prop",
+   "prop": "traffic_cone",
+   "movable": true,
+   "position": [
+    4.0,
+    0.88,
+    14.0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "lab_2_LOW",
+   "type": "text",
+   "text": "LOW",
+   "position": [
+    4.0,
+    1.7,
+    13.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "wall_3",
+   "type": "box",
+   "size": [
+    14.0,
+    3.6,
+    0.5
+   ],
+   "position": [
+    0,
+    1.8,
+    38.0
+   ],
+   "material": {
+    "preset": "gate_wall"
+   }
+  },
+  {
+   "id": "low_3",
+   "type": "box",
+   "size": [
+    14.0,
+    0.55,
+    0.5
+   ],
+   "position": [
+    0,
+    0.275,
+    38.0
+   ],
+   "material": {
+    "preset": "gate_low"
+   }
+  },
+  {
+   "id": "puddle_3",
+   "type": "box",
+   "size": [
+    14.0,
+    0.05,
+    1.2
+   ],
+   "position": [
+    0,
+    0.03,
+    38.0
+   ],
+   "collide": false,
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "w3_BLANK",
+   "type": "text",
+   "text": "????",
+   "position": [
+    0,
+    4.2,
+    37.7
+   ],
+   "height": 0.5,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "w3_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    0,
+    4.2,
+    37.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "w3_LOW",
+   "type": "text",
+   "text": "LOW",
+   "position": [
+    0,
+    4.2,
+    37.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "w3_STILL",
+   "type": "text",
+   "text": "STILL",
+   "position": [
+    0,
+    4.2,
+    37.7
+   ],
+   "height": 0.8,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@frost",
+    "emissive": "@frost"
+   }
+  },
+  {
+   "id": "law3_1",
+   "type": "text",
+   "text": "LAW: HUSH",
+   "position": [
+    0,
+    4.3,
+    23.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law3_2",
+   "type": "text",
+   "text": "LAW: LOUD",
+   "position": [
+    0,
+    4.3,
+    23.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law3_3",
+   "type": "text",
+   "text": "LAW: SLEEP",
+   "position": [
+    0,
+    4.3,
+    23.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@brass",
+    "emissive": "@brass"
+   }
+  },
+  {
+   "id": "law3_0",
+   "type": "text",
+   "text": "LAW: NONE",
+   "position": [
+    0,
+    4.3,
+    23.5
+   ],
+   "height": 0.4,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@bone",
+    "emissive": "@bone"
+   }
+  },
+  {
+   "id": "plinth_3_MELT",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    -5.0,
+    0,
+    26.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_3_MELT",
+   "type": "prop",
+   "prop": "fire_extinguisher",
+   "movable": true,
+   "position": [
+    -5.0,
+    0.88,
+    26.0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "lab_3_MELT",
+   "type": "text",
+   "text": "MELT",
+   "position": [
+    -5.0,
+    1.7,
+    25.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "plinth_3_LOW",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    5.0,
+    0,
+    26.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_3_LOW",
+   "type": "prop",
+   "prop": "traffic_cone",
+   "movable": true,
+   "position": [
+    5.0,
+    0.88,
+    26.0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "lab_3_LOW",
+   "type": "text",
+   "text": "LOW",
+   "position": [
+    5.0,
+    1.7,
+    25.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@moss",
+    "emissive": "@moss"
+   }
+  },
+  {
+   "id": "plinth_3_STILL",
+   "type": "prefab",
+   "prefab": "chalk_plinth",
+   "position": [
+    -2.5,
+    0,
+    26.0
+   ],
+   "collide": true
+  },
+  {
+   "id": "tile_3_STILL",
+   "type": "prop",
+   "prop": "crate",
+   "movable": true,
+   "position": [
+    -2.5,
+    0.88,
+    26.0
+   ],
+   "material": {
+    "color": "@frost",
+    "emissive": "@frost"
+   }
+  },
+  {
+   "id": "lab_3_STILL",
+   "type": "text",
+   "text": "STILL",
+   "position": [
+    -2.5,
+    1.7,
+    25.9
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@frost",
+    "emissive": "@frost"
+   }
+  },
+  {
+   "id": "tock_0",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    -6,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_1",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    -4,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_2",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    -2,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_3",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    0,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_4",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    2,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_5",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    4,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "tock_6",
+   "type": "prefab",
+   "prefab": "tock",
+   "position": [
+    6,
+    0,
+    32.0
+   ],
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "collide": false
+  },
+  {
+   "id": "band_floor",
+   "type": "box",
+   "size": [
+    14.0,
+    0.04,
+    2.0
+   ],
+   "position": [
+    0,
+    0.02,
+    32.0
+   ],
+   "collide": false,
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  },
+  {
+   "id": "band_sign",
+   "type": "text",
+   "text": "THE TOCK PATROLS HERE",
+   "position": [
+    0,
+    2.6,
+    29.8
+   ],
+   "height": 0.3,
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "material": {
+    "color": "@ember",
+    "emissive": "@ember"
+   }
+  }
+ ],
+ "phases": {
+  "open": [
+   "write_1_MELT",
+   "write_2_MELT",
+   "write_3_MELT"
+  ]
+ },
+ "checks": {
+  "lint": {
+   "max_errors": 0,
+   "max_warnings": 0,
+   "ignore": [
+    "floating",
+    "interest",
+    "headroom"
+   ]
+  },
+  "sim": [
+   {
+    "name": "MELT written on wall 1 melts it, and you walk through",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,13"
+     }
+    ],
+    "expect": [
+     {
+      "collision_disabled": "wall_1"
+     },
+     {
+      "shown": "w1_MELT"
+     },
+     {
+      "var": "words",
+      "eq": 1
+     },
+     {
+      "player": "p1",
+      "near": [
+       0,
+       13
+      ],
+      "tol": 1.0
+     },
+     {
+      "event": "wrote",
+      "count": 1
+     }
+    ],
+    "max_seconds": 30
+   },
+   {
+    "name": "the melted wall closes again by itself",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "wait": 9
+     }
+    ],
+    "expect": [
+     {
+      "collision_enabled": "wall_1"
+     },
+     {
+      "hidden": "w1_MELT"
+     },
+     {
+      "event": "closed",
+      "min": 1
+     },
+     {
+      "var": "words",
+      "eq": 1
+     }
+    ],
+    "max_seconds": 30
+   },
+   {
+    "name": "LOW leaves a hop-high wall that stays",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,12"
+     },
+     {
+      "player": "p1",
+      "approach": "tile_2_LOW"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "wait": 9
+     }
+    ],
+    "expect": [
+     {
+      "collision_disabled": "wall_2"
+     },
+     {
+      "collision_enabled": "low_2"
+     },
+     {
+      "shown": "w2_LOW"
+     },
+     {
+      "var": "words",
+      "eq": 2
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "bell rings after 10 s in chamber 2; left-click picks HUSH",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,12"
+     },
+     {
+      "player": "p1",
+      "wait": 10.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "attack": true,
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "event": "bell",
+      "min": 1
+     },
+     {
+      "var": "law",
+      "eq": 1
+     },
+     {
+      "var": "choosing",
+      "eq": 0
+     },
+     {
+      "shown": "law2_1"
+     },
+     {
+      "hidden": "law2_0"
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "SLEEP law makes words cost 2",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,12"
+     },
+     {
+      "player": "p1",
+      "wait": 10.5
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "crouch": true,
+       "seconds": 0.3
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "approach": "tile_2_LOW"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "var": "law",
+      "eq": 3
+     },
+     {
+      "var": "words",
+      "eq": 3
+     }
+    ],
+    "max_seconds": 40
+   },
+   {
+    "name": "win: MELT, LOW, then STILL freezes the Tock, LOW and hop the last wall",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,12"
+     },
+     {
+      "player": "p1",
+      "approach": "tile_2_LOW"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,20.8"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "forward": 1,
+       "jump": true,
+       "seconds": 0.9
+      }
+     },
+     {
+      "player": "p1",
+      "walk": "0,23.5"
+     },
+     {
+      "player": "p1",
+      "approach": "tile_3_LOW"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        5.0,
+        1.0,
+        26.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        5.0,
+        1.0,
+        26.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "approach": "tile_3_STILL"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -2.5,
+        1.0,
+        26.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -2.5,
+        1.0,
+        26.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,34"
+     },
+     {
+      "player": "p1",
+      "walk": "0,36.8"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "forward": 1,
+       "jump": true,
+       "seconds": 0.9
+      }
+     },
+     {
+      "player": "p1",
+      "walk": "0,42"
+     }
+    ],
+    "expect": [
+     {
+      "ended": "victory"
+     },
+     {
+      "var": "lost",
+      "eq": 0
+     },
+     {
+      "var": "words",
+      "eq": 4
+     }
+    ],
+    "max_seconds": 90
+   },
+   {
+    "name": "lose: stand in the Tock's path five times and the day is gone",
+    "spawn_group": "solo",
+    "players": [
+     {
+      "id": "p1",
+      "character": "human",
+      "spawn": "door"
+     }
+    ],
+    "script": [
+     {
+      "player": "p1",
+      "approach": "tile_1_MELT"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        -3.5,
+        1.0,
+        4.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,12"
+     },
+     {
+      "player": "p1",
+      "approach": "tile_2_LOW"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2
+      }
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "look_at": [
+        4.0,
+        1.0,
+        14.0
+       ],
+       "seconds": 0.2,
+       "interact": true
+      }
+     },
+     {
+      "player": "p1",
+      "wait": 0.3
+     },
+     {
+      "player": "p1",
+      "walk": "0,20.8"
+     },
+     {
+      "player": "p1",
+      "hold": {
+       "forward": 1,
+       "jump": true,
+       "seconds": 0.9
+      }
+     },
+     {
+      "player": "p1",
+      "walk": "0,23.5"
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     },
+     {
+      "player": "p1",
+      "walk": "0,31.5"
+     },
+     {
+      "player": "p1",
+      "wait": 5
+     },
+     {
+      "player": "p1",
+      "walk": "0,34.5"
+     },
+     {
+      "player": "p1",
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "ended": "defeat"
+     },
+     {
+      "var": "lost",
+      "eq": 5
+     }
+    ],
+    "max_seconds": 120
+   }
+  ]
+ }
+}
