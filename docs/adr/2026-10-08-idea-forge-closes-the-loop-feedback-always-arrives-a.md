@@ -7,6 +7,11 @@ Feedback was only useful if it reached the engine and something acted on it. Two
 
 ## Decision
 - **Delivery.** `produce` always delivers feedback. A sound agent file ships with the game; an unfinished one is completed by the CLI (`autofill_feedback`: notes and measurements are real, missing prose is marked, a banner says so) and shipped; a game that did not build ships feedback only. Every feedback file is also copied to `$IDEA_FORGE_HOME/feedback/` at once.
+  *Amended 2026-10-20:* one exception, for the game and not for its feedback. A built game whose wiki page is missing or fails `wiki --check` is not shipped: it would merge and then wait
+  unpublished, because `publish` refuses a game without a complete page (four merged games did, from 2026-10-19). That only happens when the agent failed to write the page, so the run is
+  kept in its worktree for a maintainer and surfaced in the nightly log and the feedback digest, and `ship` refuses it with the fix. Its feedback is still delivered at once: it goes out
+  alone, as a feedback-only PR on its own branch (`<branch>-feedback`), and the run stays `built`, so the game ships later in a PR of its own. A run refused for anything else (stray files,
+  unfinished feedback) still keeps its feedback in the local store until it is fixed and shipped.
 - **Keys and a backlog.** Findings carry a stable kebab-case `key`; the same key across runs is one issue. `build_backlog` ranks by severity, runs, minutes and derives a status from `docs/analysis/idea-forge/fixes.json` on `main` (addressed; recurring if reported after the fix), from the open/closed state of fix PRs (in-progress; rejected). Game briefs list the known issues so agents reuse keys and add evidence.
 - **Improvement agent.** `improve` runs one agent on a fresh worktree to fix ONE issue with a regression test and a `fixes.json` entry. The agent's word is not trusted: the CLI re-runs `preflight` and `affected --quick`, refuses a change that touches `.github/`, `Cargo.*`, `scripts/idea_forge.py`/its test or earlier feedback, or has no test or no fix record, and only then opens a PR. It never merges.
 - **One agent at a time, one entry.** `nightly` takes one lock and runs game 1, game 2, then the improvement; `schedule` installs a single 06:00 cron entry.

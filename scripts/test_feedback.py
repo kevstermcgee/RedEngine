@@ -166,7 +166,7 @@ class ForgeLedger(unittest.TestCase):
         os.environ["IDEA_FORGE_HOME"] = shutil_home
         self.assertIsNone(fb.forge_stuck())
         self.assertFalse(os.path.exists(shutil_home), "reading the ledger must not create the state directory")
-        self.assertNotIn("Idea Forge games merged but not published", fb.digest_text(self.inbox()))
+        self.assertNotIn("Idea Forge games no player can have yet", fb.digest_text(self.inbox()))
 
     def test_a_ledger_with_nothing_stuck_has_no_section(self):
         self.ledger([dict(self.BLOCKED, publish_blocked=None, published={"commit": "abc", "date": "2026-10-20"}), dict(self.STRANDED, status="shipped"),
@@ -180,12 +180,53 @@ class ForgeLedger(unittest.TestCase):
         self.assertEqual([g["slug"] for g in stuck["unpublished"]], ["moth-harvest"])
         self.assertEqual([g["slug"] for g in stuck["stranded"]], ["brittle-lantern"])
         text = fb.digest_text(self.inbox(forge_stuck=stuck))
-        section = text.split("## 6. Idea Forge games merged but not published")[1]
+        section = text.split("## 6. Idea Forge games no player can have yet")[1]
         self.assertIn("`moth-harvest` (2d, https://github.com/kevstermcgee/RedEngine/pull/195), merged and NOT published since 2026-10-19 (last tried 2026-10-20): no wiki page", section)
         self.assertIn("`brittle-lantern` (2d, run of 2026-10-12", section)
         self.assertIn("worktree is gone", section, "the reason ship would refuse")
         self.assertNotIn("`done`", section)
         self.assertIn("forge_stuck", json.dumps(self.inbox(forge_stuck=stuck)))
+
+    def test_the_section_is_a_note_for_the_maintainers_not_an_instruction_with_commands(self):
+        """The daily improver gets this digest verbatim: a command here that acts on the live forge's worktrees would be run by whoever reads it as a to-do."""
+        self.ledger([self.BLOCKED, self.STRANDED])
+        text = fb.digest_text(self.inbox(forge_stuck=fb.forge_stuck()))
+        section = text.split("## 6.")[1]
+        self.assertIn("Note for the maintainers: a maintainer finishes these", section)
+        self.assertIn("docs/IDEA_FORGE.md", section)
+        self.assertNotIn("To finish one", section)
+        for command in ("idea_forge.py wiki", "idea_forge.py ship", "--init", "<worktree>", "ship <slug>"):
+            self.assertNotIn(command, section)
+        self.ledger([dict(self.STRANDED, worktree="")])
+        self.assertNotIn("would ship it", fb.digest_text(self.inbox(forge_stuck=fb.forge_stuck())), "even the 'nothing blocks it' reason is a statement, not a command")
+
+    def test_a_game_pr_held_for_its_page_is_in_the_section_too(self):
+        held = {"code": 3, "slug": "paper-foundry", "kind": "3d", "date": "2026-10-19", "status": "shipped", "pr": "https://github.com/kevstermcgee/RedEngine/pull/196", "merge": "held-no-wiki"}
+        self.ledger([held, dict(held, code=4, slug="merged-one", merge="merged"), dict(held, code=5, slug="on-purpose", merge="", hold=True)])
+        stuck = fb.forge_stuck()
+        self.assertEqual([g["slug"] for g in stuck["held"]], ["paper-foundry"])
+        self.assertEqual((stuck["unpublished"], stuck["stranded"]), ([], []))
+        text = fb.digest_text(self.inbox(forge_stuck=stuck))
+        self.assertIn("## 6. Idea Forge games no player can have yet", text)
+        self.assertIn("- `paper-foundry` (3d, https://github.com/kevstermcgee/RedEngine/pull/196, run of 2026-10-19): held, no wiki page in the PR", text)
+        self.assertNotIn("merged-one", text)
+        self.assertNotIn("on-purpose", text, "a PR held on purpose (ship --hold) is not a stuck game")
+
+    def test_a_damaged_ledger_row_costs_one_warning_and_never_the_inbox(self):
+        odd = [[], "x", None, {"status": "built", "date": "2026-10-01"}, {"slug": 5, "status": "shipped", "publish_blocked": {"reason": "r"}}]
+        self.ledger(odd + [self.BLOCKED, self.STRANDED])
+        stuck = fb.forge_stuck()
+        self.assertEqual([g["slug"] for g in stuck["unpublished"]], ["moth-harvest"], "the good rows are still reported")
+        self.assertEqual([g["slug"] for g in stuck["stranded"]], ["brittle-lantern"])
+        self.ledger({"runs": "not a list"})
+        self.assertIsNone(fb.forge_stuck())
+        err = io.StringIO()
+        with mock.patch.object(fb, "forge_stuck", side_effect=RuntimeError("boom")), contextlib.redirect_stderr(err):
+            inbox = fb.collect("2026-10-19", offline=True)
+        self.assertNotIn("forge_stuck", inbox, "no section, and the rest of the inbox is intact")
+        self.assertIn("backlog", inbox)
+        self.assertEqual(err.getvalue().count("\n"), 1, "one line")
+        self.assertIn("warning: the Idea Forge ledger could not be read (RuntimeError: boom)", err.getvalue())
 
     def test_a_malformed_note_is_skipped_but_named_by_the_digest(self):
         os.makedirs(os.path.join(self.home, "feedback"))
