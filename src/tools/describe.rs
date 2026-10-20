@@ -316,6 +316,7 @@ pub const LINT_CODES: &[(&str, &str, &str)] = &[
     ("stairs-bottom", "error", "stairs' bottom starts in a wall -> clear space at the bottom end"),
     ("stairs-narrow", "warn", "stairs narrower than 1.1 m -> widen"),
     ("stairs-steep", "warn", "step rise > 0.2 m -> more steps or longer run"),
+    ("peaceful-swing", "warn", "a rule waits for the `swing` event but `player.mode` is `peaceful`, which has no bat, so it never fires -> drop `mode: peaceful` or use `interact`"),
     ("speed", "warn", "`player.throw_speed` or a rule `impulse` speed above the 14 m/s prop cap: it saturates and behaves exactly like 14 -> lower it"),
     ("carry", "info", "a `movable: true` prop is too big for a human to pick up (0.45 m^3 / 1.25 m) -> shrink it, or keep it shove-only on purpose"),
     ("drop", "warn", "walkable edge with a big fall and no railing (open stairwell) -> add a 1.05 m railing wall"),
