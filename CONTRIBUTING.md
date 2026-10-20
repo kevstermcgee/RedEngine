@@ -12,13 +12,20 @@ Chrono Clash as the example. Everything for one game lives in two folders, plus 
 |---|---|---|
 | `examples/chrono-clash/` | the game: its scenes (`speakeasy.json`, ...) and `README.md` (the first paragraph is the game's description on the site) | yes |
 | `pages/chrono-clash/` | its page on the site: `wiki.json`, the pictures it names (PNG or JPEG) and `thumb.png` (640 x 360, the picture on the site's list) | no |
-| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`, `"maintainer": "<your GitHub login>"`) | |
+| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`, `"maintainer": "<your GitHub login>"`, and for a fork `"forked_from"`) | |
 
 The page's fields and their rules are in [RedEngineGames `site/wiki.py`](https://github.com/kevstermcgee/RedEngineGames/blob/main/site/wiki.py): a tagline, an
 overview, the story, the goal, at least 3 rules, the controls, the characters (each with a picture), at least 3 gallery pictures of different moments, and the
 prompt that made the game (or `prompt_unavailable`, saying honestly that it was not recorded). `pages/chrono-clash/wiki.json` is a complete example.
 
 Stay inside your game's folders. An engine change is welcome in a **separate** pull request that says what the game needs and why.
+
+## A fork: someone's game, made your own
+
+`python3 scripts/games.py fork <slug> <your-slug> --name "Your Name"` copies a published game as its newest version shipped it (`<slug>@vN` for
+an older one) into a new game of yours, with its page marked `TODO(fork)` where it must say what you changed and the playable's
+`"forked_from"` naming where it came from (docs/GAMES_PUBLISHING.md, "Forking a game"). From there it is a new game like any other: the steps
+below, one pull request, and the site and the app show it in the original's family. The original's maintainer is not asked: the original is untouched.
 
 ## An update, step by step
 
