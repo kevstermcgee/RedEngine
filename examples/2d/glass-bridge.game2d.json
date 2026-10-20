@@ -1,0 +1,3440 @@
+{
+ "game2d": 1,
+ "id": "glass-bridge",
+ "title": "Glass Bridge",
+ "description": "A robot gardener launches itself like an arrow through glass strings in an empty park: ring every string at once for the loudest sound.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse"
+  ],
+  "persistence": [
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 320,
+  "height": 180,
+  "background": "#14221a",
+  "scale": "fit"
+ },
+ "icon": "robot",
+ "sprites": {
+  "robot": {
+   "rows": [
+    ".bb.b.bb.",
+    "..bbbbb..",
+    ".bwwbwwb.",
+    ".bwkbkwb.",
+    ".bbbbbbb.",
+    "gbbyyybbg",
+    ".bbbbbbb.",
+    "..b...b..",
+    ".kk...kk."
+   ],
+   "palette": {
+    "b": "#c9d3dc",
+    "w": "#ffffff",
+    "k": "#22303c",
+    "y": "#ffd23f",
+    "g": "#5fd36b"
+   }
+  },
+  "hedge": {
+   "rows": [
+    "gGgGggGGgg",
+    "GggGGggGgG",
+    "gGGggGgggG",
+    "ggGgGGGggg",
+    "GgGggGgGgG",
+    "gGgGgggGGg",
+    "GggGGgGggG",
+    "gGggGgGgGg",
+    "GgGgGGggGg",
+    "ggGGggGgGg"
+   ],
+   "palette": {
+    "g": "#2c7a3b",
+    "G": "#3da34e"
+   }
+  },
+  "spark": {
+   "rows": [
+    "..r..r..",
+    ".rorrorr",
+    "rrooooro",
+    ".rooyoor",
+    "rooyyoor",
+    ".roooorr",
+    "rrorroro",
+    "..r..r.."
+   ],
+   "palette": {
+    "r": "#e8403a",
+    "o": "#ff8a3d",
+    "y": "#fff3a0"
+   },
+   "fps": 6
+  }
+ },
+ "sounds": {
+  "launch": {
+   "seconds": 0.25,
+   "level": 0.5,
+   "layers": [
+    {
+     "sweep": [
+      300,
+      900,
+      6
+     ],
+     "decay": 9
+    },
+    {
+     "noise": "hp 0.5",
+     "decay": 22,
+     "gain": 0.3
+    }
+   ]
+  },
+  "thunk": {
+   "seconds": 0.15,
+   "level": 0.5,
+   "layers": [
+    {
+     "sine": 110,
+     "decay": 20,
+     "attack": 0.004,
+     "release": 0.05
+    },
+    {
+     "noise": "hp 0.3",
+     "decay": 30,
+     "gain": 0.25
+    }
+   ]
+  },
+  "zap": {
+   "seconds": 0.4,
+   "level": 0.5,
+   "layers": [
+    {
+     "sweep": [
+      900,
+      200,
+      5
+     ],
+     "decay": 7
+    },
+    {
+     "noise": "hp 0.4",
+     "decay": 14,
+     "gain": 0.4
+    }
+   ]
+  },
+  "reset": {
+   "seconds": 0.2,
+   "level": 0.4,
+   "layers": [
+    {
+     "sweep": [
+      500,
+      200,
+      6
+     ],
+     "decay": 10
+    }
+   ]
+  },
+  "chord": {
+   "seconds": 3.2,
+   "level": 0.95,
+   "layers": [
+    {
+     "sine": 262,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "sine": 294,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "sine": 330,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "sine": 392,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "sine": 440,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "sine": 523,
+     "harmonics": [
+      [
+       2.0,
+       0.3
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       2.76,
+       0.12
+      ]
+     ],
+     "decay": 1.1,
+     "gain": 0.5
+    },
+    {
+     "noise": "lp 0.5",
+     "decay": 6,
+     "gain": 0.35
+    },
+    {
+     "sine": 65,
+     "decay": 2.2,
+     "gain": 0.8
+    }
+   ]
+  },
+  "note0": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 262,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  },
+  "note1": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 294,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  },
+  "note2": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 330,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  },
+  "note3": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 392,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  },
+  "note4": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 440,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  },
+  "note5": {
+   "seconds": 1.6,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 523,
+     "harmonics": [
+      [
+       2.0,
+       0.35
+      ],
+      [
+       3.0,
+       0.15
+      ],
+      [
+       4.2,
+       0.07
+      ]
+     ],
+     "decay": 2.2
+    }
+   ]
+  }
+ },
+ "vars": {
+  "flying": 0,
+  "shots": 0,
+  "total": 0,
+  "plucks": 0,
+  "zaps": 0,
+  "won": 0,
+  "wt": 0,
+  "lvn": 1,
+  "best": 0
+ },
+ "persist": [
+  "best"
+ ],
+ "prefabs": {
+  "robot": {
+   "tag": "player",
+   "shape": {
+    "sprite": "robot"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 5,
+   "body": {
+    "type": "dynamic",
+    "gravity": 0,
+    "bounce": 0,
+    "friction": 0,
+    "drag": 0,
+    "max_fall": 900
+   },
+   "collide": [
+    "wall"
+   ]
+  },
+  "wall": {
+   "tag": "wall",
+   "shape": {
+    "sprite": "hedge"
+   },
+   "size": [
+    10,
+    10
+   ],
+   "body": {
+    "type": "static"
+   }
+  },
+  "spark": {
+   "tag": "spark",
+   "shape": {
+    "sprite": "spark"
+   },
+   "size": [
+    8,
+    8
+   ],
+   "layer": 4,
+   "emit": {
+    "rate": 5,
+    "life": [
+     0.3,
+     0.6
+    ],
+    "speed": [
+     4,
+     14
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#ff8a3d"
+   }
+  },
+  "sv0": {
+   "tag": [
+    "string",
+    "s0",
+    "sv0"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#7fe3ffbb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv0": {
+   "tag": [
+    "ring",
+    "r0"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#7fe3ff55"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#7fe3ff"
+   }
+  },
+  "sh0": {
+   "tag": [
+    "string",
+    "s0",
+    "sh0"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#7fe3ffbb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh0": {
+   "tag": [
+    "ring",
+    "r0"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#7fe3ff55"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#7fe3ff"
+   }
+  },
+  "sv1": {
+   "tag": [
+    "string",
+    "s1",
+    "sv1"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#9dffc4bb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv1": {
+   "tag": [
+    "ring",
+    "r1"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#9dffc455"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#9dffc4"
+   }
+  },
+  "sh1": {
+   "tag": [
+    "string",
+    "s1",
+    "sh1"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#9dffc4bb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh1": {
+   "tag": [
+    "ring",
+    "r1"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#9dffc455"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#9dffc4"
+   }
+  },
+  "sv2": {
+   "tag": [
+    "string",
+    "s2",
+    "sv2"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#fff08abb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv2": {
+   "tag": [
+    "ring",
+    "r2"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#fff08a55"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#fff08a"
+   }
+  },
+  "sh2": {
+   "tag": [
+    "string",
+    "s2",
+    "sh2"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#fff08abb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh2": {
+   "tag": [
+    "ring",
+    "r2"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#fff08a55"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#fff08a"
+   }
+  },
+  "sv3": {
+   "tag": [
+    "string",
+    "s3",
+    "sv3"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#ffb27abb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv3": {
+   "tag": [
+    "ring",
+    "r3"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#ffb27a55"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#ffb27a"
+   }
+  },
+  "sh3": {
+   "tag": [
+    "string",
+    "s3",
+    "sh3"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#ffb27abb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh3": {
+   "tag": [
+    "ring",
+    "r3"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#ffb27a55"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#ffb27a"
+   }
+  },
+  "sv4": {
+   "tag": [
+    "string",
+    "s4",
+    "sv4"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#ff8fc7bb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv4": {
+   "tag": [
+    "ring",
+    "r4"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#ff8fc755"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#ff8fc7"
+   }
+  },
+  "sh4": {
+   "tag": [
+    "string",
+    "s4",
+    "sh4"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#ff8fc7bb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh4": {
+   "tag": [
+    "ring",
+    "r4"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#ff8fc755"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#ff8fc7"
+   }
+  },
+  "sv5": {
+   "tag": [
+    "string",
+    "s5",
+    "sv5"
+   ],
+   "shape": {
+    "rect": [
+     3,
+     40
+    ],
+    "color": "#c9a6ffbb"
+   },
+   "size": [
+    3,
+    40
+   ],
+   "layer": 2
+  },
+  "rv5": {
+   "tag": [
+    "ring",
+    "r5"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     44
+    ],
+    "color": "#c9a6ff55"
+   },
+   "size": [
+    9,
+    44
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#c9a6ff"
+   }
+  },
+  "sh5": {
+   "tag": [
+    "string",
+    "s5",
+    "sh5"
+   ],
+   "shape": {
+    "rect": [
+     40,
+     3
+    ],
+    "color": "#c9a6ffbb"
+   },
+   "size": [
+    40,
+    3
+   ],
+   "layer": 2
+  },
+  "rh5": {
+   "tag": [
+    "ring",
+    "r5"
+   ],
+   "shape": {
+    "rect": [
+     44,
+     9
+    ],
+    "color": "#c9a6ff55"
+   },
+   "size": [
+    44,
+    9
+   ],
+   "layer": 3,
+   "ttl": 9.0,
+   "emit": {
+    "rate": 22,
+    "life": [
+     0.3,
+     0.7
+    ],
+    "speed": [
+     8,
+     26
+    ],
+    "angle": [
+     0,
+     360
+    ],
+    "color": "#c9a6ff"
+   }
+  }
+ },
+ "levels": [
+  {
+   "id": "1",
+   "scene": [
+    {
+     "prefab": "robot",
+     "at": [
+      35,
+      95
+     ],
+     "id": "p"
+    },
+    {
+     "prefab": "sv0",
+     "at": [
+      105,
+      100
+     ]
+    },
+    {
+     "prefab": "sv1",
+     "at": [
+      165,
+      100
+     ]
+    },
+    {
+     "prefab": "sv2",
+     "at": [
+      225,
+      100
+     ]
+    }
+   ],
+   "map": {
+    "tile": 10,
+    "origin": [
+     0,
+     20
+    ],
+    "rows": [
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "#..............................#",
+     "#..............................#",
+     "#..............................#",
+     "#..............................#",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################"
+    ],
+    "legend": {
+     "#": "wall"
+    }
+   },
+   "world": [
+    320,
+    180
+   ],
+   "background": "#14221a"
+  },
+  {
+   "id": "2",
+   "scene": [
+    {
+     "prefab": "robot",
+     "at": [
+      35,
+      95
+     ],
+     "id": "p"
+    },
+    {
+     "prefab": "sv0",
+     "at": [
+      85,
+      100
+     ]
+    },
+    {
+     "prefab": "sv1",
+     "at": [
+      145,
+      100
+     ]
+    },
+    {
+     "prefab": "sv2",
+     "at": [
+      205,
+      100
+     ]
+    },
+    {
+     "prefab": "sh3",
+     "at": [
+      280,
+      55
+     ]
+    }
+   ],
+   "map": {
+    "tile": 10,
+    "origin": [
+     0,
+     20
+    ],
+    "rows": [
+     "################################",
+     "##########################....##",
+     "##########################....##",
+     "##########################....##",
+     "##########################....##",
+     "##########################....##",
+     "#.............................##",
+     "#.............................##",
+     "#.............................##",
+     "#.............................##",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################",
+     "################################"
+    ],
+    "legend": {
+     "#": "wall"
+    }
+   },
+   "world": [
+    320,
+    180
+   ],
+   "background": "#14221a"
+  },
+  {
+   "id": "3",
+   "scene": [
+    {
+     "prefab": "robot",
+     "at": [
+      185,
+      95
+     ],
+     "id": "p"
+    },
+    {
+     "prefab": "sh0",
+     "at": [
+      190,
+      65
+     ]
+    },
+    {
+     "prefab": "sv1",
+     "at": [
+      75,
+      130
+     ]
+    },
+    {
+     "prefab": "sv2",
+     "at": [
+      115,
+      130
+     ]
+    },
+    {
+     "prefab": "sv3",
+     "at": [
+      35,
+      120
+     ]
+    }
+   ],
+   "map": {
+    "tile": 10,
+    "origin": [
+     0,
+     20
+    ],
+    "rows": [
+     "################################",
+     "#........................#.....#",
+     "#......##...#..................#",
+     "#..............................#",
+     "#.......#................#.....#",
+     "#....................#.........#",
+     "#....................#.........#",
+     "#......#.#.....................#",
+     "#.......#......................#",
+     "#...........#..............#.###",
+     "#...#...#....#.......#.........#",
+     "#..............................#",
+     "#.................#............#",
+     "#........#.................#...#",
+     "#.#.........#..................#",
+     "################################"
+    ],
+    "legend": {
+     "#": "wall"
+    }
+   },
+   "world": [
+    320,
+    180
+   ],
+   "background": "#14221a"
+  },
+  {
+   "id": "4",
+   "scene": [
+    {
+     "prefab": "robot",
+     "at": [
+      205,
+      95
+     ],
+     "id": "p"
+    },
+    {
+     "prefab": "sv0",
+     "at": [
+      75,
+      70
+     ]
+    },
+    {
+     "prefab": "sv1",
+     "at": [
+      245,
+      100
+     ]
+    },
+    {
+     "prefab": "sh2",
+     "at": [
+      290,
+      85
+     ]
+    },
+    {
+     "prefab": "sh3",
+     "at": [
+      60,
+      115
+     ]
+    },
+    {
+     "prefab": "sh4",
+     "at": [
+      90,
+      165
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      25,
+      135
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      45,
+      135
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      305,
+      145
+     ]
+    }
+   ],
+   "map": {
+    "tile": 10,
+    "origin": [
+     0,
+     20
+    ],
+    "rows": [
+     "################################",
+     "#.....#........................#",
+     "#.................#............#",
+     "#..............................#",
+     "#..........#................#..#",
+     "#..#.................#..#....#.#",
+     "#............#.....#..#........#",
+     "#..........#...................#",
+     "#...........#............#..#..#",
+     "#..............#.##............#",
+     "#..#..............#.....#......#",
+     "#.......................#......#",
+     "#....#..#......................#",
+     "#..............................#",
+     "#.......................#..#.#.#",
+     "################################"
+    ],
+    "legend": {
+     "#": "wall"
+    }
+   },
+   "world": [
+    320,
+    180
+   ],
+   "background": "#14221a"
+  },
+  {
+   "id": "5",
+   "scene": [
+    {
+     "prefab": "robot",
+     "at": [
+      135,
+      105
+     ],
+     "id": "p"
+    },
+    {
+     "prefab": "sh0",
+     "at": [
+      290,
+      165
+     ]
+    },
+    {
+     "prefab": "sh1",
+     "at": [
+      290,
+      145
+     ]
+    },
+    {
+     "prefab": "sh2",
+     "at": [
+      230,
+      165
+     ]
+    },
+    {
+     "prefab": "sh3",
+     "at": [
+      90,
+      45
+     ]
+    },
+    {
+     "prefab": "sv4",
+     "at": [
+      145,
+      120
+     ]
+    },
+    {
+     "prefab": "sv5",
+     "at": [
+      25,
+      60
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      65,
+      95
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      75,
+      125
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      135,
+      55
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      185,
+      165
+     ]
+    },
+    {
+     "prefab": "spark",
+     "at": [
+      215,
+      95
+     ]
+    }
+   ],
+   "map": {
+    "tile": 10,
+    "origin": [
+     0,
+     20
+    ],
+    "rows": [
+     "################################",
+     "#....#........................##",
+     "#..............................#",
+     "#....#.........................#",
+     "#..#....................#......#",
+     "##..#...............#......#...#",
+     "#.#....#..............#.....#..#",
+     "##..#..........................#",
+     "#..#................#..........#",
+     "#...............#...#..........#",
+     "#......................#.#.....#",
+     "#..............................#",
+     "#.....#........#...............#",
+     "#..............................#",
+     "#......#.......................#",
+     "################################"
+    ],
+    "legend": {
+     "#": "wall"
+    }
+   },
+   "world": [
+    320,
+    180
+   ],
+   "background": "#14221a"
+  }
+ ],
+ "effects": {
+  "record": {
+   "do": [
+    {
+     "set": [
+      "best",
+      "(best == 0 || total < best) * total + (best != 0 && total >= best) * best"
+     ]
+    },
+    {
+     "save": true
+    }
+   ]
+  }
+ },
+ "ui": [
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     320,
+     20
+    ],
+    "color": "#0b140fee"
+   }
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     169
+    ],
+    "size": [
+     320,
+     11
+    ],
+    "color": "#0b140fee"
+   }
+  },
+  {
+   "text": "RING EVERY STRING AT ONCE!",
+   "at": [
+    4,
+    2
+   ],
+   "color": "#ffffff"
+  },
+  {
+   "text": "RINGING {count_ring} / {count_string}",
+   "at": [
+    316,
+    2
+   ],
+   "color": "#fff08a",
+   "align": "right"
+  },
+  {
+   "text": "LEVEL {lvn} of 5",
+   "at": [
+    4,
+    172
+   ],
+   "color": "#7fe3ff"
+  },
+  {
+   "text": "SHOTS {shots}",
+   "at": [
+    84,
+    172
+   ],
+   "color": "#c9d3dc"
+  },
+  {
+   "text": "BEST {best}",
+   "at": [
+    130,
+    172
+   ],
+   "color": "#c9d3dc",
+   "show": "best > 0"
+  },
+  {
+   "text": "ARROWS: fly    R: start over",
+   "at": [
+    316,
+    172
+   ],
+   "color": "#c9ffd0",
+   "align": "right"
+  },
+  {
+   "button": {
+    "id": "reset",
+    "label": "",
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     1,
+     1
+    ],
+    "key": "KeyR",
+    "do": [
+     {
+      "emit": "reset"
+     }
+    ]
+   }
+  },
+  {
+   "text": "Press the RIGHT ARROW: fly through the strings!",
+   "at": [
+    4,
+    11
+   ],
+   "color": "#d6e4ff",
+   "show": "level == 0 && won == 0"
+  },
+  {
+   "text": "You fly until a hedge stops you. Then fly again!",
+   "at": [
+    4,
+    11
+   ],
+   "color": "#d6e4ff",
+   "show": "level == 1 && won == 0"
+  },
+  {
+   "text": "Plan your shots, then ring them all together.",
+   "at": [
+    4,
+    11
+   ],
+   "color": "#d6e4ff",
+   "show": "level == 2 && won == 0"
+  },
+  {
+   "text": "Sparks send you back to the start. Avoid them!",
+   "at": [
+    4,
+    11
+   ],
+   "color": "#d6e4ff",
+   "show": "level == 3 && won == 0"
+  },
+  {
+   "text": "Last one: six strings. Make the loudest sound!",
+   "at": [
+    4,
+    11
+   ],
+   "color": "#d6e4ff",
+   "show": "level == 4 && won == 0"
+  },
+  {
+   "text": "GLASS BRIDGE",
+   "at": [
+    160,
+    40
+   ],
+   "color": "#9dffc4",
+   "scale": 2,
+   "align": "center",
+   "show": "level == 0 && shots == 0"
+  },
+  {
+   "text": "LOUDEST SOUND!",
+   "at": [
+    160,
+    80
+   ],
+   "color": "#fff3a0",
+   "scale": 2,
+   "align": "center",
+   "show": "won > 0"
+  }
+ ],
+ "rules": [
+  {
+   "id": "launch left",
+   "when": {
+    "press": "left"
+   },
+   "if": "flying == 0 && won == 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       -230,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      1
+     ]
+    },
+    {
+     "add": [
+      "shots",
+      1
+     ]
+    },
+    {
+     "add": [
+      "total",
+      1
+     ]
+    },
+    {
+     "play": "launch"
+    }
+   ]
+  },
+  {
+   "id": "launch right",
+   "when": {
+    "press": "right"
+   },
+   "if": "flying == 0 && won == 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       230,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      1
+     ]
+    },
+    {
+     "add": [
+      "shots",
+      1
+     ]
+    },
+    {
+     "add": [
+      "total",
+      1
+     ]
+    },
+    {
+     "play": "launch"
+    }
+   ]
+  },
+  {
+   "id": "launch up",
+   "when": {
+    "press": "up"
+   },
+   "if": "flying == 0 && won == 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       -230
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      1
+     ]
+    },
+    {
+     "add": [
+      "shots",
+      1
+     ]
+    },
+    {
+     "add": [
+      "total",
+      1
+     ]
+    },
+    {
+     "play": "launch"
+    }
+   ]
+  },
+  {
+   "id": "launch down",
+   "when": {
+    "press": "down"
+   },
+   "if": "flying == 0 && won == 0",
+   "do": [
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       230
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      1
+     ]
+    },
+    {
+     "add": [
+      "shots",
+      1
+     ]
+    },
+    {
+     "add": [
+      "total",
+      1
+     ]
+    },
+    {
+     "play": "launch"
+    }
+   ]
+  },
+  {
+   "id": "stop at hedge",
+   "when": {
+    "hit": [
+     "player",
+     "wall"
+    ]
+   },
+   "do": [
+    {
+     "velocity": {
+      "target": "self",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "play": "thunk"
+    },
+    {
+     "shake": 1
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "floor(self_x / 10) * 10 + 5",
+       "floor((self_y - 20) / 10) * 10 + 25"
+      ]
+     }
+    },
+    {
+     "burst": {
+      "at": "self",
+      "n": 5,
+      "color": "#8fd694",
+      "speed": [
+       10,
+       40
+      ],
+      "life": [
+       0.2,
+       0.4
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck C v",
+   "when": {
+    "touch": [
+     "player",
+     "sv0"
+    ]
+   },
+   "if": "count_r0 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv0",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note0"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#7fe3ff",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck C h",
+   "when": {
+    "touch": [
+     "player",
+     "sh0"
+    ]
+   },
+   "if": "count_r0 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh0",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note0"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#7fe3ff",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck D v",
+   "when": {
+    "touch": [
+     "player",
+     "sv1"
+    ]
+   },
+   "if": "count_r1 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv1",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note1"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#9dffc4",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck D h",
+   "when": {
+    "touch": [
+     "player",
+     "sh1"
+    ]
+   },
+   "if": "count_r1 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh1",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note1"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#9dffc4",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck E v",
+   "when": {
+    "touch": [
+     "player",
+     "sv2"
+    ]
+   },
+   "if": "count_r2 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv2",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note2"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#fff08a",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck E h",
+   "when": {
+    "touch": [
+     "player",
+     "sh2"
+    ]
+   },
+   "if": "count_r2 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh2",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note2"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#fff08a",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck G v",
+   "when": {
+    "touch": [
+     "player",
+     "sv3"
+    ]
+   },
+   "if": "count_r3 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv3",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note3"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#ffb27a",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck G h",
+   "when": {
+    "touch": [
+     "player",
+     "sh3"
+    ]
+   },
+   "if": "count_r3 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh3",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note3"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#ffb27a",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck A v",
+   "when": {
+    "touch": [
+     "player",
+     "sv4"
+    ]
+   },
+   "if": "count_r4 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv4",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note4"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#ff8fc7",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck A h",
+   "when": {
+    "touch": [
+     "player",
+     "sh4"
+    ]
+   },
+   "if": "count_r4 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh4",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note4"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#ff8fc7",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck high C v",
+   "when": {
+    "touch": [
+     "player",
+     "sv5"
+    ]
+   },
+   "if": "count_r5 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rv5",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note5"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#c9a6ff",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pluck high C h",
+   "when": {
+    "touch": [
+     "player",
+     "sh5"
+    ]
+   },
+   "if": "count_r5 == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "rh5",
+      "at": "other"
+     }
+    },
+    {
+     "play": "note5"
+    },
+    {
+     "add": [
+      "plucks",
+      1
+     ]
+    },
+    {
+     "burst": {
+      "at": "other",
+      "n": 10,
+      "color": "#c9a6ff",
+      "speed": [
+       20,
+       70
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "level number",
+   "when": {
+    "every": 0.05
+   },
+   "do": [
+    {
+     "set": [
+      "lvn",
+      "level + 1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "loudest",
+   "when": {
+    "every": 0.05
+   },
+   "if": "count_string > 0 && count_ring >= count_string && won == 0",
+   "do": [
+    {
+     "set": [
+      "won",
+      1
+     ]
+    },
+    {
+     "set": [
+      "wt",
+      "time"
+     ]
+    },
+    {
+     "play": "chord"
+    },
+    {
+     "shake": 7
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "burst": {
+      "at": [
+       160,
+       100
+      ],
+      "n": 60,
+      "color": "#fff3a0",
+      "speed": [
+       40,
+       160
+      ],
+      "life": [
+       0.6,
+       1.4
+      ],
+      "size": 2
+     }
+    }
+   ]
+  },
+  {
+   "id": "next level",
+   "when": {
+    "every": 0.05
+   },
+   "if": "won == 1 && time - wt > 1.8 && level < 4",
+   "do": [
+    {
+     "set": [
+      "won",
+      0
+     ]
+    },
+    {
+     "set": [
+      "shots",
+      0
+     ]
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "level": "level + 1"
+    }
+   ]
+  },
+  {
+   "id": "the end",
+   "when": {
+    "every": 0.05
+   },
+   "if": "won == 1 && time - wt > 2.2 && level == 4",
+   "do": [
+    {
+     "set": [
+      "won",
+      2
+     ]
+    },
+    {
+     "apply": "record"
+    },
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "reset",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0",
+   "do": [
+    {
+     "destroy": "tag:ring"
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "play": "reset"
+    }
+   ]
+  },
+  {
+   "id": "reset home 1",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0 && level == 0",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       35,
+       95
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "reset home 2",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0 && level == 1",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       35,
+       95
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "reset home 3",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0 && level == 2",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       185,
+       95
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "reset home 4",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0 && level == 3",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       205,
+       95
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "spark 4",
+   "when": {
+    "touch": [
+     "player",
+     "spark"
+    ]
+   },
+   "if": "level == 3 && won == 0",
+   "do": [
+    {
+     "destroy": "tag:ring"
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "add": [
+      "zaps",
+      1
+     ]
+    },
+    {
+     "play": "zap"
+    },
+    {
+     "shake": 4
+    },
+    {
+     "burst": {
+      "at": "self",
+      "n": 24,
+      "color": "#ff8a3d",
+      "speed": [
+       30,
+       110
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       205,
+       95
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "reset home 5",
+   "when": {
+    "event": "reset"
+   },
+   "if": "won == 0 && level == 4",
+   "do": [
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       135,
+       105
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "spark 5",
+   "when": {
+    "touch": [
+     "player",
+     "spark"
+    ]
+   },
+   "if": "level == 4 && won == 0",
+   "do": [
+    {
+     "destroy": "tag:ring"
+    },
+    {
+     "velocity": {
+      "target": "id:p",
+      "v": [
+       0,
+       0
+      ]
+     }
+    },
+    {
+     "set": [
+      "flying",
+      0
+     ]
+    },
+    {
+     "add": [
+      "zaps",
+      1
+     ]
+    },
+    {
+     "play": "zap"
+    },
+    {
+     "shake": 4
+    },
+    {
+     "burst": {
+      "at": "self",
+      "n": 24,
+      "color": "#ff8a3d",
+      "speed": [
+       30,
+       110
+      ],
+      "life": [
+       0.3,
+       0.7
+      ]
+     }
+    },
+    {
+     "teleport": {
+      "target": "id:p",
+      "to": [
+       135,
+       105
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "launch: one arrow shot rings all three strings",
+    "seed": 1,
+    "max_seconds": 10,
+    "level": "1",
+    "script": [
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     }
+    ],
+    "expect": [
+     {
+      "var": "plucks",
+      "gte": 3
+     },
+     {
+      "var": "shots",
+      "eq": 1
+     },
+     {
+      "var": "won",
+      "eq": 1
+     },
+     {
+      "sound": "chord",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "level 2: 2 shots ring every string at once",
+    "seed": 1,
+    "max_seconds": 30,
+    "level": "2",
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     }
+    ],
+    "expect": [
+     {
+      "var": "won",
+      "gte": 1
+     },
+     {
+      "sound": "chord",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "level 3: 3 shots ring every string at once",
+    "seed": 1,
+    "max_seconds": 30,
+    "level": "3",
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     }
+    ],
+    "expect": [
+     {
+      "var": "won",
+      "gte": 1
+     },
+     {
+      "sound": "chord",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "level 4: 4 shots ring every string at once",
+    "seed": 1,
+    "max_seconds": 30,
+    "level": "4",
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     }
+    ],
+    "expect": [
+     {
+      "var": "won",
+      "gte": 1
+     },
+     {
+      "sound": "chord",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "level 5: 5 shots ring every string at once",
+    "seed": 1,
+    "max_seconds": 30,
+    "level": "5",
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     }
+    ],
+    "expect": [
+     {
+      "var": "won",
+      "gte": 1
+     },
+     {
+      "sound": "chord",
+      "min": 1
+     }
+    ]
+   },
+   {
+    "name": "half the strings is not the loudest sound",
+    "seed": 1,
+    "max_seconds": 10,
+    "level": "2",
+    "script": [
+     {
+      "press": "right"
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 0.3
+     }
+    ],
+    "expect": [
+     {
+      "var": "plucks",
+      "eq": 3
+     },
+     {
+      "var": "won",
+      "eq": 0
+     },
+     {
+      "not_ended": true
+     }
+    ]
+   },
+   {
+    "name": "all five levels to the final chord",
+    "seed": 1,
+    "max_seconds": 120,
+    "smoke": true,
+    "script": [
+     {
+      "wait": 0.1
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 4.5
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 4.5
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 4.5
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 4.5
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "down"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "up"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.1
+     },
+     {
+      "wait_until": {
+       "var": "flying",
+       "eq": 0
+      },
+      "timeout": 4
+     },
+     {
+      "wait": 4.5
+     }
+    ],
+    "expect": [
+     {
+      "ended": "win"
+     },
+     {
+      "var": "best",
+      "gt": 0
+     }
+    ]
+   }
+  ]
+ }
+}
