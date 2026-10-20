@@ -38,6 +38,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
 - Earlier milestones (hardening #74-#84, CI wall-clock #97, content formats #100-#106, agent loop #102-#105, aimed fields #115, the games) are in git and
   `docs/analysis/`.
 - 2026-10-19: RedCraft (games/redcraft): a Minecraft-like block game on the game-mode and world-layer seams, with seven small engine seams (ADR 2026-10-19-a-block-game-rides-on-the-mode-and-layer-seams); publishing waits on RedEngineGames PR #7
+- 2026-10-20: Collaboration loop (owner brief 2026-10-20): two equal maintainers (contributors.json maintainers, docs/COLLABORATING.md, ADR 2026-10-20-redengine-has-two-equal-maintainers-and-one-loop), one feedback inbox (scripts/feedback.py, docs/feedback/; #207), forks with families (scripts/games.py; #208; RedEngineGames #21), the daily improver landing PRs that merge on green (scripts/daily_improve.py; #209), Claude Code skills make-game/update-game/fork-game/engine-feedback/inbox
 
 ## Next
 - Phase 2 after the items in Now: (2) a fall-out height, (3) rules that change movement, gravity and scale, and a body swap, (4) 3D string tables, (5) 3D
@@ -53,6 +54,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
   `sim --json --inspect` returning the whole 14 KB result.
 - Simplification S7 (offline `re2` through MatchSim/LocalSession): parked; it needs a design and a parity plan.
 - CI growth from generated games: proposals 2-4 of `docs/analysis/2026-10-09-engine-ci-growth.md` are not built.
+- 2026-10-20: Install the daily improver on the box after #209 merges (python3 scripts/daily_improve.py install); first real night is its test. Windows CLI prebuilt for the second maintainer's AI (key no-windows-cli-prebuilt).
 
 ## Failing / blocked
 - Nothing failing on main: CI, Release (Linux binaries) and Publish games passed at c4860ce (2026-10-16).
