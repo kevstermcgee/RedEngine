@@ -50,7 +50,8 @@ class Decide(unittest.TestCase):
 
     def test_running_checks_wait_and_no_checks_never_count_as_green(self):
         self.assertEqual(di.decide(pr(checks=RUNNING), "engine", True, "2026-10-21")[0], "wait")
-        self.assertEqual(di.decide(pr(checks=[]), "engine", True, "2026-10-21")[0], "wait")
+        self.assertEqual(di.decide(pr(checks=[]), "engine", True, "2026-10-20")[0], "wait")
+        self.assertEqual(di.decide(pr(checks=[]), "games", True, "2026-10-21"), ("hold", "no hosted check ran on it (nothing it changed has one): a maintainer merges it"))
 
     def test_failed_or_conflicting_waits_for_a_maintainer_then_is_closed_when_stale(self):
         self.assertEqual(di.decide(pr(checks=RED), "engine", True, "2026-10-21")[0], "hold")

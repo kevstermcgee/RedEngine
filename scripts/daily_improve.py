@@ -172,6 +172,8 @@ def decide(pr, kind, merge_on, today, manifest=None):
         return ("close", f"draft for {age} days") if age >= STALE_DAYS else ("hold", "a draft: its local checks failed")
     if verdict == "failed":
         return ("close", f"its checks failed and it has waited {age} days") if age >= STALE_DAYS else ("hold", "its checks failed")
+    if verdict == "pending" and not (pr.get("statusCheckRollup") or []) and age >= 1:
+        return "hold", "no hosted check ran on it (nothing it changed has one): a maintainer merges it"
     if verdict == "pending":
         return "wait", "its checks are still running"
     if pr.get("mergeable") == "CONFLICTING":
