@@ -1,0 +1,84 @@
+{
+ "bpm": 60,
+ "beats": 4,
+ "bars": 8,
+ "key": "C",
+ "scale": "minor_pentatonic",
+ "seed": 21,
+ "lufs": -26,
+ "reverb": {
+  "decay": 4,
+  "size": 1.2,
+  "damp": 0.5,
+  "predelay": 0.02,
+  "mix": 0.4
+ },
+ "instruments": {
+  "tock": {
+   "seconds": 0.5,
+   "level": 0.4,
+   "layers": [
+    {
+     "sine": 1,
+     "decay": 18
+    },
+    {
+     "sine": 2.01,
+     "decay": 25,
+     "gain": 0.3
+    }
+   ]
+  },
+  "pad": {
+   "seconds": 6,
+   "level": 0.4,
+   "layers": [
+    {
+     "sine": 1,
+     "attack": 1.2,
+     "release": 2.5
+    },
+    {
+     "sine": 1.005,
+     "attack": 1.2,
+     "release": 2.5,
+     "gain": 0.7
+    },
+    {
+     "sine": 2,
+     "attack": 1.5,
+     "release": 2.5,
+     "gain": 0.2
+    }
+   ]
+  }
+ },
+ "tracks": [
+  {
+   "inst": "tock",
+   "play": "pattern",
+   "pattern": "x... x... x... x...",
+   "notes": "5 1",
+   "octave": 4,
+   "gain": 0.8
+  },
+  {
+   "inst": "pad",
+   "play": "chords",
+   "chords": "i VI iv v",
+   "every": "2 bars",
+   "octave": 2,
+   "gain": 0.8,
+   "send": 0.5
+  },
+  {
+   "inst": "tock",
+   "play": "pattern",
+   "pattern": ".... ..x. .... ....",
+   "notes": "3 5 8",
+   "octave": 5,
+   "gain": 0.3,
+   "pan": "spread"
+  }
+ ]
+}

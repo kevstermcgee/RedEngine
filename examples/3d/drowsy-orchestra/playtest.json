@@ -1,0 +1,8 @@
+{"policy": "idle", "steps": [
+ {"wait": 0.5}, {"shot": "01-start-card", "camera": "first"},
+ {"press": "start"}, {"wait": 0.5}, {"look": {"yaw": 0, "pitch": 0}}, {"shot": "02-chamber-1", "camera": "first"},
+ {"interact": "tile_1_MELT"}, {"wait": 0.8}, {"shot": "03-melted", "camera": "first"},
+ {"hold": ["forward"], "secs": 3.5}, {"wait": 0.3}, {"shot": "04-chamber-2", "camera": "first"},
+ {"wait": 10}, {"shot": "05-bell", "camera": "first"},
+ {"shot": "06-overview", "camera": "overview"}
+]}

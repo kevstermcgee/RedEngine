@@ -1,0 +1,49 @@
+{
+ "bpm": 30,
+ "beats": 4,
+ "bars": 2,
+ "key": "C",
+ "scale": "minor_pentatonic",
+ "seed": 3,
+ "lufs": -24,
+ "reverb": {
+  "decay": 3,
+  "size": 1.0,
+  "damp": 0.4,
+  "predelay": 0.02,
+  "mix": 0.3
+ },
+ "instruments": {
+  "bell": {
+   "seconds": 4,
+   "level": 0.6,
+   "layers": [
+    {
+     "sine": 1,
+     "harmonics": [
+      [
+       2.76,
+       0.5
+      ],
+      [
+       5.4,
+       0.3
+      ]
+     ],
+     "decay": 1.1,
+     "release": 1.0
+    }
+   ]
+  }
+ },
+ "tracks": [
+  {
+   "inst": "bell",
+   "play": "pattern",
+   "pattern": "x... .... .... ....",
+   "notes": "1",
+   "octave": 4,
+   "gain": 0.9
+  }
+ ]
+}
