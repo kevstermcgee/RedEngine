@@ -119,6 +119,30 @@ class Pull(unittest.TestCase):
         self.assertIn("1 review is hidden", open(pr.files(self.root)["summary"], encoding="utf-8").read())
         self.assertFalse(pr.build(self.root), "an unchanged record rewrites nothing (the workflow commits only real changes)")
 
+    def test_engine_notes_are_kept_apart_from_reviews_and_shown(self):
+        note = lambda **kw: {"v": 1, "about": "engine", "kind": "bug", "text": "The gamepad stops after alt-tab in every game.", "name": " Cuz ", "source": "app"} | kw
+        n = self.pull([msg("n1", note()), msg("n2", note(kind="rant")), msg("n3", note(text="short")), msg("n4", note(text="see www.spam.com for more help")),
+                       msg("n5", note()), msg("r1", review())])
+        self.assertEqual(n, 2, "one note and one review")
+        self.assertEqual([r["id"] for r in self.rows()], ["r1"], "a note is never a review")
+        [row] = pr.load_rows(pr.files(self.root), "notes")
+        self.assertEqual((row["kind"], row["name"], row["source"], row["received"]), ("bug", "Cuz", "app", "2026-10-18T05:06:40Z"))
+        engine = self.public()["engine"]
+        self.assertEqual((engine["count"], engine["notes"][0]["text"], engine["notes"][0]["date"]), (1, "The gamepad stops after alt-tab in every game.", "2026-10-18"))
+        self.assertTrue(any("n2: unknown kind" in l for l in self.log) and any("n5: duplicate" in l for l in self.log), self.log)
+        summary = open(pr.files(self.root)["summary"], encoding="utf-8").read()
+        self.assertIn("1 note about the engine itself (0 tip, 0 idea, 1 bug, 0 other)", summary)
+        self.assertNotIn("alt-tab", summary, "SUMMARY.md keeps no player's text")
+        self.assertEqual(self.pull([msg("n1", note())]), 0, "kept once")
+        with open(pr.files(self.root)["hidden"], "w") as fh:
+            fh.write("n1 # test\n")
+        pr.build(self.root)
+        self.assertEqual(self.public()["engine"], {"count": 0, "notes": []}, "hidden.txt hides notes too")
+
+    def test_at_most_a_few_engine_notes_are_kept_a_day(self):
+        note = lambda i: {"v": 1, "about": "engine", "kind": "idea", "text": f"Idea number {i} for the engine."}
+        self.assertEqual(self.pull([msg(f"n{i}", note(i), t=1792300000 + i) for i in range(pr.MAX_NOTES_PER_DAY + 3)]), pr.MAX_NOTES_PER_DAY)
+
     def test_the_idea_forge_hears_the_best_and_worst_liked_games(self):
         self.assertEqual(pr.players_section(self.root), "")
         self.pull([msg("p1", review(score=9, liked="Clever `swap`\nidea", disliked="")), msg("p2", review(game="honeybound", score=3, liked="", disliked="Too hard " * 40))])
