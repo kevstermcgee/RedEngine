@@ -54,6 +54,17 @@ class SafeToMerge(unittest.TestCase):
     def test_a_new_game_with_its_page(self):
         self.assertEqual(run(with_snake(), SNAKE_FILES), ([], ["snake"]))
 
+    def test_a_fork_of_someone_elses_game_is_a_new_game_of_their_own(self):
+        # scripts/games.py fork: a new slug, its own source and page, and where it came from; the original is untouched.
+        changed = [("added", "examples/2d/neon-snake.game2d.json", None), ("added", "pages/neon-snake/wiki.json", None), ("added", "pages/neon-snake/thumb.png", None),
+                   ("modified", "games-publish.json", None)]
+        head = copy.deepcopy(MAIN)
+        head["collections"]["games"].append({"source": "examples/2d/neon-snake.game2d.json", "destination": "neon-snake"})
+        head["playables"].append({**SNAKE, "slug": "neon-snake", "name": "Neon Snake", "entry": "games/neon-snake/neon-snake.game2d.json", "files": ["games/neon-snake"],
+                                  "arguments": ["content/games/neon-snake/neon-snake.game2d.json"], "page": "pages/neon-snake",
+                                  "forked_from": {"slug": "prop-hunt-yard", "version": 3}})
+        self.assertEqual(run(head, changed), ([], ["neon-snake"]))
+
     def test_an_update_to_their_own_game_a_new_map_and_a_new_picture(self):
         changed = [("modified", "examples/chrono-clash/speakeasy.json", None), ("added", "examples/chrono-clash/colosseum.json", None),
                    ("modified", "examples/chrono-clash/README.md", None), ("added", "pages/chrono-clash/g6.jpg", None), ("modified", "pages/chrono-clash/wiki.json", None)]
