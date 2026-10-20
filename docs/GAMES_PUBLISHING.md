@@ -65,6 +65,26 @@ A playable's `files` must hold everything its scene names: the score files of it
 music, so `cargo test` fails (`tools::publish_check`, test `every_published_playable_ships_everything_its_scene_needs`) and names the playable, the file and the fix. A scene that
 names a score that does not exist, or a file that is not a score, does not load at all.
 
+## Forking a game
+
+Any game on the site can be taken as one of its versions shipped it and made into a game of its own, which remembers where it came from:
+
+```text
+python3 scripts/games.py fork snake neon-snake --name "Neon Snake"          # or snake@v1 for an older version
+python3 scripts/games.py tree snake                                         # its family: ancestors, forks, forks of forks
+```
+
+`fork` reads the version from the site's catalog, takes its files from RedEngineGames at the commit that version was released from (so the fork
+starts from exactly what players played) and writes a new game here: `examples/2d/<new>.game2d.json` (with its generator folder, renamed, when the
+original had one) or `examples/<new>/`, the page in `pages/<new>/`, and the playable, whose `"maintainer"` is you and whose
+`"forked_from": {"slug": "snake", "version": 1}` records the parent. A 2D fork gets its own `id` (saves are filed under it) and title, renamed as
+whole strings in the game and its generator alike, so a generator that wrote the original byte for byte writes the fork byte for byte. The page is
+the original's with what must change marked `TODO(fork)` (tagline, overview, the prompt you used); the publisher refuses to publish a file that still
+says `TODO(fork)`, and a `forked_from` that names a game nobody publishes. Then the fork travels like any game (`CONTRIBUTING.md`): one pull
+request, a safe-to-merge check when it is your own, and its releases `<new>-v1`, `-v2`... RedEngineGames records the parent in every release of
+the fork and the site and the app show each game's family. A game that plays with its own client (`binary`, engine code) or was uploaded
+ready-made (no source) is not forked by this tool.
+
 ## Saved progress
 
 A project's settings and saved variables are filed under the `id` in its `game.json` (`new-game` writes one), so they follow the game when it is unpacked into another folder or updated. A project without an `id` is filed under its name and folder, as before; when you add one, the engine copies what the old place held to the new one once. Installed games also set `RE2_SAVE_DIR` (`Saved Games\<game>`), which names the folder outright.

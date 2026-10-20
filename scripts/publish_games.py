@@ -103,6 +103,13 @@ def load_manifest(root: Path) -> dict:
             raise PublishError(f"playables[{index}].arguments must be an array of single-line strings")
         if "page" in playable:
             safe_relative(playable["page"], f"playables[{index}].page")
+        forked_from = playable.get("forked_from")
+        if forked_from is not None and not (
+            isinstance(forked_from, dict) and set(forked_from) == {"slug", "version"} and isinstance(forked_from["slug"], str)
+            and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", forked_from["slug"]) and forked_from["slug"] != slug
+            and isinstance(forked_from["version"], int) and not isinstance(forked_from["version"], bool) and forked_from["version"] >= 1
+        ):
+            raise PublishError(f"playables[{index}].forked_from must be {{\"slug\": <the game it came from>, \"version\": <its version, 1 or more>}} (scripts/games.py fork)")
         maintainer = playable.get("maintainer")
         if maintainer is not None and (not isinstance(maintainer, str) or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", maintainer)):
             raise PublishError(f"playables[{index}].maintainer must be the GitHub login of the game's maintainer (scripts/contributed_games.py)")
@@ -292,6 +299,37 @@ def page_problems(staging: Path, catalog: dict, games_repo: Path) -> list[str]:
     return out
 
 
+FORK_TODO = "TODO(fork)"
+
+
+def fork_problems(staging: Path, catalog: dict, games_repo: Path | None) -> list[str]:
+    """A fork that is not finished (`scripts/games.py fork` marks what must change `TODO(fork)`), or that names a parent no one publishes."""
+    out = []
+    for path in sorted(staging.rglob("*")):
+        if path.is_file() and path.suffix.lower() in (".json", ".md", ".txt") and FORK_TODO in path.read_text(encoding="utf-8", errors="replace"):
+            out.append(f"{path.relative_to(staging).as_posix()} still says {FORK_TODO}: write what the fork is (its page, its README) before it is published")
+    known = {p["slug"] for p in catalog["playables"]}
+    if games_repo is not None:
+        for name, key in ((".games-catalog.json", "playables"), (".release-games.json", "data_playables")):
+            try:
+                known |= {p.get("slug") for p in json.loads((games_repo / name).read_text(encoding="utf-8")).get(key, [])}
+            except (OSError, json.JSONDecodeError):
+                pass
+        if (games_repo / "site" / "wiki").is_dir():
+            known |= {d.name for d in (games_repo / "site" / "wiki").iterdir() if d.is_dir()}
+    for playable in catalog["playables"]:
+        parent = (playable.get("forked_from") or {}).get("slug")
+        if parent and games_repo is not None and parent not in known:
+            out.append(f"{playable['slug']}: forked_from `{parent}`, which neither this manifest nor RedEngineGames publishes")
+    return out
+
+
+def checked_forks(staging: Path, catalog: dict, games_repo: Path | None) -> None:
+    problems = fork_problems(staging, catalog, games_repo)
+    if problems:
+        raise PublishError("forks that are not ready to publish (scripts/games.py fork):\n  " + "\n  ".join(problems))
+
+
 def checked_pages(staging: Path, catalog: dict, games_repo: Path | None) -> None:
     if games_repo is None:
         return
@@ -320,6 +358,7 @@ def publish(root: Path, output: Path, revision: str) -> dict:
         staging = Path(temp)
         catalog = export_tree(root, staging, manifest, revision)
         checked_pages(staging, catalog, output if (output / "site" / "wiki.py").is_file() else None)
+        checked_forks(staging, catalog, output if (output / "site" / "wiki.py").is_file() else None)
         new_paths = {item["path"] for item in catalog["files"]}
         for relative in sorted(previously_published(output) - new_paths):
             path = output / relative
@@ -342,6 +381,7 @@ def check(root: Path, revision: str, games_repo: Path | None = None) -> dict:
     with tempfile.TemporaryDirectory(prefix="games-publish-check-") as temp:
         catalog = export_tree(root, Path(temp), manifest, revision)
         checked_pages(Path(temp), catalog, games_repo)
+        checked_forks(Path(temp), catalog, games_repo)
         return catalog
 
 
