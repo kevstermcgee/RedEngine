@@ -445,7 +445,8 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
             },
         ));
     }
-    // Saved progress survives a round trip.
+    // Saved progress survives a round trip: the save format writes and reads back every persisted value. The game's own `loaded` rules run after that and
+    // may fairly change a value (Snake resets an out-of-range background to its first): reported, not failed.
     if !def.persist.is_empty() || def.caps.persistence.contains(&crate::caps::Persistence::Settings) {
         let mut a = Sim::new(def.clone(), 1);
         for &i in &def.persist {
@@ -453,11 +454,31 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
         }
         a.music_on = false;
         let text = a.save_json();
+        let differ = |s: &Sim| -> Vec<String> {
+            def.persist
+                .iter()
+                .filter(|&&i| (s.vars[i] - a.vars[i]).abs() >= 1e-9)
+                .map(|&i| format!("`{}` {} -> {}", def.var_names[i], a.vars[i], s.vars[i]))
+                .collect()
+        };
         let mut b = Sim::new(def.clone(), 1);
-        let status = b.load_save(&text);
-        let same = def.persist.iter().all(|&i| (b.vars[i] - a.vars[i]).abs() < 1e-9)
-            && (b.music_on == a.music_on || !def.caps.persistence.contains(&crate::caps::Persistence::Settings));
-        rows.push(Row::new(same, "simulation", "save round trip", format!("{status}")));
+        let status = b.read_save(&text);
+        let lost = differ(&b);
+        let music = b.music_on == a.music_on || !def.caps.persistence.contains(&crate::caps::Persistence::Settings);
+        let mut c = Sim::new(def.clone(), 1);
+        c.load_save(&text);
+        let mut detail = format!("{status}");
+        if !lost.is_empty() {
+            detail += &format!("; the save does not bring back {}", lost.join(", "));
+        }
+        if !music {
+            detail += "; the music setting does not come back";
+        }
+        let changed = differ(&c);
+        if lost.is_empty() && !changed.is_empty() {
+            detail += &format!("; then the game's `loaded` rules changed {}", changed.join(", "));
+        }
+        rows.push(Row::new(lost.is_empty() && music, "simulation", "save round trip", detail));
     }
     // Map analysis of the starting world, with what a rule opens assumed gone: the same `can_reach` a scenario's `reach` expectation asks of the live world.
     for rc in &def.reach {
@@ -488,8 +509,7 @@ pub fn verify(def: &Arc<GameDef>) -> Vec<Row> {
 mod tests {
     use super::*;
 
-    fn arcade() -> Arc<GameDef> {
-        let text = r##"{"game2d":1,"id":"t","title":"T","description":"d",
+    const ARCADE: &str = r##"{"game2d":1,"id":"t","title":"T","description":"d",
           "capabilities":{"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard"],"persistence":["progress"]},
           "view":{"width":160,"height":90},
           "sounds":{"pick":{"seconds":0.1,"layers":[{"sine":660,"decay":20}]}},
@@ -502,7 +522,9 @@ mod tests {
           "checks":{"scenarios":[
             {"name":"collect both","script":[{"approach":"coin","seconds":6}],"expect":[{"var":"score","eq":2},{"ended":"win"},{"sound":"pick","min":2}]},
             {"name":"idle","script":[{"wait":2}],"expect":[{"var":"score","eq":0},{"not_ended":true}]}]}}"##;
-        Arc::new(parse(text).unwrap_or_else(|e| panic!("{e:#?}")))
+
+    fn arcade() -> Arc<GameDef> {
+        Arc::new(parse(ARCADE).unwrap_or_else(|e| panic!("{e:#?}")))
     }
 
     #[test]
@@ -581,6 +603,29 @@ mod tests {
         sc.script = vec![Step::Button("start".into())];
         let (rep, _) = run_scenario(&def, &sc, None);
         assert!(rep.failures[0].contains("no visible button `start`") && rep.failures[0].contains("all buttons: none"), "{:?}", rep.failures);
+    }
+
+    #[test]
+    fn the_save_round_trip_checks_the_save_and_reports_what_the_games_loaded_rules_change() {
+        // Snake resets an out-of-range background to its first on `loaded`: the game's business, not a broken save. Before, the round trip failed on it and said
+        // only "restored 10 saved value(s)".
+        let text = ARCADE
+            .replace(r#""vars":{"score":0,"best":0},"persist":["best"]"#, r#""vars":{"score":0,"best":0,"bg":0},"persist":["best","bg"]"#)
+            .replace(r#""rules":["#, r#""rules":[{"when":{"event":"loaded"},"if":"bg > 3","do":[{"set":["bg",0]}]},"#);
+        let def = Arc::new(parse(&text).unwrap_or_else(|e| panic!("{e:#?}")));
+        let rows = verify(&def);
+        let row = rows.iter().find(|r| r.name == "save round trip").expect("a round trip row");
+        assert!(row.ok, "{row:?}");
+        assert!(row.detail.contains("the game's `loaded` rules changed `bg` 7 -> 0"), "{row:?}");
+        // A value the save itself loses still fails, and is named.
+        let mut sim = Sim::new(def.clone(), 1);
+        let bg = def.var_names.iter().position(|n| n == "bg").unwrap();
+        sim.vars[bg] = 7.0;
+        let saved = sim.save_json().replace(r#""bg":7.0"#, r#""bg":"seven""#);
+        let mut back = Sim::new(def.clone(), 1);
+        let status = back.read_save(&saved);
+        assert!(matches!(status, crate::sim::SaveStatus::Loaded(_)), "{status:?} from {saved}");
+        assert_eq!(back.vars[bg], 0.0, "a value the save cannot carry is not restored");
     }
 
     #[test]
