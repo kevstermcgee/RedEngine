@@ -8,8 +8,8 @@
   "MELT: the wall melts and you can walk through, but it closes again after a few seconds (never on top of you).",
   "LOW: the wall shrinks to a low step that stays; jump over it.",
   "STILL (last room only): the Tock freezes for six seconds.",
-  "From the second room on, a bell rings every ten seconds. Choose one law: Hush (slow Tock, walls close fast), Loud (fast Tock, walls stay open longer) or Sleep (no Tock, but every word counts twice).",
-  "If the Tock is on your column of the red band when you step out of it, it catches you: you lose one minute and return to the start of the room. Five lost minutes ends the run."
+  "From the second room on, a bell rings every ten seconds. Choose one law: left-click for Hush (slow Tock, walls close fast), right-click for Loud (fast Tock, walls stay open longer) or Ctrl for Sleep (no Tock, but every word counts twice).",
+  "If you step into a column of the orange band while the Tock is on it, or the Tock moves onto your column and you then step out, it catches you: you lose one minute and return to the start of the room. Five lost minutes ends the run."
  ],
  "controls": [
   {
@@ -29,7 +29,7 @@
    "action": "jump (hop over a LOW wall)"
   },
   {
-   "input": "Left-click / Right-click / C",
+   "input": "Left-click / Right-click / Ctrl",
    "action": "when the bell rings: choose the law Hush / Loud / Sleep"
   }
  ],
@@ -54,7 +54,7 @@
   {
    "name": "The Tock",
    "role": "enemy",
-   "description": "A clock-faced beast on brass legs. It paces along the red band one step at a time and eats a minute of your day if it catches you.",
+   "description": "A clock-faced beast on brass legs. It paces along the orange band one step at a time and eats a minute of your day if it catches you.",
    "shot": {
     "t": 0,
     "eye": "-2,1.8,29",
@@ -76,7 +76,13 @@
    "shot": {
     "t": 0,
     "eye": "-3.5,1.4,2.2",
-    "at": "-3.5,1.0,4"
+    "at": "-3.5,1.0,4",
+    "hide": [
+     "law*",
+     "w*_MELT",
+     "w*_LOW",
+     "w*_STILL"
+    ]
    }
   },
   {
@@ -88,6 +94,10 @@
     "eye": "-2.5,1.4,24.0",
     "at": "-2.5,1.0,26",
     "hide": [
+     "law*",
+     "w*_MELT",
+     "w*_LOW",
+     "w*_STILL",
      "tock_*"
     ]
    }
@@ -127,7 +137,7 @@
   }
  ],
  "tips": [
-  "Wait for the Tock to pass your column, then cross the red band right behind it.",
+  "Wait for the Tock to pass your column, then cross the orange band right behind it.",
   "LOW is cheap and permanent; MELT is free to walk through but runs out.",
   "Sleep makes the Tock harmless but doubles every word, so pick it before you cross, not before you write."
  ],
@@ -147,18 +157,17 @@
    }
   },
   {
-   "caption": "The last room: the Tock paces the red band between you and the final wall.",
+   "caption": "The last room: the Tock paces the orange band between you and the final wall.",
    "shot": {
     "t": 0,
     "eye": "0,1.7,23.5",
     "at": "0,1.2,34",
     "hide": [
      "law*",
-     "w3_BLANK",
-     "w3_MELT",
-     "w3_LOW",
-     "w2_*",
-     "w1_*",
+     "w*_MELT",
+     "w*_LOW",
+     "w*_STILL",
+     "tock_0",
      "tock_1",
      "tock_2",
      "tock_4",
@@ -168,13 +177,18 @@
    }
   },
   {
-   "caption": "From above: three walls, the chalk plinths and the red band.",
+   "caption": "From above: three walls, the chalk plinths and the orange band.",
    "shot": {
     "t": 0,
-    "eye": "0,16,20",
-    "at": "0,0,22",
+    "eye": "0,24,20",
+    "at": "0,0,24",
     "hide": [
-     "ceiling"
+     "ceiling",
+     "tock_*",
+     "law*",
+     "w*_MELT",
+     "w*_LOW",
+     "w*_STILL"
     ]
    }
   }

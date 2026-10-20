@@ -1,14 +1,14 @@
 {
  "tagline": "Lend your weight to a scale between two mountains and keep it level until the bell.",
- "overview": "Moth Harvest is a balancing game. Numbered crates keep landing on two mountains, and a scale between them tips toward the heavier side. You are part of the weight: wherever you stand, you add to that mountain. Hungry moths follow you, cling to you and eat the crates around you, so the balance keeps changing and you must keep crossing over. Every number is real: a 9 is worth nine 1s.",
+ "overview": "Moth Harvest is a balancing game. Numbered crates keep landing on two mountains, and a scale between them swings its needle as one mountain gets heavier than the other. You are part of the weight: wherever you stand, you add to that mountain. Hungry moths follow you, cling to you and eat the crates around you, so the balance keeps changing and you must keep crossing over. Every number is real: a 9 is worth nine 1s.",
  "story": "A kite maker lives between two rival mountains that send each other messages by kite. A scale hangs between them, and if it ever tips too far, the kites cannot fly and the peace breaks. The kite maker is the only one light and quick enough to stand on either side and hold it level while a crowd of hungry moths drifts in from the dark.",
- "goal": "Win by keeping the needle in the green until the two-minute bell rings. Lose if the needle stays out of the green until the red bar at the top fills.",
+ "goal": "Win by keeping the needle in the green until the two-minute bell rings. Lose if the needle stays out of the green for about three seconds: that fills the bar under the scale, and the red words SCALE TIPPING! appear as soon as it starts to fill.",
  "rules": [
   "You weigh 6. Standing on a mountain adds your weight to that side.",
   "Each number on a crate is its weight: a 7 counts seven times a 1.",
   "Crates land on both mountains and fade away after a while.",
-  "Moths follow you, add 1 weight each while they are near, and eat any crate they touch.",
-  "The needle must stay inside the green. Outside it, the red bar fills; inside it, the bar drains.",
+  "Moths follow you and eat any crate they touch. Each moth that is alive adds 1 weight to the side you stand on.",
+  "The needle must stay inside the green. Outside it, the bar under the scale fills and SCALE TIPPING! shows in red; inside it, the bar drains.",
   "Survive 120 seconds until the bell and both mountains are at peace."
  ],
  "controls": [
@@ -25,16 +25,16 @@
   {
    "name": "The Kite Maker",
    "role": "Player",
-   "description": "A small red kite with a yellow tail. Light enough to cross quickly, heavy enough to matter: weight 6.",
+   "description": "A small red kite with a yellow edge and a blue tail. Light enough to cross quickly, heavy enough to matter: weight 6.",
    "shot": {
     "scenario": "balancing keeps the bell",
-    "t": 60
+    "t": 15
    }
   },
   {
    "name": "Moths",
    "role": "Enemy",
-   "description": "A hungry crowd that follows the kite maker, adds weight and eats crates.",
+   "description": "A hungry crowd that follows the kite maker, adds 1 weight each to the side you stand on, and eats crates.",
    "shot": {
     "scenario": "balancing keeps the bell",
     "t": 30
@@ -43,7 +43,7 @@
   {
    "name": "Numbered crates",
    "role": "Key object",
-   "description": "Each number is the crate's real weight. Small ones are green or yellow, heavy ones orange, red and pink.",
+   "description": "Each number is the crate's real weight. The 1, 2 and 3 are aqua, green and yellow; the 5, 7 and 9 are orange, red and pink.",
    "shot": {
     "scenario": "balancing keeps the bell",
     "t": 20
@@ -52,10 +52,10 @@
   {
    "name": "The Scale Needle",
    "role": "Key object",
-   "description": "The white needle slides left or right as one mountain gets heavier. Keep it on the green strip.",
+   "description": "The white needle slides away from whichever mountain is heavier. Keep it on the green strip.",
    "shot": {
     "scenario": "balancing keeps the bell",
-    "t": 60
+    "t": 100
    }
   }
  ],
@@ -66,7 +66,7 @@
  ],
  "gallery": [
   {
-   "caption": "The start: a few light crates and the goal on screen.",
+   "caption": "The start: a first light crate and the goal on screen.",
    "shot": {
     "scenario": "balancing keeps the bell",
     "t": 3

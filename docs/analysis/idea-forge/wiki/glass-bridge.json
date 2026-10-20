@@ -44,8 +44,8 @@
    "role": "wall",
    "description": "Thick hedges that stop the robot and shape every route.",
    "shot": {
-    "t": 0.01,
-    "scenario": "level 5: 5 shots ring every string at once"
+    "t": 0.1,
+    "scenario": "level 3: 3 shots ring every string at once"
    }
   },
   {
@@ -53,8 +53,8 @@
    "role": "hazard",
    "description": "Crackling sparks that send the robot home and silence the strings.",
    "shot": {
-    "t": 0.01,
-    "scenario": "level 5: 5 shots ring every string at once"
+    "t": 0.1,
+    "scenario": "level 4: 4 shots ring every string at once"
    }
   }
  ],
@@ -80,12 +80,12 @@
   {
    "caption": "The last level has six strings and five sparks.",
    "shot": {
-    "t": 0.01,
+    "t": 0.1,
     "scenario": "level 5: 5 shots ring every string at once"
    }
   },
   {
-   "caption": "Five of six strings ringing: one more shot for the final chord.",
+   "caption": "Five of six strings ringing while the fifth and last shot flies to the final one.",
    "shot": {
     "t": 2.6,
     "scenario": "level 5: 5 shots ring every string at once"
