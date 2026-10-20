@@ -96,7 +96,8 @@
       "entry": "games/snake/snake.game2d.json",
       "files": ["games/snake"],
       "arguments": ["content/games/snake/snake.game2d.json"],
-      "page": "pages/snake"
+      "page": "pages/snake",
+      "maintainer": "meastwood13"
     },
     {
       "slug": "redcraft",
