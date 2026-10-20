@@ -1,0 +1,100 @@
+name: Reachability
+
+# An outside-in check of the machine that hosts Red Engine games. Nothing in hosting has ever been tested from outside the home network (the
+# server's own journal, the LAN and the router's port-mapping table are all inside it); a GitHub-hosted runner is a real machine on the
+# internet, so what it can reach is what a friend in another state can reach. `scripts/net_probe.py` explains each check and prints one JSON
+# object; this file only runs it and puts the result in the job summary. No key, no secret and nothing from the host's configuration is used:
+# the relay check asks about a code that cannot exist, and the QUIC check stops after the TLS handshake (the join key is only checked later,
+# inside the encrypted Hello).
+on:
+  push:
+    branches: [net-probe]
+    paths:
+      - ".github/workflows/reachability.yml"
+      - "scripts/net_probe.py"
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Host name to probe"
+        default: "red-engine.duckdns.org"
+      relay_port:
+        description: "Relay UDP port"
+        default: "28016"
+      game_port:
+        description: "Game server (QUIC) UDP port"
+        default: "27015"
+      silent_port:
+        description: "A UDP port nothing should answer on"
+        default: "27016"
+  # Later, once the check has earned a place: every 30 minutes, to see whether the answer changes (a router that forgets its mappings, a
+  # lease that lapses, an address that moves). Uncomment, and push it to main for the schedule to start (GitHub only runs schedules from the
+  # default branch).
+  # schedule:
+  #   - cron: "7,37 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reachability-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: probe from the internet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      PROBE_HOST: ${{ inputs.host || 'red-engine.duckdns.org' }}
+      PROBE_RELAY_PORT: ${{ inputs.relay_port || '28016' }}
+      PROBE_GAME_PORT: ${{ inputs.game_port || '27015' }}
+      PROBE_SILENT_PORT: ${{ inputs.silent_port || '27016' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The QUIC handshake uses aioquic's sans-IO connection (pinned: the probe reads the peer certificate from it). The rest of the probe
+      # is the standard library only.
+      - name: Install aioquic
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet aioquic==1.2.0
+          "$RUNNER_TEMP/venv/bin/pip" list 2>/dev/null | grep -i -E '^(aioquic|cryptography) '
+
+      - name: Where this runner is
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ"
+          uname -srm
+          python3 --version
+
+      - name: Probe
+        id: probe
+        run: |
+          set -o pipefail
+          "$RUNNER_TEMP/venv/bin/python" scripts/net_probe.py \
+            --host "$PROBE_HOST" \
+            --relay-port "$PROBE_RELAY_PORT" \
+            --game-port "$PROBE_GAME_PORT" \
+            --silent-port "$PROBE_SILENT_PORT" \
+            | tee "$RUNNER_TEMP/probe.json"
+
+      - name: Summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          path = os.path.join(os.environ["RUNNER_TEMP"], "probe.json")
+          out = open(os.environ["GITHUB_STEP_SUMMARY"], "a")
+          try:
+              r = json.load(open(path))
+          except Exception as e:
+              out.write(f"### Reachability: the probe printed no result ({e})\n")
+              raise SystemExit(0)
+          out.write(f"### Reachability of {r['host']}: {'ok' if r['ok'] else 'FAILED'}\n\n")
+          out.write(f"Runner egress (masked): `{r['runner']['egress_ip_masked']}`, started {r['started_utc']}\n\n")
+          out.write("| target | ok | rtt ms | detail |\n|---|---|---|---|\n")
+          for name, t in r["targets"].items():
+              out.write(f"| {name} | {'yes' if t['ok'] else 'NO'} | {t['rtt_ms'] if t['rtt_ms'] is not None else ''} | {t['detail']} |\n")
+          cert = r["targets"].get("game", {}).get("cert_sha256")
+          if cert:
+              out.write(f"\nServer certificate: `{cert}`\n")
+          PY
