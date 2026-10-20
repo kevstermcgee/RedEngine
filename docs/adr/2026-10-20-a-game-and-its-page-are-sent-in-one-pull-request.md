@@ -19,11 +19,18 @@ One pull request to this repository carries a game, its page and its publish ent
 - `play-check` runs `lint` (no errors), `nav` (when the scene has one) and `verify` (when it has `checks`) on every `games` playable `re2` plays, in the
   `content` job.
 - `notes --since BEFORE` writes `<slug>: <subject>` per engine commit of the push into the sync commit; RedEngineGames' `change_notes` reads them.
+- **A one-tap merge, not an automatic one.** `.github/workflows/contributed-games.yml` runs `scripts/contributed_games.py review` when CI passes on a
+  pull request by someone listed in `.github/contributors.json`: one comment that mentions the owner says **Safe to merge** (only that contributor's games,
+  by the playable's `"maintainer"`; only content; a plain game with its page; CI green on the newest commit) or what needs the owner's eyes. The job
+  checks out `main` and reads the pull request through the API, as data; it never runs its code and never merges. A fully automatic merge was built
+  first and refused by the owner's own permission policy (an unreviewed merge that publishes installers): the owner taps Merge, and the merge then
+  publishes as any other does.
 - A pages-only pull request compiles nothing (it counts as documentation in the workflow's `changes` step); `publish-games.yml` also runs on `games/**`
   (RedCraft's and Frameless's content never triggered a sync before) and `pages/**`.
 
 ## Consequences
-A contributor's whole loop is in `CONTRIBUTING.md`; after the first merged pull request their CI needs no approval. A page published from here is
+A contributor's whole loop is in `CONTRIBUTING.md`; after the first merged pull request their CI needs no approval, and a pull request that stays
+inside their games costs the owner one tap. A page published from here is
 edited here (RedEngineGames' `site/wiki.py` says so); an export overwrites a hand edit there. A page change updates the site without a new version
 (a release's fingerprint is the game's files, name, arguments and binary). The engine now reads another repository's Python at check time; if the
 site's rules move, `page_problems` follows them with no change here. To undo: drop the `page` keys (the next sync removes those pages; restore them in

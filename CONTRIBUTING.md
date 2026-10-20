@@ -12,7 +12,7 @@ Chrono Clash as the example. Everything for one game lives in two folders, plus 
 |---|---|---|
 | `examples/chrono-clash/` | the game: its scenes (`speakeasy.json`, ...) and `README.md` (the first paragraph is the game's description on the site) | yes |
 | `pages/chrono-clash/` | its page on the site: `wiki.json`, the pictures it names (PNG or JPEG) and `thumb.png` (640 x 360, the picture on the site's list) | no |
-| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`) | |
+| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`, `"maintainer": "<your GitHub login>"`) | |
 
 The page's fields and their rules are in [RedEngineGames `site/wiki.py`](https://github.com/kevstermcgee/RedEngineGames/blob/main/site/wiki.py): a tagline, an
 overview, the story, the goal, at least 3 rules, the controls, the characters (each with a picture), at least 3 gallery pictures of different moments, and the
@@ -40,6 +40,11 @@ Stay inside your game's folders. An engine change is welcome in a **separate** p
    - the rest is the engine's own suite: a game change cannot break it, but it runs.
 
    Fix what fails and push again to the same branch; the pull request updates itself.
+8. **The merge check.** When CI passes, a check (`scripts/contributed_games.py`) comments on the pull request for the owner: **Safe to merge**, and the owner
+   merges it with one tap, or **Needs your eyes**, with the reasons. Safe means: you are listed in `.github/contributors.json`; every file it changes is
+   content (JSON, Markdown, PNG, JPEG, at most 5 MB; your own JavaScript generator counts too) inside games whose playable says `"maintainer"` with your
+   login (a new game: the pull request that adds it says so); the game is a plain one (no client of its own, launch arguments only `--host`/`--no-host` and
+   its own files) and has its page. Anything else (an engine change, a Python script, someone else's game) is fine to send too: the owner reads it first.
 
 ## After the merge
 

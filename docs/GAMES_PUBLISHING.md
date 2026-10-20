@@ -52,6 +52,9 @@ from a fork: `CONTRIBUTING.md`). The page is not part of the game (it never make
 checkout that has `site/wiki.py`; that check also refuses a playable with no page at all, unless RedEngineGames has one for it (`site/wiki/<slug>/`) or lists
 it as pending. A page without a `page` folder here is maintained in RedEngineGames, by hand.
 
+A playable's optional `"maintainer"` (a GitHub login) says whose game it is: a listed contributor's pull request that stays inside the games they maintain
+is marked safe to merge (`scripts/contributed_games.py`, `CONTRIBUTING.md`).
+
 Each sync commit carries one `<slug>: <subject>` line per engine commit of the push that changed a game (`publish_games.py notes --since BEFORE`, merges and
 the page left out); RedEngineGames' release tool reads them as the **What changed** of the game's next version, so write commit subjects a player can read.
 

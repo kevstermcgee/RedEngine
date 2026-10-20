@@ -103,6 +103,9 @@ def load_manifest(root: Path) -> dict:
             raise PublishError(f"playables[{index}].arguments must be an array of single-line strings")
         if "page" in playable:
             safe_relative(playable["page"], f"playables[{index}].page")
+        maintainer = playable.get("maintainer")
+        if maintainer is not None and (not isinstance(maintainer, str) or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", maintainer)):
+            raise PublishError(f"playables[{index}].maintainer must be the GitHub login of the game's maintainer (scripts/contributed_games.py)")
     return data
 
 

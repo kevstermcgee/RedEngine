@@ -62,7 +62,8 @@
       "entry": "games/chrono-clash/speakeasy.json",
       "files": ["games/chrono-clash"],
       "arguments": ["--host", "content/games/chrono-clash/speakeasy.json"],
-      "page": "pages/chrono-clash"
+      "page": "pages/chrono-clash",
+      "maintainer": "meastwood13"
     },
     {
       "slug": "chroma",
