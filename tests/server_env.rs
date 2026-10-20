@@ -24,6 +24,12 @@ fn everything_can_come_from_the_environment() {
     assert!(out.status.success(), "{text}\n{}", String::from_utf8_lossy(&out.stderr));
     assert!(text.contains("LISTENING 127.0.0.1:"), "bound where RED_BIND said: {text}");
     assert!(text.contains("stopped:"), "a clean shutdown line: {text}");
+    // `deploy/red-selfcheck.py` compares the wire version a running binary reports with the one at its REVISION, and the stop line carries the refusal counters.
+    assert!(
+        text.contains(&format!("protocol: wire v{} ", red_engine2::net::protocol::PROTOCOL_VERSION)),
+        "the binary says which wire version it speaks: {text}"
+    );
+    assert!(text.contains("rejected v0 m0 k0 b0 f0 o0 (0 in all), 0 hellos throttled"), "the stop line carries the refusal counters: {text}");
 }
 
 #[test]
