@@ -1,0 +1,183 @@
+{
+ "tagline": "Write a word in chalk and the wall obeys it, while a ten-second bell keeps changing the rules.",
+ "overview": "Drowsy Orchestra is a first-person puzzle walk through a sleeping clock hall. Three big walls block the way. Beside each one lie pieces of chalk, and each piece is a word: pick it up and the word is written on the wall, and the wall starts behaving like that word. MELT makes it flow open for a while, LOW shrinks it to a step you can hop, STILL freezes the clock-faced beast that patrols the hall. Every ten seconds a bell rings and you choose one of three laws that change how everything behaves. The fewest words and the fewest lost minutes make the quietest run.",
+ "story": "The clockmaker stopped time in his great hall and then vanished. You are his last apprentice, and the only thing you still know is his old trick: chalk a word on a wall and the wall remembers what the word means. At the far end of the hall waits the Stopped Clock. Between you and it stand three walls, a bell that keeps the hall awake, and the Tock, a clock-faced beast that eats a minute of your day every time it catches you.",
+ "goal": "Walk through the hall to the Stopped Clock at the far end. You win when you reach it; try to do it with as few words as you can. You lose if the Tock catches you five times: the day is gone.",
+ "rules": [
+  "Pick up a piece of chalk (E) to write its word on the wall in front of you; each word you write counts against you.",
+  "MELT: the wall melts and you can walk through, but it closes again after a few seconds (never on top of you).",
+  "LOW: the wall shrinks to a low step that stays; jump over it.",
+  "STILL (last room only): the Tock freezes for six seconds.",
+  "From the second room on, a bell rings every ten seconds. Choose one law: Hush (slow Tock, walls close fast), Loud (fast Tock, walls stay open longer) or Sleep (no Tock, but every word counts twice).",
+  "If the Tock is on your column of the red band when you step out of it, it catches you: you lose one minute and return to the start of the room. Five lost minutes ends the run."
+ ],
+ "controls": [
+  {
+   "input": "W A S D",
+   "action": "walk"
+  },
+  {
+   "input": "Mouse",
+   "action": "look around"
+  },
+  {
+   "input": "E",
+   "action": "pick up chalk and write its word on the wall"
+  },
+  {
+   "input": "Space",
+   "action": "jump (hop over a LOW wall)"
+  },
+  {
+   "input": "Left-click / Right-click / C",
+   "action": "when the bell rings: choose the law Hush / Loud / Sleep"
+  }
+ ],
+ "characters": [
+  {
+   "name": "The Apprentice",
+   "role": "player",
+   "description": "You, the clockmaker's last apprentice. You carry nothing but a conductor's baton and a head full of words.",
+   "shot": {
+    "t": 0,
+    "eye": "0,1.7,1",
+    "at": "0,1.7,12",
+    "hide": [
+     "law*",
+     "w1_BLANK",
+     "w2_*",
+     "w3_*",
+     "w1_MELT"
+    ]
+   }
+  },
+  {
+   "name": "The Tock",
+   "role": "enemy",
+   "description": "A clock-faced beast on brass legs. It paces along the red band one step at a time and eats a minute of your day if it catches you.",
+   "shot": {
+    "t": 0,
+    "eye": "-2,1.8,29",
+    "at": "-6,1.5,32",
+    "hide": [
+     "tock_1",
+     "tock_2",
+     "tock_3",
+     "tock_4",
+     "tock_5",
+     "tock_6"
+    ]
+   }
+  },
+  {
+   "name": "MELT chalk",
+   "role": "helper",
+   "description": "Orange chalk on a slate plinth. Writing MELT makes a wall flow away for a few seconds.",
+   "shot": {
+    "t": 0,
+    "eye": "-3.5,1.4,2.2",
+    "at": "-3.5,1.0,4"
+   }
+  },
+  {
+   "name": "STILL chalk",
+   "role": "helper",
+   "description": "Blue chalk found in the last room. Writing STILL stops the Tock in its tracks for six seconds.",
+   "shot": {
+    "t": 0,
+    "eye": "-2.5,1.4,24.0",
+    "at": "-2.5,1.0,26",
+    "hide": [
+     "tock_*"
+    ]
+   }
+  },
+  {
+   "name": "The Bell",
+   "role": "key object",
+   "description": "A brass bell hanging in the hall. It rings every ten seconds and forces you to pick a new law.",
+   "shot": {
+    "t": 0,
+    "eye": "0,2.5,-0.3",
+    "at": "0,4,3",
+    "hide": [
+     "law*",
+     "w1_BLANK",
+     "w2_*",
+     "w3_*",
+     "w1_MELT"
+    ]
+   }
+  },
+  {
+   "name": "The Walls",
+   "role": "key object",
+   "description": "Three heavy purple walls with a word floating above each. They do whatever the word says.",
+   "shot": {
+    "t": 0,
+    "eye": "0,1.8,5",
+    "at": "0,3,10",
+    "hide": [
+     "law*",
+     "w1_BLANK",
+     "w2_*",
+     "w3_*"
+    ]
+   }
+  }
+ ],
+ "tips": [
+  "Wait for the Tock to pass your column, then cross the red band right behind it.",
+  "LOW is cheap and permanent; MELT is free to walk through but runs out.",
+  "Sleep makes the Tock harmless but doubles every word, so pick it before you cross, not before you write."
+ ],
+ "gallery": [
+  {
+   "caption": "The first room: one chalk, one wall. Pick up MELT and walk through.",
+   "shot": {
+    "t": 0,
+    "eye": "0,1.7,1",
+    "at": "-1,1.5,10",
+    "hide": [
+     "law*",
+     "w1_BLANK",
+     "w2_*",
+     "w3_*"
+    ]
+   }
+  },
+  {
+   "caption": "The last room: the Tock paces the red band between you and the final wall.",
+   "shot": {
+    "t": 0,
+    "eye": "0,1.7,23.5",
+    "at": "0,1.2,34",
+    "hide": [
+     "law*",
+     "w3_BLANK",
+     "w3_MELT",
+     "w3_LOW",
+     "w2_*",
+     "w1_*",
+     "tock_1",
+     "tock_2",
+     "tock_4",
+     "tock_5",
+     "tock_6"
+    ]
+   }
+  },
+  {
+   "caption": "From above: three walls, the chalk plinths and the red band.",
+   "shot": {
+    "t": 0,
+    "eye": "0,16,20",
+    "at": "0,0,22",
+    "hide": [
+     "ceiling"
+    ]
+   }
+  }
+ ],
+ "why_made": "The card wanted me to write a word on a wall and have the wall obey, with a bell forcing a new choice every ten seconds. I kept the writing as the whole game, but made it physical: each word is a piece of chalk you pick up, so the verb is just walking up and pressing E. I turned the three laws into a quick click choice with the bell, because a menu would have stopped the action. I dropped the open-ended 'any word you like' because the engine cannot read typed text, so I gave you three words that really do different things, and I made the beast a patrolling clock so the danger is visible. The scoring is the card's own idea: fewest words wins."
+}

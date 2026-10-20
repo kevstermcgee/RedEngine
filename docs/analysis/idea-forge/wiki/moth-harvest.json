@@ -1,0 +1,91 @@
+{
+ "tagline": "Lend your weight to a scale between two mountains and keep it level until the bell.",
+ "overview": "Moth Harvest is a balancing game. Numbered crates keep landing on two mountains, and a scale between them tips toward the heavier side. You are part of the weight: wherever you stand, you add to that mountain. Hungry moths follow you, cling to you and eat the crates around you, so the balance keeps changing and you must keep crossing over. Every number is real: a 9 is worth nine 1s.",
+ "story": "A kite maker lives between two rival mountains that send each other messages by kite. A scale hangs between them, and if it ever tips too far, the kites cannot fly and the peace breaks. The kite maker is the only one light and quick enough to stand on either side and hold it level while a crowd of hungry moths drifts in from the dark.",
+ "goal": "Win by keeping the needle in the green until the two-minute bell rings. Lose if the needle stays out of the green until the red bar at the top fills.",
+ "rules": [
+  "You weigh 6. Standing on a mountain adds your weight to that side.",
+  "Each number on a crate is its weight: a 7 counts seven times a 1.",
+  "Crates land on both mountains and fade away after a while.",
+  "Moths follow you, add 1 weight each while they are near, and eat any crate they touch.",
+  "The needle must stay inside the green. Outside it, the red bar fills; inside it, the bar drains.",
+  "Survive 120 seconds until the bell and both mountains are at peace."
+ ],
+ "controls": [
+  {
+   "input": "Arrow keys or WASD",
+   "action": "Walk, and cross from one mountain to the other"
+  },
+  {
+   "input": "Space",
+   "action": "Play again after the round ends"
+  }
+ ],
+ "characters": [
+  {
+   "name": "The Kite Maker",
+   "role": "Player",
+   "description": "A small red kite with a yellow tail. Light enough to cross quickly, heavy enough to matter: weight 6.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 60
+   }
+  },
+  {
+   "name": "Moths",
+   "role": "Enemy",
+   "description": "A hungry crowd that follows the kite maker, adds weight and eats crates.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 30
+   }
+  },
+  {
+   "name": "Numbered crates",
+   "role": "Key object",
+   "description": "Each number is the crate's real weight. Small ones are green or yellow, heavy ones orange, red and pink.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 20
+   }
+  },
+  {
+   "name": "The Scale Needle",
+   "role": "Key object",
+   "description": "The white needle slides left or right as one mountain gets heavier. Keep it on the green strip.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 60
+   }
+  }
+ ],
+ "tips": [
+  "Cross early: the lighter side is the one to stand on.",
+  "Moths eat the crates near you, so your side gets lighter and the other gets relatively heavier.",
+  "Watch the needle, not the crates."
+ ],
+ "gallery": [
+  {
+   "caption": "The start: a few light crates and the goal on screen.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 3
+   }
+  },
+  {
+   "caption": "Midway: moths have arrived and crates are heavier.",
+   "shot": {
+    "scenario": "balancing keeps the bell",
+    "t": 70
+   }
+  },
+  {
+   "caption": "The scale tips and the round is lost.",
+   "shot": {
+    "scenario": "never crossing loses",
+    "t": 119.5
+   }
+  }
+ ],
+ "why_made": "I picked this card because lending your weight to a scale is a verb you can feel at once: step across and the needle moves. I kept the numbers painted on things as real weights, and I made the hungry crowd cling to you instead of just chasing, so they change both sides of the balance. I dropped the idea of doing as little as possible as a goal, because standing still is boring; instead the best play is small, well-timed crossings. I also let moths eat crates, which gives the player a reason to keep moving."
+}

@@ -1,0 +1,39 @@
+{
+ "tagline": "Carry a coloured jar, glow its colour, and only things of that colour will let you pass.",
+ "overview": "Paper Foundry is a first-person puzzle of light and colour. You are a lamplighter in a dark paper town, and your lantern is the only light: anything beyond its glow is swallowed by fog. You glow the colour of the jar you carry, and that colour is the rule: a gate opens only for its own colour, and floor tiles of any other colour burn you. Every mistake wakes a quiet Shade that doubles its steps toward you, so one slip is cheap and three are fatal.",
+ "story": "In the paper foundry the dark is alive, and rather shy. It keeps to the far end of the hall and only creeps forward when you get things wrong. Somewhere past three coloured gates a lost creature sits on a plinth, glowing pale. It first appeared in the white ring where you start. You are the lamplighter who carries it home before the Shade arrives.",
+ "goal": "Win by carrying the lost creature back and setting it down in the HOME ring. Lose when the Shade's counter reaches 8: wrong colours double it, and once you lift the creature it also creeps closer every 3 seconds.",
+ "rules": [
+  "Pick up a jar (E) and you glow its colour; put it down (E) and you are plain again.",
+  "A gate opens only when you walk up to it glowing its own colour.",
+  "In the second and third halls, floor tiles of another colour burn you and send you back; your own colour is safe.",
+  "Each mistake doubles the Shade's steps: 1, 3, 7, and the fourth catches you.",
+  "Lift the lost creature and the Shade creeps closer every 3 seconds, so hurry home."
+ ],
+ "controls": [
+  {"input": "W A S D", "action": "walk"},
+  {"input": "Mouse", "action": "look around"},
+  {"input": "E", "action": "pick up or put down a jar or the creature"},
+  {"input": "Shift", "action": "sprint"}
+ ],
+ "characters": [
+  {"name": "The Lamplighter", "role": "player", "description": "You. Your lantern is the only light in the foundry, and you glow the colour of whatever jar you carry.", "shot": {"eye": "0,1.7,-9.5", "at": "-2.5,0.8,-6", "fov": 70}},
+  {"name": "Colour Jars", "role": "key object", "description": "Glowing red, green and blue jars on small plinths. Carry one and its colour becomes yours.", "shot": {"eye": "-1,1.6,-3", "at": "-2.5,0.5,-6", "fov": 60}},
+  {"name": "The Gates", "role": "obstacle", "description": "Three folded-paper gates, each glowing one colour and labelled. A gate opens only for a lamplighter of the same colour.", "shot": {"eye": "0,1.7,-3", "at": "0,1.6,0", "fov": 60}},
+  {"name": "Ink Tiles", "role": "hazard", "description": "Coloured floor tiles. Your own colour is safe; any other colour burns you and wakes the Shade.", "shot": {"eye": "0,2.2,0.8", "at": "0,0,6.5", "fov": 70}},
+  {"name": "The Shade", "role": "enemy", "description": "A tall quiet figure of black paper with pale eyes. It never chases you; it only steps closer when you make mistakes, and doubles with interest.", "shot": {"eye": "2,1.8,12", "at": "2,1.6,19", "fov": 60}},
+  {"name": "The Lost Creature", "role": "goal", "description": "A small pale creature on a plinth at the far end. Carry it to the HOME ring where it first appeared.", "shot": {"eye": "0,1.6,29", "at": "0,0.6,33", "fov": 60}}
+ ],
+ "tips": [
+  "Look at the gate's colour first, then fetch the matching jar.",
+  "In the tile halls, step only on your own colour, and cross in the dark gaps between rows to plan the next step.",
+  "The way home is a straight line: do not stop."
+ ],
+ "gallery": [
+  {"caption": "The start: the HOME ring, a jar, and the first red gate.", "shot": {"eye": "0,1.7,-11.5", "at": "0,1.3,-2", "fov": 75}},
+  {"caption": "The second hall: tiles in three colours, and only one is safe for you.", "shot": {"eye": "0,2.4,2.0", "at": "0,0,9", "fov": 75}},
+  {"caption": "The last hall: the lost creature waits on its plinth beyond the blue gate.", "shot": {"eye": "0,1.8,27", "at": "0,1,34", "fov": 75}},
+  {"caption": "The Shade stands in the hall once your mistakes add up.", "shot": {"eye": "-2,2,24", "at": "-2,1.6,31", "fov": 60}}
+ ],
+ "why_made": "The card said my colour is a rule, and that is the part I wanted to feel in my hands: carrying a jar and becoming it. I kept the lantern as fog and a light, dropped anything abstract about the 'quiet creature' and made it a Shade whose steps double with each mistake, which is the 'mirrors your mistakes with interest' idea in a form a player sees at once as a counter. I changed the goal slightly: the creature is carried home to the ring where you start, so the same room is both the beginning and the finish. I cut sounds on events because the engine cannot play one from a rule; the music gets tenser instead."
+}
