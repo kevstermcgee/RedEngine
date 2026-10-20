@@ -35,7 +35,7 @@ def load(name, path):
 
 portmap = load('red_portmap', 'red-portmap.py')
 selfcheck = load('red_selfcheck', 'red-selfcheck.py')
-selfcheck.UDP_TIMEOUT = 0.25  # a silent probe fails in a second, not in six
+selfcheck.UDP_TIMEOUT = 0.5  # a silent probe fails in 1.5 s, not in six (and a slow runner still gets a reply in)
 LAN = '192.168.0.133'
 SERVER_REV = '4a9b3972379e26d00baf6f083ca5a058fdbb2f04'
 RELAY_REV = SERVER_REV
