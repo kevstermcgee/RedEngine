@@ -44,6 +44,7 @@ STATE = os.path.join(HOME, ".local", "state", "redengine-nightly")
 REPORTS = os.path.join(HOME, "nightly-reports")
 GAMES_CLONE = os.path.join(HOME, "workspace", "RedEngineGames")
 GAMES_WT = os.path.join(HOME, "workspace", "RedEngineGames-nightly")
+NIGHTLY_WT = os.path.join(HOME, "workspace", "RedEngine-nightly")   # the checkout `install`'s shim runs this from (it is reset every run)
 ENGINE_TARGET = "/data/build/nightly"
 LAUNCHER_TARGET = "/data/build/nightly-launcher"
 REPOS = {"engine": "kevstermcgee/RedEngine", "games": "kevstermcgee/RedEngineGames"}
@@ -397,6 +398,9 @@ def cmd_run(a):
             f.write(f"# Daily improver {date}: skipped (low disk)\n")
         day.finish(f"Skipped: {free_gb():.0f} GB free (< {cfg['NIGHTLY_MIN_FREE_GB']}).")
         return 0
+    if not a.dry_run and not a.here and os.path.realpath(ROOT) != os.path.realpath(NIGHTLY_WT):
+        sys.exit(f"run resets the checkout it runs from to origin/main; it runs from {NIGHTLY_WT} (`install`, then the timer). "
+                 f"--dry-run changes nothing; --here runs in {ROOT} anyway, throwing away its uncommitted work.")
     if a.no_merge:
         cfg["NIGHTLY_PUSH_MAIN"] = "0"
     settled = [] if a.dry_run else settle(cfg, date)
@@ -493,6 +497,7 @@ def main(argv=None):
     s.add_argument("--force", action="store_true", help="run even with nothing new and nothing open")
     s.add_argument("--dry-run", action="store_true", help="print the brief; change nothing")
     s.add_argument("--no-merge", action="store_true", help="open pull requests but merge nothing (this run)")
+    s.add_argument("--here", action="store_true", help="run in this checkout although it is not the nightly worktree (it is reset)")
     s.set_defaults(f=cmd_run)
     s = sub.add_parser("prompt")
     s.set_defaults(f=cmd_prompt)
