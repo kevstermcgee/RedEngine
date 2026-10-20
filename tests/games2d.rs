@@ -339,3 +339,26 @@ fn an_effect_is_one_source_for_several_behaviours() {
     assert!(uses >= 2, "the item and the ability must both use the one effect");
     assert!(g["effects"]["heal"]["do"].as_array().unwrap().len() >= 3);
 }
+
+// ---- the shipped player refuses what the engine refuses ----------------------------------------------------------------------------------------------
+
+/// A release runs `re2d --check` on each 2D game before shipping it: a game the player cannot load would otherwise be an install that does nothing (a Windows player has no console).
+#[cfg(feature = "gfx")]
+#[test]
+fn re2d_check_loads_every_example_and_refuses_a_game_the_engine_refuses() {
+    let re2d = env!("CARGO_BIN_EXE_re2d");
+    for g in examples() {
+        let o = std::process::Command::new(re2d).arg("--check").arg(&g).output().expect("run re2d");
+        assert!(o.status.success(), "{}: {}{}", g.display(), String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    }
+    let mut game = example("coin-dash");
+    game["capabilities"]["platforms"] = json!(["web"]);
+    let dir = std::env::temp_dir().join(format!("re2d_check_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let bad = dir.join("bad.game2d.json");
+    std::fs::write(&bad, game.to_string()).unwrap();
+    let o = std::process::Command::new(re2d).arg("--check").arg(&bad).output().expect("run re2d");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1), "a game the engine refuses must not load");
+    assert!(String::from_utf8_lossy(&o.stderr).contains("`web` is not one of"), "{}", String::from_utf8_lossy(&o.stderr));
+}
