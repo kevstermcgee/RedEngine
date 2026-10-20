@@ -1,0 +1,41 @@
+name: Contributed games
+
+# A listed contributor's game pull request, checked for a one-tap merge once CI passes (scripts/contributed_games.py): one comment that mentions the owner
+# says it is safe to merge (only that contributor's games, only content, the site page, CI green on the newest commit) or what needs the owner's eyes.
+# The owner merges; the merge publishes as any other does. This job has write access to comments, so it checks out `main` (the rules and the list of
+# contributors as the owner wrote them) and reads the pull request only through the API, as data: it never runs the pull request's code, and never merges.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to check again
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contributed-games
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          HEAD: ${{ github.event.workflow_run.head_repository.owner.login }}:${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -n "$PR" ]; then python3 scripts/contributed_games.py review "$PR"; else python3 scripts/contributed_games.py review --head "$HEAD"; fi

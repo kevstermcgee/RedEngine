@@ -123,3 +123,71 @@ fn an_export_writes_what_it_publishes_removes_only_what_it_published_before_and_
     }
     let _ = fs::remove_file(victim);
 }
+
+fn export_status(py: &str, root: &Path, out: &Path) -> (bool, String) {
+    let r = Command::new(py)
+        .arg("scripts/publish_games.py")
+        .args(["export", "--output"])
+        .arg(out)
+        .args(["--revision", "abc123"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    (r.status.success(), String::from_utf8_lossy(&r.stderr).into_owned())
+}
+
+/// A playable's `page` folder (its page on the download site) is published beside the game, to `site/wiki/<slug>/` and `site/thumbs/<slug>.png`, so a game and its
+/// page arrive in one pull request; it is held to the Games repository's own page rules (`site/wiki.py`) first; a page made by hand there is never touched; and a page the
+/// manifest stops naming is removed like any other published file.
+#[test]
+fn a_games_page_is_published_with_it_checked_by_the_sites_rules_and_removed_when_dropped() {
+    let Some(py) = python() else { return };
+    let root = engine("page", true);
+    let manifest = fs::read_to_string(root.join("games-publish.json")).unwrap();
+    let with_page = manifest.replace(r#""arguments":[]}"#, r#""arguments":[],"page":"pages/demo"}"#);
+    assert_ne!(with_page, manifest);
+    write(&root.join("games-publish.json"), &with_page);
+    write(&root.join("pages/demo/wiki.json"), r#"{"tagline": "a demo"}"#);
+    fs::write(root.join("pages/demo/g1.jpg"), b"\xff\xd8\xffpicture").unwrap();
+    fs::write(root.join("pages/demo/thumb.png"), b"\x89PNG\r\n\x1a\nthumb").unwrap();
+
+    let out = std::env::temp_dir().join(format!("re2_publish_page_out_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&out);
+    // The Games repository's page rules: a page needs a tagline. And a page made there by hand for another game.
+    write(&out.join("site/wiki.py"), "def problems(data, author, folder):\n    return [] if data.get('tagline') else ['`tagline` is missing']\n");
+    write(&out.join("site/wiki/hand-made/wiki.json"), "made by hand");
+    write(&out.join("site/thumbs/hand-made.png"), "made by hand");
+
+    export(py, &root, &out);
+    let after = tree(&out);
+    let has = |lines: &[String], needle: &str| lines.iter().any(|l| l.starts_with(needle));
+    assert!(
+        has(&after, r#"site/wiki/demo/wiki.json={"tagline": "a demo"}"#) && has(&after, "site/wiki/demo/g1.jpg") && has(&after, "site/thumbs/demo.png"),
+        "{after:?}"
+    );
+    assert!(!has(&after, "site/wiki/demo/thumb.png"), "the thumbnail goes to site/thumbs only: {after:?}");
+    assert!(has(&after, "site/wiki/hand-made/wiki.json=made by hand") && has(&after, "site/thumbs/hand-made.png=made by hand"), "{after:?}");
+
+    // A page the site would refuse is not published, and the export says why.
+    write(&root.join("pages/demo/wiki.json"), r#"{"tagline": ""}"#);
+    let (ok, err) = export_status(py, &root, &out);
+    assert!(!ok && err.contains("`tagline` is missing") && err.contains("pages/demo/wiki.json"), "{err}");
+    assert_eq!(tree(&out), after, "nothing was written");
+
+    // A file a page may not hold is refused.
+    write(&root.join("pages/demo/wiki.json"), r#"{"tagline": "a demo"}"#);
+    write(&root.join("pages/demo/notes.txt"), "scratch");
+    let (ok, err) = export_status(py, &root, &out);
+    assert!(!ok && err.contains("notes.txt"), "{err}");
+    fs::remove_file(root.join("pages/demo/notes.txt")).unwrap();
+
+    // The manifest stops naming the page: what it published is removed, the hand-made page stays.
+    write(&root.join("games-publish.json"), &manifest);
+    export(py, &root, &out);
+    let later = tree(&out);
+    assert!(!has(&later, "site/wiki/demo/") && !has(&later, "site/thumbs/demo.png") && !out.join("site/wiki/demo").exists(), "{later:?}");
+    assert!(has(&later, "site/wiki/hand-made/wiki.json=made by hand") && has(&later, "site/thumbs/hand-made.png=made by hand"), "{later:?}");
+    for d in [&root, &out] {
+        let _ = fs::remove_dir_all(d);
+    }
+}

@@ -17,6 +17,7 @@ Every command takes the global `--json` for one stable envelope (`describe diagn
 - **Making a game or a map** (no Rust): [`docs/MAKING_GAMES.md`](docs/MAKING_GAMES.md): the cheapest-first commands, game projects and blueprints, the
   editing loop. **A 2D game reads none of the 3D material:** `red_engine2 describe 2d` is the format and the loop; `new-game DIR --kind 2d` starts from a
   verified game (`examples/2d/gate-meadow` uses every feature); then `validate` -> `verify` -> `play2d` -> `publish`. All games ship as native executables.
+- **Sending a game or an update from a fork** (the game, its page on the download site, the publish entry, in one pull request): [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Changing the engine's Rust:** [`docs/ENGINE_WORK.md`](docs/ENGINE_WORK.md): `context` before you open a file, the `iterate` -> `affected` ladder, records,
   profiles, the current direction, and keeping the codebase cheap for the next agent.
 

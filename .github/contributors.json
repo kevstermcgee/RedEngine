@@ -1,0 +1,4 @@
+{
+ "_comment": "GitHub logins whose game pull requests are checked for a one-tap merge (scripts/contributed_games.py, CONTRIBUTING.md): when one only changes games its author maintains and CI passes, the owner is told it is safe to merge. Only the owner edits this file.",
+ "contributors": ["meastwood13"]
+}

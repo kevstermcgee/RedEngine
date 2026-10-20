@@ -231,8 +231,9 @@ stage_pytools() {
     echo "-- $t"
     "$py" "$t"
   done
-  echo "-- scripts/publish_games.py check"
-  "$py" scripts/publish_games.py check
+  # With a RedEngineGames checkout (RED_GAMES_REPO; the hosted job checks out its site/ folder), every game's page is held to the site's own page rules too.
+  echo "-- scripts/publish_games.py check${RED_GAMES_REPO:+ --games-repo $RED_GAMES_REPO}"
+  "$py" scripts/publish_games.py check ${RED_GAMES_REPO:+--games-repo "$RED_GAMES_REPO"}
 }
 
 # The Windows leg of a pull request (ADR 2026-10-10-windows-ci-on-pull-requests-is-build-and-direct3d): every binary builds and links on Windows (cargo builds all of them to give the
@@ -271,6 +272,10 @@ stage_content() {
   done
   if [ -z "$py" ]; then echo "python is not installed: the game generators cannot be checked"; exit 1; fi
   "$py" scripts/game_generators.py check
+  # Every published game the engine's client plays still plays: `lint` finds no errors, its bots' `nav` graph can be travelled, its own `checks` pass. A game sent
+  # from a fork is checked here because its author may have no Rust toolchain to run these (CONTRIBUTING.md).
+  echo "== content: every published game lints, its bots' routes work, its checks pass =="
+  "$py" scripts/publish_games.py play-check --engine "cargo run --locked --quiet ${RED_CI_CONTENT_FLAGS:-} --bin red_engine2 --"
 }
 
 stages=("$@")
