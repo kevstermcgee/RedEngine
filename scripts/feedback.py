@@ -2,7 +2,7 @@
 """The feedback inbox: everything people and AIs have said about RedEngine, its games, the app and the site, in one ranked list.
 
 Feedback arrives in many places. This reads all of them and answers one question, "what should be improved next, and who asked": the daily improver
-reads it first (docs/DAILY_IMPROVER.md), and so can anyone.
+reads it first, and so can anyone.
 
   digest [--since DATE] [--limit N] [--json] [--offline]    the ranked inbox (Markdown; --json for tools). --offline skips GitHub
   add "TITLE" --area AREA --evidence E --proposal P [--about ABOUT] [--severity 1-3] [--minutes N] [--workaround W] [--key KEY]
