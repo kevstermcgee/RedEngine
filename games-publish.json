@@ -11,7 +11,8 @@
       {"source": "examples/chroma", "destination": "chroma"},
       {"source": "games/frameless/content", "destination": "frameless"},
       {"source": "examples/2d/honeybound.game2d.json", "destination": "honeybound"},
-      {"source": "games/redcraft/content", "destination": "redcraft"}
+      {"source": "games/redcraft/content", "destination": "redcraft"},
+      {"source": "examples/chrono-clash", "destination": "chrono-clash"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -54,6 +55,13 @@
       "entry": "games/wormhole/wormhole.json",
       "files": ["games/wormhole"],
       "arguments": ["content/games/wormhole/wormhole.json"]
+    },
+    {
+      "slug": "chrono-clash",
+      "name": "Chrono Clash",
+      "entry": "games/chrono-clash/speakeasy.json",
+      "files": ["games/chrono-clash"],
+      "arguments": ["--host", "content/games/chrono-clash/speakeasy.json"]
     },
     {
       "slug": "chroma",
