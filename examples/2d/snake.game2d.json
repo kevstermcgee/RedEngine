@@ -1,0 +1,115 @@
+{
+  "game2d": 1,
+  "id": "snake",
+  "title": "Snake",
+  "description": "The original: steer a snake of squares, eat apples to grow, and keep going until the snake fills the whole board.",
+  "capabilities": {"presentation":"2d","platforms":["windows","linux"],"networking":"offline","input":["keyboard","mouse"],"persistence":["settings","progress"]},
+  "view": {"width":200,"height":172,"background":"#1c2b12","scale":"integer"},
+  "sounds": {
+    "eat": {"seconds":0.5,"level":0.3,"layers":[{"sine":659,"harmonics":[[2,0.15]],"attack":0.01,"decay":7},{"sine":988,"delay":0.06,"attack":0.01,"decay":8,"gain":0.5}]},
+    "crash": {"seconds":0.9,"level":0.3,"layers":[{"glide":[330,165,3],"attack":0.02,"decay":3.5},{"sine":220,"attack":0.03,"decay":4,"gain":0.4}]},
+    "win": {"seconds":2.0,"level":0.35,"layers":[{"sine":523,"attack":0.02,"decay":1.5},{"sine":659,"delay":0.15,"attack":0.02,"decay":1.5},{"sine":784,"delay":0.3,"attack":0.02,"decay":1.3},{"sine":1047,"delay":0.45,"attack":0.02,"decay":1.2,"gain":0.6}]}
+  },
+  "music": {
+    "theme": {"title":"Garden","bpm":60,"beats":4,"bars":8,"key":"D","scale":"pentatonic","seed":11,"lufs":-30,
+      "reverb": {"decay":6,"mix":0.45},
+      "instruments": {
+        "pad": {"seconds":10,"level":0.4,"layers":[{"sine":1,"attack":2.5,"release":3},{"sine":1.004,"attack":3,"release":3,"gain":0.5}]},
+        "bell": {"seconds":4,"level":0.3,"layers":[{"sine":1,"harmonics":[[2.76,0.15]],"attack":0.01,"decay":1.2}]}
+      },
+      "tracks": [
+        {"inst":"pad","play":"chords","chords":"1 4 6 5","every":"2 bars","octave":3,"gain":0.7},
+        {"inst":"bell","play":"walk","every":"1 beat","density":0.25,"range":[1,8],"octave":5,"gain":0.4,"pan":"spread","send":1,"vel":[0.3,0.6]}
+      ]}
+  },
+  "vars": {"hx":4,"hy":7,"dx":1,"dy":0,"ndx":1,"ndy":0,"pend":0,"qdx":0,"qdy":0,"hasq":0,"len":3,"grow":0,"tailgo":0,"fresh":1,"started":0,"paused":0,"dead":0,"won":0,"score":0,"best":0},
+  "persist": ["best"],
+  "pause_if": "paused == 1",
+  "prefabs": {
+    "board": {"shape":{"rect":[200,150],"color":"#9bbc0f"},"size":[200,150],"layer":0},
+    "head": {"tag":"head","shape":{"rect":[9,9],"color":"#0f380f"},"size":[9,9],"layer":3},
+    "seg_r": {"tag":["body","r"],"shape":{"rect":[9,9],"color":"#306230"},"size":[9,9],"layer":2},
+    "seg_l": {"tag":["body","l"],"shape":{"rect":[9,9],"color":"#306230"},"size":[9,9],"layer":2},
+    "seg_u": {"tag":["body","u"],"shape":{"rect":[9,9],"color":"#306230"},"size":[9,9],"layer":2},
+    "seg_d": {"tag":["body","d"],"shape":{"rect":[9,9],"color":"#306230"},"size":[9,9],"layer":2},
+    "tail": {"tag":"tail","shape":{"rect":[4,4],"color":"#000"},"size":[4,4],"layer":1,"hidden":true},
+    "apple": {"tag":"apple","shape":{"rect":[7,7],"color":"#b02020"},"size":[9,9],"layer":1}
+  },
+  "scene": [
+    {"prefab":"board","at":[100,87]},
+    {"prefab":"seg_r","at":[25,87]},
+    {"prefab":"seg_r","at":[35,87]},
+    {"prefab":"tail","at":[25,87]},
+    {"prefab":"head","at":[45,87],"id":"head"}
+  ],
+  "ui": [
+    {"text":"SCORE {score}  LEN {len}","at":[3,3],"color":"#9bbc0f"},
+    {"text":"HI {best}","at":[197,3],"align":"right","color":"#9bbc0f"},
+    {"text":"P PAUSE  M MUSIC","at":[100,164],"align":"center","color":"#5a7a2a"},
+    {"button":{"id":"music","label":"","at":[0,0],"size":[1,1],"key":"KeyM","do":[{"music":"toggle"}]}},
+    {"panel":{"at":[36,54],"size":[128,42],"color":"#c8dc78"},"show":"started == 0 || paused == 1 || ended != 0"},
+    {"text":"ARROWS TO MOVE","at":[100,64],"align":"center","color":"#0f380f","show":"started == 0"},
+    {"text":"PAUSED","at":[100,64],"align":"center","color":"#0f380f","show":"paused == 1"},
+    {"text":"P TO RESUME","at":[100,80],"align":"center","color":"#0f380f","show":"paused == 1"},
+    {"text":"GAME OVER","at":[100,64],"align":"center","color":"#0f380f","show":"dead == 1"},
+    {"text":"YOU FILLED THE BOARD","at":[100,64],"align":"center","color":"#0f380f","show":"won == 1"},
+    {"text":"SPACE TO PLAY AGAIN","at":[100,80],"align":"center","color":"#0f380f","show":"ended != 0"}
+  ],
+  "rules": [
+    {"id":"left","when":{"press":"left"},"if":"pend == 0 && dx == 0 && ended == 0 && paused == 0","do":[{"set":["ndx",-1]},{"set":["ndy",0]},{"set":["pend",1]},{"set":["started",1]}]},
+    {"id":"right","when":{"press":"right"},"if":"pend == 0 && dx == 0 && ended == 0 && paused == 0","do":[{"set":["ndx",1]},{"set":["ndy",0]},{"set":["pend",1]},{"set":["started",1]}]},
+    {"id":"up","when":{"press":"up"},"if":"pend == 0 && dy == 0 && ended == 0 && paused == 0","do":[{"set":["ndx",0]},{"set":["ndy",-1]},{"set":["pend",1]},{"set":["started",1]}]},
+    {"id":"down","when":{"press":"down"},"if":"pend == 0 && dy == 0 && ended == 0 && paused == 0","do":[{"set":["ndx",0]},{"set":["ndy",1]},{"set":["pend",1]},{"set":["started",1]}]},
+    {"id":"queue_left","when":{"press":"left"},"if":"pend == 1 && ndx == 0 && ended == 0 && paused == 0","do":[{"set":["qdx",-1]},{"set":["qdy",0]},{"set":["hasq",1]},{"set":["pend",2]}]},
+    {"id":"queue_right","when":{"press":"right"},"if":"pend == 1 && ndx == 0 && ended == 0 && paused == 0","do":[{"set":["qdx",1]},{"set":["qdy",0]},{"set":["hasq",1]},{"set":["pend",2]}]},
+    {"id":"queue_up","when":{"press":"up"},"if":"pend == 1 && ndy == 0 && ended == 0 && paused == 0","do":[{"set":["qdx",0]},{"set":["qdy",-1]},{"set":["hasq",1]},{"set":["pend",2]}]},
+    {"id":"queue_down","when":{"press":"down"},"if":"pend == 1 && ndy == 0 && ended == 0 && paused == 0","do":[{"set":["qdx",0]},{"set":["qdy",1]},{"set":["hasq",1]},{"set":["pend",2]}]},
+    {"id":"go","when":{"press":"right"},"if":"started == 0","do":[{"set":["started",1]}]},
+    {"id":"go_action","when":{"press":"action"},"if":"started == 0 && ended == 0","do":[{"set":["started",1]}]},
+    {"id":"pause","when":{"press":"pause"},"if":"started == 1 && ended == 0","do":[{"set":["paused","1 - paused"]}]},
+    {"id":"again","when":{"press":"action"},"if":"ended != 0","do":[{"restart":true}]},
+
+    {"id":"first_apple","when":{"start":true},"do":[{"spawn":{"prefab":"apple","at":["random(0, 19) * 10 + 5","random(0, 14) * 10 + 17"]}},{"set":["fresh",1]}]},
+
+    {"id":"tick","when":{"every":0.1},"if":"started == 1 && dead == 0 && won == 0","do":[{"emit":"step"}]},
+    {"id":"turn","when":{"event":"step"},"do":[{"set":["dx","ndx"]},{"set":["dy","ndy"]},{"set":["pend",0]},{"set":["fresh",0]}]},
+    {"id":"next_turn","when":{"event":"step"},"if":"hasq == 1","do":[{"set":["ndx","qdx"]},{"set":["ndy","qdy"]},{"set":["hasq",0]},{"set":["pend",1]}]},
+    {"id":"wall","when":{"event":"step"},"if":"hy + dy < 0 || hy + dy > 14","do":[{"set":["dead",1]},{"play":"crash"},{"shake":3},{"end":"lose"}]},
+    {"id":"leave_r","when":{"event":"step"},"if":"dead == 0 && dx == 1","do":[{"spawn":{"prefab":"seg_r","at":["hx * 10 + 5","hy * 10 + 17"]}}]},
+    {"id":"leave_l","when":{"event":"step"},"if":"dead == 0 && dx == -1","do":[{"spawn":{"prefab":"seg_l","at":["hx * 10 + 5","hy * 10 + 17"]}}]},
+    {"id":"leave_u","when":{"event":"step"},"if":"dead == 0 && dy == -1","do":[{"spawn":{"prefab":"seg_u","at":["hx * 10 + 5","hy * 10 + 17"]}}]},
+    {"id":"leave_d","when":{"event":"step"},"if":"dead == 0 && dy == 1","do":[{"spawn":{"prefab":"seg_d","at":["hx * 10 + 5","hy * 10 + 17"]}}]},
+    {"id":"advance","when":{"event":"step"},"if":"dead == 0","do":[{"add":["hx","dx"]},{"set":["hx","hx - 20 * floor(hx / 20)"]},{"add":["hy","dy"]},{"teleport":{"target":"id:head","to":["hx * 10 + 5","hy * 10 + 17"]}}]},
+    {"id":"shrink","when":{"event":"step"},"if":"dead == 0 && grow == 0","do":[{"set":["tailgo",1]}]},
+    {"id":"grow","when":{"event":"step"},"if":"dead == 0 && grow > 0","do":[{"add":["grow",-1]}]},
+
+    {"id":"tail_r","when":{"touching":["tail","r"]},"if":"tailgo == 1","do":[{"set":["tailgo",0]},{"destroy":"other"},{"teleport":{"target":"self","to":["self_x + 10 - 200 * floor((self_x + 10) / 200)","self_y"]}}]},
+    {"id":"tail_l","when":{"touching":["tail","l"]},"if":"tailgo == 1","do":[{"set":["tailgo",0]},{"destroy":"other"},{"teleport":{"target":"self","to":["self_x - 10 - 200 * floor((self_x - 10) / 200)","self_y"]}}]},
+    {"id":"tail_u","when":{"touching":["tail","u"]},"if":"tailgo == 1","do":[{"set":["tailgo",0]},{"destroy":"other"},{"teleport":{"target":"self","to":["self_x","self_y - 10"]}}]},
+    {"id":"tail_d","when":{"touching":["tail","d"]},"if":"tailgo == 1","do":[{"set":["tailgo",0]},{"destroy":"other"},{"teleport":{"target":"self","to":["self_x","self_y + 10"]}}]},
+
+    {"id":"bite","when":{"touch":["head","body"]},"if":"dead == 0","do":[{"set":["dead",1]},{"play":"crash"},{"shake":3},{"end":"lose"}]},
+
+    {"id":"eat","when":{"touch":["head","apple"]},"if":"fresh == 0 && dead == 0","do":[{"destroy":"other"},{"add":["len",1]},{"add":["grow",1]},{"add":["score",10]},{"play":"eat"},{"set":["fresh",1]},{"emit":"ate"}]},
+    {"id":"next_apple","when":{"event":"ate"},"if":"len < 300","do":[{"spawn":{"prefab":"apple","at":["random(0, 19) * 10 + 5","random(0, 14) * 10 + 17"]}}]},
+    {"id":"full","when":{"event":"ate"},"if":"len >= 300","do":[{"set":["won",1]},{"play":"win"},{"end":"win"}]},
+    {"id":"apple_off_body","when":{"touching":["apple","body"]},"do":[{"set":["fresh",1]},{"teleport":{"target":"self","to":["random(0, 19) * 10 + 5","random(0, 14) * 10 + 17"]}}]},
+    {"id":"apple_off_head","when":{"touching":["apple","head"]},"if":"fresh == 1","do":[{"teleport":{"target":"self","to":["random(0, 19) * 10 + 5","random(0, 14) * 10 + 17"]}}]},
+
+    {"id":"record","when":{"end":"any"},"if":"score > best","do":[{"set":["best","score"]},{"save":true}]}
+  ],
+  "checks": {"scenarios":[
+    {"name":"wall_up_kills","max_seconds":5,"script":[{"press":"up"},{"wait":1.5}],
+     "expect":[{"var":"dead","eq":1},{"ended":"lose"}]},
+    {"name":"wrap_right_to_left","max_seconds":6,"script":[{"press":"right"},{"wait_until":{"var":"hx","eq":0},"timeout":3}],
+     "expect":[{"var":"dead","eq":0},{"var":"hy","eq":7}]},
+    {"name":"wrap_left_to_right","max_seconds":6,"script":[{"press":"up"},{"wait":0.15},{"press":"left"},{"wait_until":{"var":"hx","eq":19},"timeout":3}],
+     "expect":[{"var":"dead","eq":0},{"var":"dx","eq":-1}]},
+    {"name":"no_instant_reverse","max_seconds":5,"script":[{"press":"right"},{"wait":0.15},{"press":"left"},{"wait":0.5}],
+     "expect":[{"var":"dx","eq":1},{"var":"dead","eq":0}]},
+    {"name":"two_quick_turns_both_count","max_seconds":5,"script":[{"press":"up"},{"press":"left"},{"wait":0.5}],
+     "expect":[{"var":"dx","eq":-1},{"var":"dy","eq":0},{"var":"dead","eq":0}]},
+    {"name":"pause_freezes","max_seconds":5,"script":[{"press":"right"},{"wait":0.3},{"press":"pause"},{"wait":1.0}],
+     "expect":[{"var":"paused","eq":1},{"var":"hx","lt":9}]}
+  ]}
+}
