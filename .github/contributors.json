@@ -1,4 +1,8 @@
 {
- "_comment": "GitHub logins whose game pull requests are checked for a one-tap merge (scripts/contributed_games.py, CONTRIBUTING.md): when one only changes games its author maintains and CI passes, the owner is told it is safe to merge. Only the owner edits this file.",
- "contributors": ["meastwood13"]
+ "_comment": "Who RedEngine's game pull requests are checked for (scripts/contributed_games.py, docs/COLLABORATING.md). `maintainers` are equal: each has write access to RedEngine and RedEngineGames, merges their own pull request once it is safe and anyone's after a look, publishes from the app, and their issues and notes are trusted feedback (scripts/feedback.py). `contributors` send games whose safe pull requests wait for a maintainer's tap. The maintainers change this list together, in a pull request.",
+ "maintainers": [
+  "kevstermcgee",
+  "meastwood13"
+ ],
+ "contributors": []
 }
