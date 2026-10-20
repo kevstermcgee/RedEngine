@@ -129,7 +129,8 @@ impl Audio {
         let (_stream, handle) = OutputStream::try_default().ok()?;
         // Synthesizing a score takes a moment: do every track off the window's thread (the one playing now first), so the first frame and a level change never wait for it.
         let tracks: Tracks = Arc::new(Mutex::new(Vec::new()));
-        if let Some(def) = host.def() {
+        // A game without music has nothing to synthesize (asking for its "first" track panicked the player).
+        if let Some(def) = host.def().filter(|d| !d.music.is_empty()) {
             let n = def.music.len();
             tracks.lock().map(|mut t| t.resize(n, None)).ok()?;
             let first = host.music_track().min(n.saturating_sub(1));

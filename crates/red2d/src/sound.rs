@@ -7,15 +7,18 @@ use crate::audio_analysis::{self, Clip, Kind, Report};
 use crate::game::GameDef;
 use crate::synth::SAMPLE_RATE;
 
-/// Mono samples of sound `i` at [`SAMPLE_RATE`].
+/// Mono samples of sound `i` at [`SAMPLE_RATE`]; an error when the game has no sound `i`.
 pub fn voice_pcm(def: &GameDef, i: usize) -> Result<Vec<f32>, String> {
-    let v = crate::voice_spec::parse_voice_up_to(&def.sounds[i].voice, 6.0).map_err(|e| e.join("; "))?;
+    let sound = def.sounds.get(i).ok_or_else(|| format!("no sound {i} (the game has {})", def.sounds.len()))?;
+    let v = crate::voice_spec::parse_voice_up_to(&sound.voice, 6.0).map_err(|e| e.join("; "))?;
     Ok(v.render())
 }
 
-/// Interleaved stereo samples of music track `i` (one loop) at [`SAMPLE_RATE`], and its loudness.
+/// Interleaved stereo samples of music track `i` (one loop) at [`SAMPLE_RATE`], and its loudness; an error when the game has no track `i` (a game
+/// without music asked for its first track crashed the installed player before).
 pub fn music_pcm(def: &GameDef, i: usize) -> Result<(Vec<f32>, f32), String> {
-    let s = crate::score::parse_score(&def.music[i].1).map_err(|e| e.join("; "))?;
+    let (_, score) = def.music.get(i).ok_or_else(|| format!("no music track {i} (the game has {})", def.music.len()))?;
+    let s = crate::score::parse_score(score).map_err(|e| e.join("; "))?;
     let r = s.render();
     Ok((r.samples, r.lufs))
 }

@@ -751,6 +751,24 @@ impl Sim {
 
     /// Restores progress from saved text. Anything that does not fit this game is ignored and said so; the game always starts.
     pub fn load_save(&mut self, text: &str) -> SaveStatus {
+        let status = self.read_save(text);
+        if matches!(status, SaveStatus::Loaded(n) if n > 0) {
+            // `start` rules ran before the save was read, so a world that depends on saved progress (a gate already opened, a level reached) is rebuilt by a rule that reacts to this:
+            // the built-in event `loaded`, fired once right now, so the very first frame already shows the restored world.
+            let def = self.def.clone();
+            self.events.push("loaded".to_string());
+            self.drain_events(&def);
+            self.cleanup();
+            self.refresh_vars();
+            self.save_dirty = false;
+            self.saved_snapshot = self.persisted_values();
+        }
+        status
+    }
+
+    /// Reads saved text into the persisted variables and the music setting, without the game's `loaded` rules: the save format alone (what `verify`'s
+    /// save round trip checks, since a `loaded` rule may fairly correct a value, such as an out-of-range choice).
+    pub(crate) fn read_save(&mut self, text: &str) -> SaveStatus {
         let v: serde_json::Value = match serde_json::from_str(text) {
             Ok(v) => v,
             Err(e) => return SaveStatus::Corrupt(format!("not JSON: {e}")),
@@ -783,17 +801,6 @@ impl Sim {
         self.saved_snapshot = self.persisted_values();
         self.vars_dirty = true;
         self.refresh_vars();
-        if n > 0 {
-            // `start` rules ran before the save was read, so a world that depends on saved progress (a gate already opened, a level reached) is rebuilt by a rule that reacts to this:
-            // the built-in event `loaded`, fired once right now, so the very first frame already shows the restored world.
-            let def = self.def.clone();
-            self.events.push("loaded".to_string());
-            self.drain_events(&def);
-            self.cleanup();
-            self.refresh_vars();
-            self.save_dirty = false;
-            self.saved_snapshot = self.persisted_values();
-        }
         SaveStatus::Loaded(n)
     }
 

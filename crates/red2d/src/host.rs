@@ -269,6 +269,10 @@ mod tests {
         assert!(h.sound_pcm(0).unwrap().len() > 4000);
         assert!(h.sound_pcm(5).is_err());
         assert_eq!(h.music_pcm().unwrap(), None);
+        // A game without music: asking for a track is an error, never a panic (the installed player crashed on it).
+        let def = h.def().unwrap();
+        assert!(crate::sound::music_pcm(def, 0).unwrap_err().contains("no music track 0"));
+        assert!(crate::sound::voice_pcm(def, def.sounds.len()).is_err());
         // A fresh host restores the save; a bad one is reported, not fatal.
         let mut h2 = Host::default();
         h2.init(GAME, 1).unwrap();
