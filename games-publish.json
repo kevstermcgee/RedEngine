@@ -93,7 +93,8 @@
       "kind": "2d",
       "entry": "games/snake/snake.game2d.json",
       "files": ["games/snake"],
-      "arguments": ["content/games/snake/snake.game2d.json"]
+      "arguments": ["content/games/snake/snake.game2d.json"],
+      "page": "pages/snake"
     },
     {
       "slug": "redcraft",
