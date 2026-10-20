@@ -82,6 +82,7 @@ class WhichJobs(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         with open(os.path.join(self.repo, "out.txt"), encoding="utf-8") as f:
             got = dict(l.strip().split("=", 1) for l in f if "=" in l)
+        self.docs_only = got["docs_only"] == "true"
         return {k: got[k] == "true" for k in ("native", "docker", "pytools", "games_only")}
 
     def assertJobs(self, changed, native, docker, pytools, games_only=False, **kw):
@@ -158,6 +159,14 @@ class WhichJobs(unittest.TestCase):
         # Under pipefail `echo | grep -q` can fail when grep exits early; the helper reads a here-string. A few thousand files, the match last.
         names = [f"docs/analysis/f{i:05}.md" for i in range(3000)] + ["scripts/idea_forge.py"]
         self.assertEqual(self.jobs(*names)["pytools"], True)
+
+    def test_a_games_page_starts_the_python_job_that_holds_it_to_the_sites_rules(self):
+        # A page is a JSON file and pictures: no Rust, no image, but the publisher checks it against RedEngineGames' site/wiki.py in the python job.
+        self.assertJobs(["pages/x/wiki.json", "pages/x/g1.jpg", "CONTRIBUTING.md"], native=False, docker=False, pytools=True)
+        self.assertTrue(self.docs_only, "a page compiles nothing, like documentation")
+        # A game sent from a fork with its page: the full run (examples/ is native) and the page check.
+        self.assertJobs(["examples/x/x.json", "games-publish.json", "pages/x/wiki.json"], native=True, docker=True, pytools=True)
+        self.assertFalse(self.docs_only)
 
 
 if __name__ == "__main__":

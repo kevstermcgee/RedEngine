@@ -8,6 +8,8 @@ on:
       - Cargo.toml
       - benches/**
       - examples/**
+      - games/**
+      - pages/**
       - recipes/**
       - scripts/lobby_demo.ps1
       - scripts/multiplayer_demo.ps1
@@ -32,6 +34,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0 # the commits since the last sync are each game's "What changed"
 
       - name: Check out RedEngineGames
         uses: actions/checkout@v7
@@ -43,16 +46,24 @@ jobs:
       - name: Export curated content
         run: python scripts/publish_games.py export --output _games_repo --revision "$GITHUB_SHA"
 
+      # "<slug>: <subject>" for every commit of this push that changed a game. RedEngineGames' release tool reads these lines from the sync commit as the
+      # "What changed" of the game's next version, so a contributor's commit subjects are what players read.
+      - name: What changed in each game
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python scripts/publish_games.py notes --since "$BEFORE" > _games_notes.txt && cat _games_notes.txt
+
       - name: Commit and push changes
         working-directory: _games_repo
         shell: bash
         run: |
-          git add games prototypes tests demos .games-catalog.json
+          git add games prototypes tests demos site/wiki site/thumbs .games-catalog.json
           if git diff --cached --quiet; then
             echo "RedEngineGames is already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Sync RedEngine content at ${GITHUB_SHA::12}"
+          { echo "Sync RedEngine content at ${GITHUB_SHA::12}"; if [ -s ../_games_notes.txt ]; then echo; cat ../_games_notes.txt; fi; } > ../_games_message.txt
+          git commit -F ../_games_message.txt
           git push

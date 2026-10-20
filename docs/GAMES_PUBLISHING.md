@@ -21,9 +21,9 @@ To inspect the exact result locally, export into a separate directory:
 python scripts/publish_games.py export --output ../RedEngineGames-preview
 ```
 
-On a push to `main` that changes the engine, a published source, the manifest, or the publisher,
+On a push to `main` that changes the engine, a published source, a page, the manifest, or the publisher,
 `.github/workflows/publish-games.yml` checks out `RedEngineGames`, writes the files the
-manifest publishes into the four collections (and removes files an earlier export published that the manifest no longer does, as the catalog records), and pushes only when the copy
+manifest publishes into the four collections and the pages (and removes files an earlier export published that the manifest no longer does, as the catalog records), and pushes only when the copy
 changed. **It never deletes anything else**: games added to `RedEngineGames/games` by hand are left alone. It can also be run
 manually. The workflow authenticates with the repository-scoped SSH deploy key in
 the `GAMES_REPO_DEPLOY_KEY` Actions secret. The key can write only to
@@ -43,6 +43,20 @@ that game's content changed: a per-user installer (desktop shortcut offered, uni
 tagged `<slug>-v<N>`. An installed game updates itself in place, and the download site lists every version. Add an entry only after its content is self-contained and
 manually playable with the listed arguments. How it works, forcing a re-release after an engine change, and code signing: `docs/DISTRIBUTION.md` in RedEngineGames;
 the decision: ADR "Games ship as versioned installers that update in place". The engine reads `RE2_SAVE_DIR` (a folder for a game's settings and saved variables).
+
+A playable may name its **page** on the download site: `"page": "pages/<slug>"`, a folder holding `wiki.json` (the fields and rules of RedEngineGames
+`site/wiki.py`), the pictures it names (PNG or JPEG) and `thumb.png` (the site list's picture). The export publishes it to `site/wiki/<slug>/` and
+`site/thumbs/<slug>.png` and records those files in the catalog like any other, so the game, its page and its thumbnail arrive in one pull request (a game sent
+from a fork: `CONTRIBUTING.md`). The page is not part of the game (it never makes a new version). It is held to the site's own rules before it is published:
+`publish_games.py check --games-repo ../RedEngineGames` (the hosted python-tools job checks out RedEngineGames' `site/` for it) and every export into a
+checkout that has `site/wiki.py`; that check also refuses a playable with no page at all, unless RedEngineGames has one for it (`site/wiki/<slug>/`) or lists
+it as pending. A page without a `page` folder here is maintained in RedEngineGames, by hand.
+
+Each sync commit carries one `<slug>: <subject>` line per engine commit of the push that changed a game (`publish_games.py notes --since BEFORE`, merges and
+the page left out); RedEngineGames' release tool reads them as the **What changed** of the game's next version, so write commit subjects a player can read.
+
+Every game of the `games` collection that `re2` plays (3D, no `binary`) is played by the CLI in CI's `content` job: `publish_games.py play-check` runs `lint`
+(no errors), `nav` when the scene has a nav graph and `verify` when it has `checks`.
 
 A playable's `files` must hold everything its scene names: the score files of its `audio` block, for one. A manifest that leaves one out would ship a game that silently plays no
 music, so `cargo test` fails (`tools::publish_check`, test `every_published_playable_ships_everything_its_scene_needs`) and names the playable, the file and the fix. A scene that

@@ -1,0 +1,51 @@
+{
+ "tagline": "A time-travelling arena shooter: drifters from every era fight it out in a 1932 Chicago bootlegger warehouse, first to 20 eliminations.",
+ "overview": "Chrono Clash is a fast deathmatch shooter in the spirit of the classic console arena games. Every map is a different era, and the fighters are drifters pulled out of all of them: a gangster, a cowboy, a robot, an alien and a wizard. The first arena is the Speakeasy, Chicago 1932, a two-level bootlegger warehouse lit by hanging lamps. A long bar sits in the middle of the floor, crates and iron pillars give cover, catwalk mezzanines run along both ends (stairs go up, you drop back down), and a glowing time portal in the floor launches you onto the top of the crate tower. You play against five bots with their own fighting styles, on your own computer.",
+ "story": "Something has broken in time. A rift has opened over a Chicago speakeasy in 1932, and through it fall fighters from every age who have nothing in common but a gun and the wish to get home. Only one of them can ride the rift out of here. Under the neon SPEAKEASY sign, between the bottles and the bootleg crates, the drifters fight for it, and whoever falls is erased from history until the rift spits them back out.",
+ "goal": "Be the first to 20 eliminations, or have the most when the five minutes of the round are up. Being eliminated costs you nothing but time: you are back in two seconds.",
+ "rules": [
+  "Deathmatch: every elimination scores one point, and the first fighter to 20 wins the round.",
+  "A round lasts five minutes; when the time is up, the most eliminations wins. A short countdown starts each round and a new one follows the results.",
+  "You are joined by five bots: Tommy Vance, Dusty Rhodes, Unit 7, Zorbo and Merlin.",
+  "Everyone starts with the Ember SMG (40 rounds in the magazine, 200 in reserve); the mouse wheel switches to the other firearms, which share the same ammunition.",
+  "After an elimination you respawn two seconds later at the spawn point farthest from your enemies, protected from damage for a moment and a half.",
+  "Health comes back by itself: five seconds after the last hit it refills quickly.",
+  "The time portal in the floor in front of the bar launches you onto the crate tower; the catwalks are reached by the stairs at each end and you can drop off their edges."
+ ],
+ "controls": [
+  {"input": "WASD or arrow keys (left stick)", "action": "Walk"},
+  {"input": "Mouse (right stick)", "action": "Look around"},
+  {"input": "Shift, hold (left stick click)", "action": "Sprint"},
+  {"input": "Space (gamepad A)", "action": "Jump"},
+  {"input": "Ctrl (gamepad B)", "action": "Crouch"},
+  {"input": "Left mouse button (gamepad right trigger)", "action": "Fire (hold for automatic fire)"},
+  {"input": "Right mouse button (gamepad left trigger)", "action": "Aim"},
+  {"input": "R (gamepad Y)", "action": "Reload"},
+  {"input": "Mouse wheel (gamepad bumpers)", "action": "Switch weapon"},
+  {"input": "Q (gamepad Back/View)", "action": "First or third person"},
+  {"input": "F", "action": "Fullscreen"},
+  {"input": "Esc (gamepad Start)", "action": "Pause menu"}
+ ],
+ "characters": [
+  {"name": "Tommy Vance", "role": "Bot: the gangster (rusher)", "description": "A Chicago gangster who never left 1932. He charges straight at you and fights up close, so keep your distance or meet him at a corner.", "image": "c1.jpg"},
+  {"name": "Dusty Rhodes", "role": "Bot: the cowboy (sniper)", "description": "A gunslinger from the Old West who hangs back, crouches to shoot and prefers long lines of sight: rush him and he is in trouble.", "image": "c2.jpg"},
+  {"name": "Unit 7", "role": "Bot: the robot (balanced)", "description": "A machine from somewhere far ahead of us, steady and even-tempered: it fights at whatever range its weapon likes best.", "image": "c3.jpg"},
+  {"name": "Zorbo", "role": "Bot: the alien (acrobat)", "description": "A green visitor who never stands still: Zorbo jumps constantly and sprints through fights, which makes him very hard to hit.", "image": "c4.jpg"},
+  {"name": "Merlin", "role": "Bot: the wizard (balanced)", "description": "A wizard in a pointed hat who swapped his staff for a submachine gun when he fell through the rift.", "image": "c5.jpg"},
+  {"name": "The time portal", "role": "Jump pad", "description": "A glowing disc in the floor in front of the bar. Step on it and it throws you high into the air and onto the crate tower, the best view of the warehouse floor.", "image": "c6.jpg"}
+ ],
+ "tips": [
+  "The catwalks see the whole floor but have no railings: you can drop off them to escape, and so can everyone else.",
+  "Ride the time portal onto the crate tower to shoot down over the bar, but you are in plain sight up there.",
+  "Health refills five seconds after the last hit, so break off a losing fight and come back.",
+  "The spawn farthest from your enemies is where you come back, so after an elimination look around before you run."
+ ],
+ "gallery": [
+  {"caption": "The Speakeasy from above with the roof off: the bar in the middle, the time portal and crate tower behind it, crates and pillars for cover, and the catwalks along both ends with their stairs.", "image": "g1.jpg"},
+  {"caption": "The warehouse floor from the south: the bar, the crate tower glowing in front of the SPEAKEASY sign, and the catwalks on both sides.", "image": "g2.jpg"},
+  {"caption": "The view from the west catwalk, looking down the length of the warehouse.", "image": "g3.jpg"},
+  {"caption": "A fight over the bar: tracers, the time portal glowing beside it, and a fighter who did not make it.", "image": "g4.jpg"},
+  {"caption": "Eliminated: ERASED FROM HISTORY, and back in two seconds.", "image": "g5.jpg"}
+ ],
+ "prompt_unavailable": "The prompt that created Chrono Clash was not recorded. It was made with Claude Code on Windows and sent to the engine as RedEngine pull request #199, \"Add Chrono Clash: Speakeasy, Chicago 1932 deathmatch arena\"; the prompt can be added here with a later update. The pictures on this page were taken from the game on its release day."
+}

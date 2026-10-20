@@ -55,7 +55,8 @@ jobs:
           # behave differently there, and a change that is only Python does not touch what `native` looks at. Any Python or PowerShell file, anything under scripts/ (including `dev`, `ci.sh`
           # and the shell helpers the tools call), the publish manifest, tools/ and bench/, and CI itself. Documentation and Rust-only changes do not start it. A game's own generator
           # (`examples/2d/<slug>/`, `examples/3d/<slug>/build.py`) is game data, not a tool: the `content` job runs it (`scripts/game_generators.py check`), so a games-only pull request stays fast.
-          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|mcp_server\.py$|\.github/)' && pytools=true
+          # A game's page (`pages/<slug>/`) is checked by the publisher against the download site's own page rules, in the same job.
+          has '^(scripts/|tools/|bench/|benches/.*\.(py|json)$|games-publish\.json$|pages/|mcp_server\.py$|\.github/)' && pytools=true
           not_games="$(grep -Ev '^examples/(2d|3d)/' <<<"$files" || true)"
           grep -Eq '\.(py|ps1)$' <<<"$not_games" && pytools=true
           # A pull request that only adds or edits generated games (Idea Forge: examples/2d, examples/3d, its feedback note) cannot change a compiled binary, the container image or a tool: every
@@ -63,10 +64,10 @@ jobs:
           # else (an engine change the game depends on, a fixture, a script) and this is false and the full suite runs. (docs/analysis/2026-10-09-engine-ci-growth.md, proposal 1.)
           games_only=false
           if [ -n "$files" ] && ! grep -Evq '^(examples/2d/|examples/3d/|docs/analysis/idea-forge/)' <<<"$files"; then games_only=true; native=false; docker=false; fi
-          # A pull request that changes only documentation (`*.md`, `docs/`) compiles nothing: the `docs` job runs the suites that read the docs from an
-          # archive main compiled from the same code (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites).
+          # A pull request that changes only documentation (`*.md`, `docs/`, a game's page on the download site: `pages/`) compiles nothing: the `docs` job runs the suites that read the
+          # docs from an archive main compiled from the same code (ADR 2026-10-14-ci-compiles-the-tests-once-and-runs-the-server-s-suites), and the python job checks a page.
           docs_only=false
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "$games_only" = false ] && [ -n "$files" ] && ! grep -Evq '(\.md$|^docs/)' <<<"$files"; then
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "$games_only" = false ] && [ -n "$files" ] && ! grep -Evq '(\.md$|^docs/|^pages/)' <<<"$files"; then
             docs_only=true; native=false; docker=false; docker_own=false
           fi
           echo "native=$native" >> "$GITHUB_OUTPUT"; echo "docker=$docker" >> "$GITHUB_OUTPUT"; echo "docker_own=$docker_own" >> "$GITHUB_OUTPUT"; echo "pytools=$pytools" >> "$GITHUB_OUTPUT"; echo "games_only=$games_only" >> "$GITHUB_OUTPUT"; echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
@@ -347,7 +348,16 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      # The download site's page rules (site/wiki.py): every game's page must meet them before it is published (the site build refuses a page that does not).
+      - uses: actions/checkout@v7
+        with:
+          repository: kevstermcgee/RedEngineGames
+          path: _games_repo
+          sparse-checkout: site
+          persist-credentials: false
       - run: bash scripts/ci.sh pytools
+        env:
+          RED_GAMES_REPO: _games_repo
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS. On a pull request it runs the suites that run the
