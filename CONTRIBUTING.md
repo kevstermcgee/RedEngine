@@ -1,8 +1,10 @@
 # Sending a game, or an update to one
 
-A game on [RedEngine Games](https://kevstermcgee.github.io/RedEngineGames/) is published from this repository. You change it with **one pull request from
-your fork**: the game, its page on the site and its entry in the publish list travel together. Once the owner merges it, everything else is automatic.
-You need no Rust toolchain: CI runs the checks you cannot.
+A game on [RedEngine Games](https://kevstermcgee.github.io/RedEngineGames/) is published from this repository. You change it with **one pull request**:
+the game, its page on the site and its entry in the publish list travel together. Once it is merged, everything else is automatic. You need no Rust
+toolchain: CI runs the checks you cannot. A **maintainer** (`.github/contributors.json`; how the two of them work together: [`docs/COLLABORATING.md`](docs/COLLABORATING.md))
+branches in this repository and merges their own game once it is safe; anyone else sends it from a fork and a maintainer merges it. With Claude Code,
+`/make-game`, `/update-game` and `/fork-game` walk an AI through all of this.
 
 ## Your game's files
 
@@ -12,7 +14,7 @@ Chrono Clash as the example. Everything for one game lives in two folders, plus 
 |---|---|---|
 | `examples/chrono-clash/` | the game: its scenes (`speakeasy.json`, ...) and `README.md` (the first paragraph is the game's description on the site) | yes |
 | `pages/chrono-clash/` | its page on the site: `wiki.json`, the pictures it names (PNG or JPEG) and `thumb.png` (640 x 360, the picture on the site's list) | no |
-| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`, `"maintainer": "<your GitHub login>"`) | |
+| `games-publish.json` | a `games` entry (`examples/chrono-clash` -> `chrono-clash`) and a playable (name, main scene, launch arguments, `"page": "pages/chrono-clash"`, `"maintainer": "<your GitHub login>"`, and for a fork `"forked_from"`) | |
 
 The page's fields and their rules are in [RedEngineGames `site/wiki.py`](https://github.com/kevstermcgee/RedEngineGames/blob/main/site/wiki.py): a tagline, an
 overview, the story, the goal, at least 3 rules, the controls, the characters (each with a picture), at least 3 gallery pictures of different moments, and the
@@ -20,9 +22,17 @@ prompt that made the game (or `prompt_unavailable`, saying honestly that it was 
 
 Stay inside your game's folders. An engine change is welcome in a **separate** pull request that says what the game needs and why.
 
+## A fork: someone's game, made your own
+
+`python3 scripts/games.py fork <slug> <your-slug> --name "Your Name"` copies a published game as its newest version shipped it (`<slug>@vN` for
+an older one) into a new game of yours, with its page marked `TODO(fork)` where it must say what you changed and the playable's
+`"forked_from"` naming where it came from (docs/GAMES_PUBLISHING.md, "Forking a game"). From there it is a new game like any other: the steps
+below, one pull request, and the site and the app show it in the original's family. The original's maintainer is not asked: the original is untouched.
+
 ## An update, step by step
 
-1. **Start from the newest main.** `git fetch upstream && git switch -c <short-name> upstream/main` (`upstream` = `https://github.com/kevstermcgee/RedEngine`).
+1. **Start from the newest main.** A maintainer: `git fetch origin && git switch -c <short-name> origin/main`. From a fork: `git fetch upstream && git switch -c
+   <short-name> upstream/main` (`upstream` = `https://github.com/kevstermcgee/RedEngine`).
 2. **Change the game** in `examples/<slug>/`: a new map, bots, rules, music. A new map that players should reach needs a way in: for now each map is its own
    scene, and the playable's `arguments` name the one it opens.
 3. **Play it.** With the installed game (`RedEngine.exe` in the game's folder) and no toolchain:
@@ -40,11 +50,13 @@ Stay inside your game's folders. An engine change is welcome in a **separate** p
    - the rest is the engine's own suite: a game change cannot break it, but it runs.
 
    Fix what fails and push again to the same branch; the pull request updates itself.
-8. **The merge check.** When CI passes, a check (`scripts/contributed_games.py`) comments on the pull request for the owner: **Safe to merge**, and the owner
-   merges it with one tap, or **Needs your eyes**, with the reasons. Safe means: you are listed in `.github/contributors.json`; every file it changes is
+8. **The merge check.** When CI passes, a check (`scripts/contributed_games.py`) comments on the pull request: **Safe to merge**, or **Needs a maintainer's
+   eyes**, with the reasons. A maintainer merges their own safe game themselves (`gh pr merge <n> --merge`); a contributor's waits for a maintainer's
+   tap. Safe means: you are listed in `.github/contributors.json`; every file it changes is
    content (JSON, Markdown, PNG, JPEG, at most 5 MB; your own JavaScript generator counts too) inside games whose playable says `"maintainer"` with your
    login (a new game: the pull request that adds it says so); the game is a plain one (no client of its own, launch arguments only `--host`/`--no-host` and
-   its own files) and has its page. Anything else (an engine change, a Python script, someone else's game) is fine to send too: the owner reads it first.
+   its own files) and has its page; your own feedback note (`docs/feedback/`) may ride along. Anything else (an engine change, a Python script, someone
+   else's game) is fine to send too: the other maintainer reads it first.
 
 ## After the merge
 

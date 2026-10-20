@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""A contributor's game, checked for a one-tap merge: when a pull request only changes games its author maintains and CI passed, the owner is told it is
-safe to merge (a comment that mentions them, so their phone shows it) and merges it with one tap; the publish then runs as for any merge.
+"""A maintainer's (or contributor's) game, checked for a one-tap merge: when a pull request only changes games its author maintains and CI passed, a
+comment says it is safe to merge and mentions the maintainers (so their phones show it). A maintainer merges their own safe game with one tap (they
+have write access: docs/COLLABORATING.md); a contributor's waits for a maintainer's tap. The publish then runs as for any merge.
 
   python3 scripts/contributed_games.py check PR                       what the checker says about a pull request (read only; needs `gh`)
   python3 scripts/contributed_games.py review PR                      the same, written as one comment on the pull request (what the workflow runs)
@@ -9,10 +10,10 @@ safe to merge (a comment that mentions them, so their phone shows it) and merges
 `.github/workflows/contributed-games.yml` runs `review` when CI passes on a pull request. It reads the pull request through the API, as data, and never runs
 its code; the rules below come from `main`. It never merges. A pull request is safe to merge when ALL of these hold:
 
-- its author is listed in `.github/contributors.json` (only the owner edits it);
+- its author is listed in `.github/contributors.json` (`maintainers` or `contributors`; the maintainers change that list together);
 - CI passed on its newest commit, it is open, not a draft, targets `main` and merges without conflicts;
 - every file it changes is content (JSON, Markdown, PNG, JPEG; at most 5 MB, no symlinks) inside a game its author maintains (the game's published source,
-  a 2D game's folder beside it and `pages/<slug>/`), or `games-publish.json`; a JavaScript generator of the author's own (`build.js`) counts too, since
+  a 2D game's folder beside it and `pages/<slug>/`), `games-publish.json`, or the author's own feedback note (`docs/feedback/<date>-<login>[-topic].md`); a JavaScript generator of the author's own (`build.js`) counts too, since
   nothing here runs it (a Python one does not: CI runs those);
 - its change to `games-publish.json` touches only that author's games: a game is theirs when its playable says `"maintainer": "<their GitHub login>"` and no
   one else maintains it on `main`. A new game is theirs from the pull request that adds it, if its slug, source and page are new everywhere (here and in
@@ -20,7 +21,7 @@ its code; the rules below come from `main`. It never merges. A pull request is s
   `examples/2d/<name>.game2d.json`), no `binary` (a game's own client is engine code), files `games/<slug>`, launch arguments only `--host`/`--no-host` and
   its own files, and a `page` (`pages/<slug>`: the site refuses a released game without one).
 
-Otherwise the comment says what needs the owner's eyes, and why. One comment per commit. ADR 2026-10-20-a-game-and-its-page-are-sent-in-one-pull-request.
+Otherwise the comment says what needs another maintainer's eyes, and why. One comment per commit. ADR 2026-10-20-a-game-and-its-page-are-sent-in-one-pull-request.
 """
 from __future__ import annotations
 
@@ -41,11 +42,13 @@ CONTENT = (".json", ".md", ".png", ".jpg", ".jpeg")
 AUTHOR_TOOLS = (".js",)
 MAX_BYTES = 5 * 1024 * 1024
 FLAGS = {"--host", "--no-host"}
-PLAYABLE_KEYS = {"slug", "name", "kind", "entry", "files", "arguments", "page", "maintainer"}
+PLAYABLE_KEYS = {"slug", "name", "kind", "entry", "files", "arguments", "page", "maintainer", "forked_from"}
 SOURCE_3D = re.compile(r"examples/[a-z0-9][a-z0-9_-]*(\.json)?")
 SOURCE_2D = re.compile(r"examples/2d/[a-z0-9][a-z0-9_-]*\.game2d\.json")
 NOT_A_GAME_FOLDER = {"examples/2d", "examples/3d", "examples/external"}
 MARK = "<!-- contributed-games:"
+# The author's own feedback note (docs/feedback/README.md), sent with their game: content, theirs by its name.
+NOTE = re.compile(r"docs/feedback/\d{4}-\d{2}-\d{2}-([A-Za-z0-9-]+)\.md")
 
 
 def by_slug(manifest: dict) -> dict:
@@ -137,9 +140,13 @@ def verdict(author: str, contributors: list, main: dict, base: dict, head: dict,
     # Every changed file is content inside their games.
     if not changed:
         problems.append("the pull request changes nothing")
+    def own_note(q):
+        m = NOTE.fullmatch(q)
+        return bool(m) and (m.group(1).lower() == author.lower() or m.group(1).lower().startswith(author.lower() + "-"))
+
     for status, path, previous in changed:
         for q in (path, previous):
-            if not q or q == MANIFEST:
+            if not q or q == MANIFEST or own_note(q):
                 continue
             if not any(under(q, root) for root in paths):
                 problems.append(f"`{q}` is outside the games you maintain")
@@ -176,8 +183,19 @@ def manifest_at(repo: str, ref: str) -> dict:
     return json.loads(base64.b64decode(api(f"repos/{repo}/contents/{MANIFEST}?ref={ref}")["content"]))
 
 
+def people() -> dict:
+    return json.loads((ROOT / CONTRIBUTORS).read_text(encoding="utf-8"))
+
+
+def maintainers() -> list:
+    """The project's maintainers: equal, each with write access; any of them merges a pull request once it is safe."""
+    return list(people().get("maintainers", []))
+
+
 def contributors() -> list:
-    return json.loads((ROOT / CONTRIBUTORS).read_text(encoding="utf-8")).get("contributors", [])
+    """Everyone whose game pull requests are checked: the maintainers and the contributors."""
+    p = people()
+    return list(dict.fromkeys(list(p.get("maintainers", [])) + list(p.get("contributors", []))))
 
 
 def games_repo_taken(games_repo: str) -> set:
@@ -233,16 +251,21 @@ def evaluate(repo: str, number: int) -> tuple[dict, list[str], list[str], list[s
     return pr, waiting, rules, owned
 
 
-def message(pr: dict, owner: str, waiting: list[str], rules: list[str], owned: list[str]) -> str:
+def message(pr: dict, team: list[str], waiting: list[str], rules: list[str], owned: list[str]) -> str:
+    """The comment: who may merge it and why, or what needs a look. `team`: the maintainers."""
     sha = pr["head"]["sha"]
+    author = pr["user"]["login"]
     games = ", ".join(f"`{s}`" for s in owned) or "no game"
+    others = " ".join(f"@{m}" for m in team if m != author) or " ".join(f"@{m}" for m in team)
     if not waiting and not rules:
+        who = (f"@{author}, merge it yourself when you are ready (`gh pr merge {pr['number']} --merge`); {others} for your information"
+               if author in team else f"{others}: one tap merges it")
         return "\n".join([
             f"{MARK}{sha} -->",
-            f"@{owner} **Safe to merge** ({games}): it only changes games @{pr['user']['login']} maintains, every file is content, the site page is there, "
-            f"and CI passed on {sha[:7]}. Merging publishes it to RedEngineGames by itself (the site and the app list it about 15 minutes later).",
+            f"**Safe to merge** ({games}): it only changes games @{author} maintains, every file is content, the site page is there, "
+            f"and CI passed on {sha[:7]}. {who}. Merging publishes it to RedEngineGames by itself (the site and the app list it about 15 minutes later).",
         ])
-    return "\n".join([f"{MARK}{sha} -->", f"@{owner} **Needs your eyes** ({games}) before merging:", "", *[f"- {p}" for p in waiting + rules], "",
+    return "\n".join([f"{MARK}{sha} -->", f"{others} **Needs a maintainer's eyes** ({games}) before merging:", "", *[f"- {p}" for p in waiting + rules], "",
                       "A pull request that only changes games its author maintains is marked safe to merge once CI passes: see CONTRIBUTING.md."])
 
 
@@ -254,12 +277,14 @@ def review(repo: str, number: int) -> int:
     if pr["state"] != "open" or any(w in ("CI is still running", "CI has not run on its newest commit") for w in waiting):
         print(f"#{number}: not ready to review yet: {'; '.join(waiting)}")
         return 0
+    if not owned and pr["user"]["login"] in maintainers():
+        print(f"#{number}: a maintainer's pull request that changes no game of theirs: reviewed as engine work, no comment")
+        return 0
     mark = f"{MARK}{pr['head']['sha']} -->"
     if any(mark in (c.get("body") or "") for c in paged(f"repos/{repo}/issues/{number}/comments?per_page=100")):
         print(f"#{number}: this commit is reviewed already")
         return 0
-    owner = repo.split("/")[0]
-    body = message(pr, owner, waiting, rules, owned)
+    body = message(pr, maintainers() or [repo.split("/")[0]], waiting, rules, owned)
     gh("api", f"repos/{repo}/issues/{number}/comments", "-f", f"body={body}")
     print(body)
     return 0
@@ -278,7 +303,7 @@ def main() -> int:
         if args[0] == "review":
             return review(repo, int(args[1]))
         pr, waiting, rules, owned = evaluate(repo, int(args[1]))
-        state = "safe to merge" if not (waiting or rules) else ("needs the owner's eyes" if rules else "not ready yet")
+        state = "safe to merge" if not (waiting or rules) else ("needs a maintainer's eyes" if rules else "not ready yet")
         print(f"#{args[1]} by @{pr['user']['login']}: {state}" + (f" (games: {', '.join(owned)})" if owned else ""))
         for p in waiting + rules:
             print(f"  - {p}")
