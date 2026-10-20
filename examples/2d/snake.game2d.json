@@ -1,0 +1,3947 @@
+{
+ "game2d": 1,
+ "id": "snake",
+ "title": "Snake",
+ "description": "The original: steer a snake of squares, eat apples to grow, and keep going until the snake fills the whole board. Unlock portals and pixel-art backgrounds along the way.",
+ "capabilities": {
+  "presentation": "2d",
+  "platforms": [
+   "windows",
+   "linux"
+  ],
+  "networking": "offline",
+  "input": [
+   "keyboard",
+   "mouse"
+  ],
+  "persistence": [
+   "settings",
+   "progress"
+  ]
+ },
+ "view": {
+  "width": 200,
+  "height": 172,
+  "background": "#1c2b12",
+  "scale": "integer"
+ },
+ "sprites": {
+  "bg_garden_0": {
+   "palette": {
+    "a": "#7fb046",
+    "b": "#7aab43",
+    "d": "#5e8c30",
+    "f": "#e88ab0",
+    "w": "#f4f4e8",
+    "y": "#f8d040",
+    "p": "#a8a890",
+    "q": "#8a8a74"
+   },
+   "rows": [
+    "aaaaabdbbbaaaadbbbbbaaaaabbbbdaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbdaaaawbbbb",
+    "aaaapqbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbdaaawywbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaawbbbb",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbdaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabfbbwaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaafyfwywaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabfbbwaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbbbbadaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "ddaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaddbbbb",
+    "daaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaawbbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaawywbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaawbbbbb",
+    "bbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbdaaaaa",
+    "bbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaddbbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaadabbbbbaaaaabbbbbddaaabbbbbaaaaa",
+    "bbbbbaaaaadbbbbaaaaabbbbbddaaabbbbbdaaaabbbbbaaaaa",
+    "aaaaabbbbbdaaaabbbbbaaaaadbbbbaaaaadbbddaaaaabbbbb",
+    "aaaaabbbbbdaaaabbbbbaaaaadbbbbaaaaabbbdbaaaaabbbbb",
+    "aaaaabbbbbaddaabbbbbaaaaabbbbbaaaaabbbdbaaaaabbbbb",
+    "aaaaabbbbbadaaabbbbbadaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaadaddbbbaaaaabfbbbadaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbdbdaaaabbbbbfyfaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbafaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbadaaabbbbbaaaaabbbbbaaaaabbbbbaaaap",
+    "bbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaad",
+    "bbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaad",
+    "daaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "daaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaadbbbbbaaaaabbbbbaaddabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbfaadaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbfyfadaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaaaaabbbbbaaaafbbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa"
+   ]
+  },
+  "bg_garden_1": {
+   "palette": {
+    "a": "#7fb046",
+    "b": "#7aab43",
+    "d": "#5e8c30",
+    "f": "#e88ab0",
+    "w": "#f4f4e8",
+    "y": "#f8d040",
+    "p": "#a8a890",
+    "q": "#8a8a74"
+   },
+   "rows": [
+    "aaaaabbbbbadaaabbbbbaaaaabbbbbaaaaabbbbbaaaaadbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbdaaaaabbbbbaaaaddbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbdaaaaabbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbd",
+    "aaaaabbbbdaaaaabbbbbddaadbbbbbaaaaabbbbbaaaaabbbbd",
+    "bbbbbaaaaabbbbbaaaaadbbbddaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaadddbbbdaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaafbbbbbddadabbbbbaaaaabbbbbaaaddbbbbbaaaaa",
+    "bbbbbaaafyfbbbbdaadabbbbbaaaaabbbbbaaadabbbbbaaaaa",
+    "bbbbbafaafbbbbbdaaaabbbbbddaaabpqbbaaaaabbbbbaaaad",
+    "aaaaafyfbdaaaaabbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbd",
+    "aaaapqfbbbaaaaabbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabdbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaawabbbbb",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbwywaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbwbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbddaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaadbbbdaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaadbbbdaaaaabbdbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbdaaaaabbdbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbdbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbdaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "qbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbdbbaaaaabbbbddaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbdbbaaaaabbbddaaaaabdbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbddaaaaabdbbbaddaabbbbbaaaaabbbbb",
+    "aaaaabbbbfaaaaabbbdbaaaaabbbbbadaaabbbbbaaaaabbbbb",
+    "aaaaabbbfyfaaaabbbbbaaaaabbbbbaaaaabbbbdaaaaabbbbb",
+    "bbbbbaaaafbbbbbaaaaabbbbbaaaaabbbbbaaaadbdbbbaaaaa",
+    "bbbbbaaaadbbbbbaaaaabbbbbaaaaabbbbbaaaaabdbbbaaaaa",
+    "bdbbbaaaaabbbbbaadaabbbbbaaaaabbbbbadaaabdbbbaaaaa"
+   ]
+  },
+  "bg_garden_2": {
+   "palette": {
+    "a": "#7fb046",
+    "b": "#7aab43",
+    "d": "#5e8c30",
+    "f": "#e88ab0",
+    "w": "#f4f4e8",
+    "y": "#f8d040",
+    "p": "#a8a890",
+    "q": "#8a8a74"
+   },
+   "rows": [
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaafbbddbaaaaabbbbbaaaaabbdbbaaaaabbbddaaaaabbbbb",
+    "aaafyfbdbbaaaaabddbbaaaaabbdbbaaaaabbbdddaaaabbbbb",
+    "aaaafbbdbbaaaaabdbbbaaaaabbdbbaaaaabbbddaaaaabbbbb",
+    "aaaadbbbbbaaaaabdbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbfbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbfyfaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaadaabbbfbafaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaadaabbbdbfyfaabbbbdaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbdbbaaaaabfbbbaaaadbbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabdbbbaaaadbbbbbadaaapqbbbaaaaabbbbb",
+    "aaaaabbbddaaaaabbbbbaaaaabbbbbadaaabbbbbaaaaabbbbb",
+    "aaaaabbbdbaaaaabbbbbaaaaabbbbbaaadabbbbbaaaaabbbbb",
+    "aaaaabbbdbaaaaabbbbbaaaaabbbbbaaadabbbbbaaaaabbbbb",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaapqabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaddbbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaadabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaadabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaadaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaadaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaadaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaaaaabbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabddbbaaaaabbbbbaaaaabbddbaaaaabbbbbaaaaabbbbb",
+    "aaaaabdddbaaaaabbbbbaaaaabbdbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbdbbaaaaabbbbbaaaaabbdbbaaaaabbbbbaaaaabbbbb"
+   ]
+  },
+  "bg_garden_3": {
+   "palette": {
+    "a": "#7fb046",
+    "b": "#7aab43",
+    "d": "#5e8c30",
+    "f": "#e88ab0",
+    "w": "#f4f4e8",
+    "y": "#f8d040",
+    "p": "#a8a890",
+    "q": "#8a8a74"
+   },
+   "rows": [
+    "bdbbbaaddddbbbbaadaabbbbbaaaaabbddbadaaabbbbpqaaaa",
+    "bdbbbaadadbbbddaadaabbbbbaaaaabbdbbaaaaabbbbbaaaaa",
+    "aaaaabbbbbaaaddbbbbbaaaaabbbbbaadaabbddbaaaaabbbbb",
+    "aaaaabbbbbaaaddbbbbbaaaaabbbbbaaaaabbdbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabddbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabdbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaapqabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbddaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdbaaaad",
+    "bbbbbaaaaabbdddfaaaabbbbbaaaaabbbbbaaaaabbbbbaaaad",
+    "aaaaabbbbbaaddfyfbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaadddfbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdd",
+    "aaaaabbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbdb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "bbbbbaaaaaddbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaadbbbbaaaaabbbbbdaaddbbbbbaaaaabbbbdaaaaa",
+    "bbbbbaaaaadbbbbaaaaabbbbbdaadabbbbbaaaaabbbbdaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbdaadabbbbbaaaaabbbbdaaaaa",
+    "bbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbadaaabbbbbaaaaa",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabdbbbaaaaabbbbb",
+    "awaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabdbbbaaaaabbbbb",
+    "wywaabbbbbwaaaabbbbbaaaaabbbbbaaaaabbbbbaaaddbbbbb",
+    "awaaabbbbwywaaabbbbbaaaaabbbbbaaaaabbbbbaaadabbbbb",
+    "adaaabbbbbwaaaabbbbbaaaaabbbbbaaaaabbbbbaaadabbbbb",
+    "bbbbbaaaaadbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbddaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaa",
+    "bbbbbaaaaabbbbdaaaaabbbbbaaaaabbbbbaaaaadbbbbaaaaa",
+    "bbbbbdaaaabbbbdaaaaabbbbbaaaaabbbbbaaaaadbbbbaaaaa",
+    "bbbbbdaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaadbbbbaaaaa",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaadabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaadabbbbbaaaaabbbbbaaddabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaadabbbbbaaaaabbbbbaadaabbbbbaaaaabbbbbaaaaabbbbb",
+    "aaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbbaaaaabbbbb"
+   ]
+  },
+  "head_garden": {
+   "palette": {
+    "l": "#c4f0c2",
+    "d": "#0f380f",
+    "w": "#ffffff",
+    "k": "#000000"
+   },
+   "rows": [
+    "lllllllll",
+    "ldddddddl",
+    "ldwwdwwdl",
+    "ldwkdwkdl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "lllllllll"
+   ]
+  },
+  "seg_garden": {
+   "palette": {
+    "l": "#c4f0c2",
+    "g": "#306230",
+    "h": "#4f8f3f"
+   },
+   "rows": [
+    "lllllllll",
+    "lhhhhhhgl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lgggggggl",
+    "lllllllll"
+   ]
+  },
+  "apple_garden": {
+   "palette": {
+    "r": "#d02828",
+    "w": "#ffb0a0",
+    "d": "#901818",
+    "b": "#5a3a1a",
+    "g": "#48a838"
+   },
+   "rows": [
+    "....bgg..",
+    "..rrbrr..",
+    ".rrrrrrr.",
+    "rwrrrrrrr",
+    "rwrrrrrrr",
+    "rrrrrrrrr",
+    "rrrrrrrrd",
+    ".rrrrrdd.",
+    "..rr.rr.."
+   ]
+  },
+  "bg_night_0": {
+   "palette": {
+    "a": "#1a1640",
+    "b": "#22205a",
+    "c": "#2c2c70",
+    "s": "#8888c0",
+    "w": "#f8f8d0",
+    "y": "#f0e8a0",
+    "k": "#100e28"
+   },
+   "rows": [
+    "aaaaaaaaaaaaawaaaaaawaaaasaaaaaaaaaaaaaa",
+    "aaaaaaaaaawswaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaawaaaaaaaaaaasaaaaaaaaaaaaaaayyaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaasaaaaasaaayyaasaaaaa",
+    "aaaaaaaaaaasaaaaaawaaaaaaaaaaayyaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaayyyaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaasaaaaaayyyyaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaasaaaaaayyyyaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ababababababsbababababababsbabababababab",
+    "sbbbbbbbbbbbbbbbbbbbbbsbbbbbbbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbsbbbbbbbbbbbbwbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbsbbsbbbbbbbbbbbb",
+    "bbbbbbbbbbbbsbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbwbbbbbbwbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbwbbbbbbbbbbbbbbb",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbsbbbbbbbbbbbbb",
+    "bcbcbcbcbcwcbcbcbcbcbcbcscbcbcbcbcbcbcbc",
+    "ccccccscccccsccccccccccccccwcccccccccccc",
+    "cscccccccccccccccscccccccccccccccccccccc",
+    "cccccccccccccccccccccccccccccccccccccccc",
+    "cccccccccccccccccccccccccccccwccccsccccc",
+    "cckkkkcccccccccccccccccccccccccccccccccc",
+    "ckkkkkkcccccccccccccccccccccccckkkkccccc",
+    "kkkkkkkkcccccccckkkccccccccccckkkkkkcccc",
+    "kkkkkkkkkccccckkkkkkccccccccckkkkkkkkkck",
+    "kkkkkkkkkkkckkkkkkkkkccccccckkkkkkkkkkkk",
+    "kkkkkkkkkkkkkkkkkkkkkkkcccckkkkkkkkkkkkk"
+   ]
+  },
+  "head_night": {
+   "palette": {
+    "l": "#306230",
+    "d": "#f0fff0",
+    "w": "#9bbc0f",
+    "k": "#0f380f"
+   },
+   "rows": [
+    "lllllllll",
+    "ldddddddl",
+    "ldwwdwwdl",
+    "ldwkdwkdl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "lllllllll"
+   ]
+  },
+  "seg_night": {
+   "palette": {
+    "l": "#306230",
+    "g": "#c4f0c2",
+    "h": "#f0fff0"
+   },
+   "rows": [
+    "lllllllll",
+    "lhhhhhhgl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lgggggggl",
+    "lllllllll"
+   ]
+  },
+  "apple_night": {
+   "palette": {
+    "r": "#d02828",
+    "w": "#ffb0a0",
+    "d": "#901818",
+    "b": "#5a3a1a",
+    "g": "#48a838"
+   },
+   "rows": [
+    "....bgg..",
+    "..rrbrr..",
+    ".rrrrrrr.",
+    "rwrrrrrrr",
+    "rwrrrrrrr",
+    "rrrrrrrrr",
+    "rrrrrrrrd",
+    ".rrrrrdd.",
+    "..rr.rr.."
+   ]
+  },
+  "bg_checker_0": {
+   "palette": {
+    "a": "#9bbc0f",
+    "b": "#93b40f"
+   },
+   "rows": [
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "bbaabbaabbaabbaabbaabbaabbaabbaabbaabbaa",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb",
+    "aabbaabbaabbaabbaabbaabbaabbaabbaabbaabb"
+   ]
+  },
+  "head_checker": {
+   "palette": {
+    "l": "#c4f0c2",
+    "d": "#0f380f",
+    "w": "#ffffff",
+    "k": "#000000"
+   },
+   "rows": [
+    "lllllllll",
+    "ldddddddl",
+    "ldwwdwwdl",
+    "ldwkdwkdl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "ldddddddl",
+    "lllllllll"
+   ]
+  },
+  "seg_checker": {
+   "palette": {
+    "l": "#c4f0c2",
+    "g": "#306230",
+    "h": "#4f8f3f"
+   },
+   "rows": [
+    "lllllllll",
+    "lhhhhhhgl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lhggggggl",
+    "lgggggggl",
+    "lllllllll"
+   ]
+  },
+  "apple_checker": {
+   "palette": {
+    "r": "#d02828",
+    "w": "#ffb0a0",
+    "d": "#901818",
+    "b": "#5a3a1a",
+    "g": "#48a838"
+   },
+   "rows": [
+    "....bgg..",
+    "..rrbrr..",
+    ".rrrrrrr.",
+    "rwrrrrrrr",
+    "rwrrrrrrr",
+    "rrrrrrrrr",
+    "rrrrrrrrd",
+    ".rrrrrdd.",
+    "..rr.rr.."
+   ]
+  }
+ },
+ "sounds": {
+  "eat": {
+   "seconds": 0.5,
+   "level": 0.3,
+   "layers": [
+    {
+     "sine": 659,
+     "harmonics": [
+      [
+       2,
+       0.15
+      ]
+     ],
+     "attack": 0.01,
+     "decay": 7
+    },
+    {
+     "sine": 988,
+     "delay": 0.06,
+     "attack": 0.01,
+     "decay": 8,
+     "gain": 0.5
+    }
+   ]
+  },
+  "crash": {
+   "seconds": 0.9,
+   "level": 0.3,
+   "layers": [
+    {
+     "glide": [
+      330,
+      165,
+      3
+     ],
+     "attack": 0.02,
+     "decay": 3.5
+    },
+    {
+     "sine": 220,
+     "attack": 0.03,
+     "decay": 4,
+     "gain": 0.4
+    }
+   ]
+  },
+  "win": {
+   "seconds": 2,
+   "level": 0.35,
+   "layers": [
+    {
+     "sine": 523,
+     "attack": 0.02,
+     "decay": 1.5
+    },
+    {
+     "sine": 659,
+     "delay": 0.15,
+     "attack": 0.02,
+     "decay": 1.5
+    },
+    {
+     "sine": 784,
+     "delay": 0.3,
+     "attack": 0.02,
+     "decay": 1.3
+    },
+    {
+     "sine": 1047,
+     "delay": 0.45,
+     "attack": 0.02,
+     "decay": 1.2,
+     "gain": 0.6
+    }
+   ]
+  },
+  "unlock": {
+   "seconds": 1.2,
+   "level": 0.3,
+   "layers": [
+    {
+     "sine": 784,
+     "attack": 0.01,
+     "decay": 3
+    },
+    {
+     "sine": 988,
+     "delay": 0.1,
+     "attack": 0.01,
+     "decay": 3
+    },
+    {
+     "sine": 1319,
+     "delay": 0.2,
+     "attack": 0.01,
+     "decay": 2.5,
+     "gain": 0.7
+    }
+   ]
+  },
+  "nope": {
+   "seconds": 0.3,
+   "level": 0.2,
+   "layers": [
+    {
+     "sine": 196,
+     "attack": 0.01,
+     "decay": 10
+    }
+   ]
+  }
+ },
+ "music": {
+  "theme": {
+   "title": "Garden",
+   "bpm": 60,
+   "beats": 4,
+   "bars": 8,
+   "key": "D",
+   "scale": "pentatonic",
+   "seed": 11,
+   "lufs": -30,
+   "reverb": {
+    "decay": 6,
+    "mix": 0.45
+   },
+   "instruments": {
+    "pad": {
+     "seconds": 10,
+     "level": 0.4,
+     "layers": [
+      {
+       "sine": 1,
+       "attack": 2.5,
+       "release": 3
+      },
+      {
+       "sine": 1.004,
+       "attack": 3,
+       "release": 3,
+       "gain": 0.5
+      }
+     ]
+    },
+    "bell": {
+     "seconds": 4,
+     "level": 0.3,
+     "layers": [
+      {
+       "sine": 1,
+       "harmonics": [
+        [
+         2.76,
+         0.15
+        ]
+       ],
+       "attack": 0.01,
+       "decay": 1.2
+      }
+     ]
+    }
+   },
+   "tracks": [
+    {
+     "inst": "pad",
+     "play": "chords",
+     "chords": "1 4 6 5",
+     "every": "2 bars",
+     "octave": 3,
+     "gain": 0.7
+    },
+    {
+     "inst": "bell",
+     "play": "walk",
+     "every": "1 beat",
+     "density": 0.25,
+     "range": [
+      1,
+      8
+     ],
+     "octave": 5,
+     "gain": 0.4,
+     "pan": "spread",
+     "send": 1,
+     "vel": [
+      0.3,
+      0.6
+     ]
+    }
+   ]
+  }
+ },
+ "tables": {
+  "toasts": [
+   "",
+   "SIDE PORTALS OPEN",
+   "SKY PORTALS OPEN",
+   "NEW BACKGROUND: GARDEN",
+   "NEW BACKGROUND: NIGHT SKY",
+   "NEW BACKGROUND: CHECKER"
+  ]
+ },
+ "vars": {
+  "hx": 4,
+  "hy": 7,
+  "dx": 1,
+  "dy": 0,
+  "ndx": 1,
+  "ndy": 0,
+  "pend": 0,
+  "qdx": 0,
+  "qdy": 0,
+  "hasq": 0,
+  "len": 3,
+  "grow": 0,
+  "tailgo": 0,
+  "fresh": 1,
+  "started": 0,
+  "paused": 0,
+  "menu": 0,
+  "dead": 0,
+  "won": 0,
+  "score": 0,
+  "best": 0,
+  "portals": 0,
+  "toast": 0,
+  "toast_until": 0,
+  "ucount": 0,
+  "u_side": 0,
+  "u_sky": 0,
+  "u_garden": 0,
+  "u_night": 0,
+  "u_checker": 0,
+  "wrapx": 0,
+  "wrapy": 0,
+  "bg": 0
+ },
+ "persist": [
+  "best",
+  "u_side",
+  "u_sky",
+  "u_garden",
+  "u_night",
+  "u_checker",
+  "wrapx",
+  "wrapy",
+  "bg"
+ ],
+ "pause_if": "paused == 1 || menu == 1",
+ "prefabs": {
+  "bg_classic_0": {
+   "tag": "bg",
+   "shape": {
+    "rect": [
+     200,
+     150
+    ],
+    "color": "#9bbc0f"
+   },
+   "size": [
+    200,
+    150
+   ],
+   "layer": 0
+  },
+  "head_classic": {
+   "tag": "head",
+   "shape": {
+    "rect": [
+     9,
+     9
+    ],
+    "color": "#0f380f"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 3
+  },
+  "seg_classic_r": {
+   "tag": [
+    "body",
+    "r"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     9
+    ],
+    "color": "#306230"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_classic_l": {
+   "tag": [
+    "body",
+    "l"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     9
+    ],
+    "color": "#306230"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_classic_u": {
+   "tag": [
+    "body",
+    "u"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     9
+    ],
+    "color": "#306230"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_classic_d": {
+   "tag": [
+    "body",
+    "d"
+   ],
+   "shape": {
+    "rect": [
+     9,
+     9
+    ],
+    "color": "#306230"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "apple_classic": {
+   "tag": "apple",
+   "shape": {
+    "rect": [
+     7,
+     7
+    ],
+    "color": "#b02020"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 1
+  },
+  "bg_garden_0": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_garden_0",
+    "scale": 2
+   },
+   "layer": 0
+  },
+  "bg_garden_1": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_garden_1",
+    "scale": 2
+   },
+   "layer": 0
+  },
+  "bg_garden_2": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_garden_2",
+    "scale": 2
+   },
+   "layer": 0
+  },
+  "bg_garden_3": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_garden_3",
+    "scale": 2
+   },
+   "layer": 0
+  },
+  "head_garden": {
+   "tag": "head",
+   "shape": {
+    "sprite": "head_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 3
+  },
+  "seg_garden_r": {
+   "tag": [
+    "body",
+    "r"
+   ],
+   "shape": {
+    "sprite": "seg_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_garden_l": {
+   "tag": [
+    "body",
+    "l"
+   ],
+   "shape": {
+    "sprite": "seg_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_garden_u": {
+   "tag": [
+    "body",
+    "u"
+   ],
+   "shape": {
+    "sprite": "seg_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_garden_d": {
+   "tag": [
+    "body",
+    "d"
+   ],
+   "shape": {
+    "sprite": "seg_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "apple_garden": {
+   "tag": "apple",
+   "shape": {
+    "sprite": "apple_garden"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 1
+  },
+  "bg_night_0": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_night_0",
+    "scale": 5
+   },
+   "layer": 0
+  },
+  "head_night": {
+   "tag": "head",
+   "shape": {
+    "sprite": "head_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 3
+  },
+  "seg_night_r": {
+   "tag": [
+    "body",
+    "r"
+   ],
+   "shape": {
+    "sprite": "seg_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_night_l": {
+   "tag": [
+    "body",
+    "l"
+   ],
+   "shape": {
+    "sprite": "seg_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_night_u": {
+   "tag": [
+    "body",
+    "u"
+   ],
+   "shape": {
+    "sprite": "seg_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_night_d": {
+   "tag": [
+    "body",
+    "d"
+   ],
+   "shape": {
+    "sprite": "seg_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "apple_night": {
+   "tag": "apple",
+   "shape": {
+    "sprite": "apple_night"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 1
+  },
+  "bg_checker_0": {
+   "tag": "bg",
+   "shape": {
+    "sprite": "bg_checker_0",
+    "scale": 5
+   },
+   "layer": 0
+  },
+  "head_checker": {
+   "tag": "head",
+   "shape": {
+    "sprite": "head_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 3
+  },
+  "seg_checker_r": {
+   "tag": [
+    "body",
+    "r"
+   ],
+   "shape": {
+    "sprite": "seg_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_checker_l": {
+   "tag": [
+    "body",
+    "l"
+   ],
+   "shape": {
+    "sprite": "seg_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_checker_u": {
+   "tag": [
+    "body",
+    "u"
+   ],
+   "shape": {
+    "sprite": "seg_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "seg_checker_d": {
+   "tag": [
+    "body",
+    "d"
+   ],
+   "shape": {
+    "sprite": "seg_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 2
+  },
+  "apple_checker": {
+   "tag": "apple",
+   "shape": {
+    "sprite": "apple_checker"
+   },
+   "size": [
+    9,
+    9
+   ],
+   "layer": 1
+  },
+  "tail": {
+   "tag": "tail",
+   "shape": {
+    "rect": [
+     4,
+     4
+    ],
+    "color": "#000"
+   },
+   "size": [
+    4,
+    4
+   ],
+   "layer": 1,
+   "hidden": true
+  }
+ },
+ "scene": [
+  {
+   "prefab": "bg_classic_0",
+   "at": [
+    100,
+    87
+   ]
+  },
+  {
+   "prefab": "seg_classic_r",
+   "at": [
+    25,
+    87
+   ]
+  },
+  {
+   "prefab": "seg_classic_r",
+   "at": [
+    35,
+    87
+   ]
+  },
+  {
+   "prefab": "tail",
+   "at": [
+    25,
+    87
+   ]
+  },
+  {
+   "prefab": "head_classic",
+   "at": [
+    45,
+    87
+   ],
+   "id": "head"
+  }
+ ],
+ "ui": [
+  {
+   "text": "SCORE {score}  LEN {len}",
+   "at": [
+    3,
+    3
+   ],
+   "color": "#9bbc0f"
+  },
+  {
+   "text": "HI {best}",
+   "at": [
+    197,
+    3
+   ],
+   "align": "right",
+   "color": "#9bbc0f"
+  },
+  {
+   "text": "P PAUSE  M MUSIC  U UNLOCKS",
+   "at": [
+    100,
+    164
+   ],
+   "align": "center",
+   "color": "#5a7a2a"
+  },
+  {
+   "button": {
+    "id": "music",
+    "label": "",
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     1,
+     1
+    ],
+    "key": "KeyM",
+    "do": [
+     {
+      "music": "toggle"
+     }
+    ]
+   }
+  },
+  {
+   "button": {
+    "id": "unlocks_key",
+    "label": "",
+    "at": [
+     1,
+     0
+    ],
+    "size": [
+     1,
+     1
+    ],
+    "key": "KeyU",
+    "do": [
+     {
+      "set": [
+       "menu",
+       "(1 - menu) * (started == 0 || paused == 1 || ended != 0)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     12
+    ],
+    "size": [
+     2,
+     150
+    ],
+    "color": "#b060ff"
+   },
+   "show": "wrapx == 1"
+  },
+  {
+   "panel": {
+    "at": [
+     198,
+     12
+    ],
+    "size": [
+     2,
+     150
+    ],
+    "color": "#b060ff"
+   },
+   "show": "wrapx == 1"
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     12
+    ],
+    "size": [
+     200,
+     2
+    ],
+    "color": "#40c0ff"
+   },
+   "show": "wrapy == 1"
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     160
+    ],
+    "size": [
+     200,
+     2
+    ],
+    "color": "#40c0ff"
+   },
+   "show": "wrapy == 1"
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     14
+    ],
+    "size": [
+     200,
+     11
+    ],
+    "color": "#0f380fdd"
+   },
+   "show": "time < toast_until && menu == 0"
+  },
+  {
+   "text": {
+    "pick": "toasts",
+    "by": "toast"
+   },
+   "at": [
+    100,
+    16
+   ],
+   "align": "center",
+   "color": "#f8e060",
+   "show": "time < toast_until && menu == 0"
+  },
+  {
+   "panel": {
+    "at": [
+     30,
+     24
+    ],
+    "size": [
+     140,
+     54
+    ],
+    "color": "#c8dc78"
+   },
+   "show": "(started == 0 || paused == 1 || ended != 0) && menu == 0"
+  },
+  {
+   "text": "ARROWS TO MOVE",
+   "at": [
+    100,
+    32
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "started == 0 && menu == 0"
+  },
+  {
+   "text": "PAUSED",
+   "at": [
+    100,
+    32
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "paused == 1 && menu == 0"
+  },
+  {
+   "text": "P TO RESUME",
+   "at": [
+    100,
+    46
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "paused == 1 && menu == 0"
+  },
+  {
+   "text": "GAME OVER",
+   "at": [
+    100,
+    32
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "dead == 1 && menu == 0"
+  },
+  {
+   "text": "YOU FILLED THE BOARD",
+   "at": [
+    100,
+    32
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "won == 1 && menu == 0"
+  },
+  {
+   "text": "SPACE TO PLAY AGAIN",
+   "at": [
+    100,
+    46
+   ],
+   "align": "center",
+   "color": "#0f380f",
+   "show": "ended != 0 && menu == 0"
+  },
+  {
+   "button": {
+    "id": "open_unlocks",
+    "label": "UNLOCKS",
+    "at": [
+     55,
+     60
+    ],
+    "size": [
+     90,
+     13
+    ],
+    "color": "#306230",
+    "do": [
+     {
+      "set": [
+       "menu",
+       1
+      ]
+     }
+    ]
+   },
+   "show": "(started == 0 || paused == 1 || ended != 0) && menu == 0"
+  },
+  {
+   "panel": {
+    "at": [
+     0,
+     0
+    ],
+    "size": [
+     200,
+     172
+    ],
+    "color": "#0f1a0a"
+   },
+   "show": "menu == 1"
+  },
+  {
+   "text": "UNLOCKS {ucount}/5",
+   "at": [
+    100,
+    4
+   ],
+   "align": "center",
+   "color": "#f8e060",
+   "show": "menu == 1"
+  },
+  {
+   "button": {
+    "id": "use_1",
+    "label": "1 SIDE PORTALS",
+    "at": [
+     4,
+     18
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit1",
+    "do": [
+     {
+      "set": [
+       "wrapx",
+       "1 - wrapx"
+      ]
+     }
+    ]
+   },
+   "show": "menu == 1 && u_side == 1"
+  },
+  {
+   "button": {
+    "id": "locked_1",
+    "label": "1 SIDE PORTALS",
+    "at": [
+     4,
+     18
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit1",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_side == 0"
+  },
+  {
+   "text": "REACH LENGTH 25 IN ONE GAME",
+   "at": [
+    6,
+    30
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    20
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && u_side == 0"
+  },
+  {
+   "text": "ON",
+   "at": [
+    196,
+    20
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && u_side == 1 && wrapx == 1"
+  },
+  {
+   "text": "OFF",
+   "at": [
+    196,
+    20
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && u_side == 1 && wrapx == 0"
+  },
+  {
+   "button": {
+    "id": "use_2",
+    "label": "2 SKY PORTALS",
+    "at": [
+     4,
+     40
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit2",
+    "do": [
+     {
+      "set": [
+       "wrapy",
+       "1 - wrapy"
+      ]
+     }
+    ]
+   },
+   "show": "menu == 1 && u_sky == 1"
+  },
+  {
+   "button": {
+    "id": "locked_2",
+    "label": "2 SKY PORTALS",
+    "at": [
+     4,
+     40
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit2",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_sky == 0"
+  },
+  {
+   "text": "15 PORTAL TRIPS IN ONE GAME",
+   "at": [
+    6,
+    52
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    42
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && u_sky == 0"
+  },
+  {
+   "text": "ON",
+   "at": [
+    196,
+    42
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && u_sky == 1 && wrapy == 1"
+  },
+  {
+   "text": "OFF",
+   "at": [
+    196,
+    42
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && u_sky == 1 && wrapy == 0"
+  },
+  {
+   "button": {
+    "id": "use_3",
+    "label": "3 CLASSIC",
+    "at": [
+     4,
+     62
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit3",
+    "do": [
+     {
+      "set": [
+       "bg",
+       0
+      ]
+     },
+     {
+      "emit": "apply_theme"
+     }
+    ]
+   },
+   "show": "menu == 1 && 1 == 1"
+  },
+  {
+   "button": {
+    "id": "locked_3",
+    "label": "3 CLASSIC",
+    "at": [
+     4,
+     62
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit3",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && 1 == 0"
+  },
+  {
+   "text": "STARTER BACKGROUND",
+   "at": [
+    6,
+    74
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    64
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && 1 == 0"
+  },
+  {
+   "text": "IN USE",
+   "at": [
+    196,
+    64
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && 1 == 1 && bg == 0"
+  },
+  {
+   "text": "SELECT",
+   "at": [
+    196,
+    64
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && 1 == 1 && bg != 0"
+  },
+  {
+   "button": {
+    "id": "use_4",
+    "label": "4 GARDEN",
+    "at": [
+     4,
+     84
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit4",
+    "do": [
+     {
+      "set": [
+       "bg",
+       1
+      ]
+     },
+     {
+      "emit": "apply_theme"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_garden == 1"
+  },
+  {
+   "button": {
+    "id": "locked_4",
+    "label": "4 GARDEN",
+    "at": [
+     4,
+     84
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit4",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_garden == 0"
+  },
+  {
+   "text": "HIGH SCORE: 150",
+   "at": [
+    6,
+    96
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    86
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && u_garden == 0"
+  },
+  {
+   "text": "IN USE",
+   "at": [
+    196,
+    86
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && u_garden == 1 && bg == 1"
+  },
+  {
+   "text": "SELECT",
+   "at": [
+    196,
+    86
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && u_garden == 1 && bg != 1"
+  },
+  {
+   "button": {
+    "id": "use_5",
+    "label": "5 NIGHT SKY",
+    "at": [
+     4,
+     106
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit5",
+    "do": [
+     {
+      "set": [
+       "bg",
+       2
+      ]
+     },
+     {
+      "emit": "apply_theme"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_night == 1"
+  },
+  {
+   "button": {
+    "id": "locked_5",
+    "label": "5 NIGHT SKY",
+    "at": [
+     4,
+     106
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit5",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_night == 0"
+  },
+  {
+   "text": "HIGH SCORE: 450",
+   "at": [
+    6,
+    118
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    108
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && u_night == 0"
+  },
+  {
+   "text": "IN USE",
+   "at": [
+    196,
+    108
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && u_night == 1 && bg == 2"
+  },
+  {
+   "text": "SELECT",
+   "at": [
+    196,
+    108
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && u_night == 1 && bg != 2"
+  },
+  {
+   "button": {
+    "id": "use_6",
+    "label": "6 CHECKER",
+    "at": [
+     4,
+     128
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#306230",
+    "key": "Digit6",
+    "do": [
+     {
+      "set": [
+       "bg",
+       3
+      ]
+     },
+     {
+      "emit": "apply_theme"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_checker == 1"
+  },
+  {
+   "button": {
+    "id": "locked_6",
+    "label": "6 CHECKER",
+    "at": [
+     4,
+     128
+    ],
+    "size": [
+     104,
+     11
+    ],
+    "color": "#3a3a3a",
+    "key": "Digit6",
+    "do": [
+     {
+      "play": "nope"
+     }
+    ]
+   },
+   "show": "menu == 1 && u_checker == 0"
+  },
+  {
+   "text": "HIGH SCORE: 1000",
+   "at": [
+    6,
+    140
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "text": "LOCKED",
+   "at": [
+    196,
+    130
+   ],
+   "align": "right",
+   "color": "#7a7a7a",
+   "show": "menu == 1 && u_checker == 0"
+  },
+  {
+   "text": "IN USE",
+   "at": [
+    196,
+    130
+   ],
+   "align": "right",
+   "color": "#f8e060",
+   "show": "menu == 1 && u_checker == 1 && bg == 3"
+  },
+  {
+   "text": "SELECT",
+   "at": [
+    196,
+    130
+   ],
+   "align": "right",
+   "color": "#e0f8d0",
+   "show": "menu == 1 && u_checker == 1 && bg != 3"
+  },
+  {
+   "text": "PRESS 1-6 OR CLICK",
+   "at": [
+    6,
+    163
+   ],
+   "color": "#8a9a7a",
+   "show": "menu == 1"
+  },
+  {
+   "button": {
+    "id": "close_unlocks",
+    "label": "BACK",
+    "at": [
+     150,
+     160
+    ],
+    "size": [
+     46,
+     11
+    ],
+    "color": "#306230",
+    "do": [
+     {
+      "set": [
+       "menu",
+       0
+      ]
+     }
+    ]
+   },
+   "show": "menu == 1"
+  }
+ ],
+ "rules": [
+  {
+   "id": "left",
+   "when": {
+    "press": "left"
+   },
+   "if": "pend == 0 && dx == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "ndx",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "ndy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      1
+     ]
+    },
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "right",
+   "when": {
+    "press": "right"
+   },
+   "if": "pend == 0 && dx == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "ndx",
+      1
+     ]
+    },
+    {
+     "set": [
+      "ndy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      1
+     ]
+    },
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "up",
+   "when": {
+    "press": "up"
+   },
+   "if": "pend == 0 && dy == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "ndx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "ndy",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      1
+     ]
+    },
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "down",
+   "when": {
+    "press": "down"
+   },
+   "if": "pend == 0 && dy == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "ndx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "ndy",
+      1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      1
+     ]
+    },
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "queue_left",
+   "when": {
+    "press": "left"
+   },
+   "if": "pend == 1 && ndx == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "qdx",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "qdy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "hasq",
+      1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "queue_right",
+   "when": {
+    "press": "right"
+   },
+   "if": "pend == 1 && ndx == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "qdx",
+      1
+     ]
+    },
+    {
+     "set": [
+      "qdy",
+      0
+     ]
+    },
+    {
+     "set": [
+      "hasq",
+      1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "queue_up",
+   "when": {
+    "press": "up"
+   },
+   "if": "pend == 1 && ndy == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "qdx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "qdy",
+      -1
+     ]
+    },
+    {
+     "set": [
+      "hasq",
+      1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "queue_down",
+   "when": {
+    "press": "down"
+   },
+   "if": "pend == 1 && ndy == 0 && ended == 0 && paused == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "qdx",
+      0
+     ]
+    },
+    {
+     "set": [
+      "qdy",
+      1
+     ]
+    },
+    {
+     "set": [
+      "hasq",
+      1
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "id": "go",
+   "when": {
+    "press": "right"
+   },
+   "if": "started == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "go_action",
+   "when": {
+    "press": "action"
+   },
+   "if": "started == 0 && ended == 0 && menu == 0",
+   "do": [
+    {
+     "set": [
+      "started",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pause",
+   "when": {
+    "press": "pause"
+   },
+   "if": "menu == 0 && started == 1 && ended == 0",
+   "do": [
+    {
+     "set": [
+      "paused",
+      "1 - paused"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "close_menu",
+   "when": {
+    "press": "pause"
+   },
+   "if": "menu == 1",
+   "do": [
+    {
+     "set": [
+      "menu",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "again",
+   "when": {
+    "press": "action"
+   },
+   "if": "ended != 0 && menu == 0",
+   "do": [
+    {
+     "restart": true
+    }
+   ]
+  },
+  {
+   "id": "begin",
+   "when": {
+    "start": true
+   },
+   "do": [
+    {
+     "emit": "new_apple"
+    },
+    {
+     "set": [
+      "fresh",
+      1
+     ]
+    },
+    {
+     "emit": "check_best"
+    },
+    {
+     "emit": "apply_theme"
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "restore",
+   "when": {
+    "event": "loaded"
+   },
+   "do": [
+    {
+     "emit": "check_best"
+    },
+    {
+     "emit": "apply_theme"
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "theme_range",
+   "when": {
+    "event": "apply_theme"
+   },
+   "if": "bg < 0 || bg > 3",
+   "do": [
+    {
+     "set": [
+      "bg",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "theme_classic",
+   "when": {
+    "event": "apply_theme"
+   },
+   "if": "bg == 0",
+   "do": [
+    {
+     "destroy": "tag:bg"
+    },
+    {
+     "spawn": {
+      "prefab": "bg_classic_0",
+      "at": [
+       100,
+       87
+      ]
+     }
+    },
+    {
+     "become": {
+      "target": "id:head",
+      "prefab": "head_classic"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:r",
+      "prefab": "seg_classic_r"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:l",
+      "prefab": "seg_classic_l"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:u",
+      "prefab": "seg_classic_u"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:d",
+      "prefab": "seg_classic_d"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:apple",
+      "prefab": "apple_classic"
+     }
+    }
+   ]
+  },
+  {
+   "id": "theme_garden",
+   "when": {
+    "event": "apply_theme"
+   },
+   "if": "bg == 1",
+   "do": [
+    {
+     "destroy": "tag:bg"
+    },
+    {
+     "spawn": {
+      "prefab": "bg_garden_0",
+      "at": [
+       50,
+       50
+      ]
+     }
+    },
+    {
+     "spawn": {
+      "prefab": "bg_garden_1",
+      "at": [
+       150,
+       50
+      ]
+     }
+    },
+    {
+     "spawn": {
+      "prefab": "bg_garden_2",
+      "at": [
+       50,
+       125
+      ]
+     }
+    },
+    {
+     "spawn": {
+      "prefab": "bg_garden_3",
+      "at": [
+       150,
+       125
+      ]
+     }
+    },
+    {
+     "become": {
+      "target": "id:head",
+      "prefab": "head_garden"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:r",
+      "prefab": "seg_garden_r"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:l",
+      "prefab": "seg_garden_l"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:u",
+      "prefab": "seg_garden_u"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:d",
+      "prefab": "seg_garden_d"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:apple",
+      "prefab": "apple_garden"
+     }
+    }
+   ]
+  },
+  {
+   "id": "theme_night",
+   "when": {
+    "event": "apply_theme"
+   },
+   "if": "bg == 2",
+   "do": [
+    {
+     "destroy": "tag:bg"
+    },
+    {
+     "spawn": {
+      "prefab": "bg_night_0",
+      "at": [
+       100,
+       87
+      ]
+     }
+    },
+    {
+     "become": {
+      "target": "id:head",
+      "prefab": "head_night"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:r",
+      "prefab": "seg_night_r"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:l",
+      "prefab": "seg_night_l"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:u",
+      "prefab": "seg_night_u"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:d",
+      "prefab": "seg_night_d"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:apple",
+      "prefab": "apple_night"
+     }
+    }
+   ]
+  },
+  {
+   "id": "theme_checker",
+   "when": {
+    "event": "apply_theme"
+   },
+   "if": "bg == 3",
+   "do": [
+    {
+     "destroy": "tag:bg"
+    },
+    {
+     "spawn": {
+      "prefab": "bg_checker_0",
+      "at": [
+       100,
+       87
+      ]
+     }
+    },
+    {
+     "become": {
+      "target": "id:head",
+      "prefab": "head_checker"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:r",
+      "prefab": "seg_checker_r"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:l",
+      "prefab": "seg_checker_l"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:u",
+      "prefab": "seg_checker_u"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:d",
+      "prefab": "seg_checker_d"
+     }
+    },
+    {
+     "become": {
+      "target": "tag:apple",
+      "prefab": "apple_checker"
+     }
+    }
+   ]
+  },
+  {
+   "id": "apple_classic",
+   "when": {
+    "event": "new_apple"
+   },
+   "if": "bg == 0",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "apple_classic",
+      "at": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "apple_garden",
+   "when": {
+    "event": "new_apple"
+   },
+   "if": "bg == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "apple_garden",
+      "at": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "apple_night",
+   "when": {
+    "event": "new_apple"
+   },
+   "if": "bg == 2",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "apple_night",
+      "at": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "apple_checker",
+   "when": {
+    "event": "new_apple"
+   },
+   "if": "bg == 3",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "apple_checker",
+      "at": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "tick",
+   "when": {
+    "every": 0.1
+   },
+   "if": "started == 1 && dead == 0 && won == 0",
+   "do": [
+    {
+     "emit": "step"
+    }
+   ]
+  },
+  {
+   "id": "turn",
+   "when": {
+    "event": "step"
+   },
+   "do": [
+    {
+     "set": [
+      "dx",
+      "ndx"
+     ]
+    },
+    {
+     "set": [
+      "dy",
+      "ndy"
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      0
+     ]
+    },
+    {
+     "set": [
+      "fresh",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "next_turn",
+   "when": {
+    "event": "step"
+   },
+   "if": "hasq == 1",
+   "do": [
+    {
+     "set": [
+      "ndx",
+      "qdx"
+     ]
+    },
+    {
+     "set": [
+      "ndy",
+      "qdy"
+     ]
+    },
+    {
+     "set": [
+      "hasq",
+      0
+     ]
+    },
+    {
+     "set": [
+      "pend",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "wall",
+   "when": {
+    "event": "step"
+   },
+   "if": "(wrapx == 0 && (hx + dx < 0 || hx + dx > 19)) || (wrapy == 0 && (hy + dy < 0 || hy + dy > 14))",
+   "do": [
+    {
+     "set": [
+      "dead",
+      1
+     ]
+    },
+    {
+     "play": "crash"
+    },
+    {
+     "shake": 3
+    },
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "portal",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && (hx + dx < 0 || hx + dx > 19)",
+   "do": [
+    {
+     "add": [
+      "portals",
+      1
+     ]
+    },
+    {
+     "emit": "check_sky"
+    }
+   ]
+  },
+  {
+   "id": "leave_classic_r",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 0 && dx == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_classic_r",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_garden_r",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 1 && dx == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_garden_r",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_night_r",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 2 && dx == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_night_r",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_checker_r",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 3 && dx == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_checker_r",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_classic_l",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 0 && dx == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_classic_l",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_garden_l",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 1 && dx == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_garden_l",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_night_l",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 2 && dx == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_night_l",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_checker_l",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 3 && dx == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_checker_l",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_classic_u",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 0 && dy == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_classic_u",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_garden_u",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 1 && dy == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_garden_u",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_night_u",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 2 && dy == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_night_u",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_checker_u",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 3 && dy == -1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_checker_u",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_classic_d",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 0 && dy == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_classic_d",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_garden_d",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 1 && dy == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_garden_d",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_night_d",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 2 && dy == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_night_d",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leave_checker_d",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && bg == 3 && dy == 1",
+   "do": [
+    {
+     "spawn": {
+      "prefab": "seg_checker_d",
+      "at": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "advance",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0",
+   "do": [
+    {
+     "add": [
+      "hx",
+      "dx"
+     ]
+    },
+    {
+     "set": [
+      "hx",
+      "hx - 20 * floor(hx / 20)"
+     ]
+    },
+    {
+     "add": [
+      "hy",
+      "dy"
+     ]
+    },
+    {
+     "set": [
+      "hy",
+      "hy - 15 * floor(hy / 15)"
+     ]
+    },
+    {
+     "teleport": {
+      "target": "id:head",
+      "to": [
+       "hx * 10 + 5",
+       "hy * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "shrink",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && grow == 0",
+   "do": [
+    {
+     "set": [
+      "tailgo",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "grow",
+   "when": {
+    "event": "step"
+   },
+   "if": "dead == 0 && grow > 0",
+   "do": [
+    {
+     "add": [
+      "grow",
+      -1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tail_r",
+   "when": {
+    "touching": [
+     "tail",
+     "r"
+    ]
+   },
+   "if": "tailgo == 1",
+   "do": [
+    {
+     "set": [
+      "tailgo",
+      0
+     ]
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "self_x + 10 - 200 * floor((self_x + 10) / 200)",
+       "self_y"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "tail_l",
+   "when": {
+    "touching": [
+     "tail",
+     "l"
+    ]
+   },
+   "if": "tailgo == 1",
+   "do": [
+    {
+     "set": [
+      "tailgo",
+      0
+     ]
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "self_x - 10 - 200 * floor((self_x - 10) / 200)",
+       "self_y"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "tail_u",
+   "when": {
+    "touching": [
+     "tail",
+     "u"
+    ]
+   },
+   "if": "tailgo == 1",
+   "do": [
+    {
+     "set": [
+      "tailgo",
+      0
+     ]
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "self_x",
+       "self_y - 10 - 150 * floor((self_y - 27) / 150)"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "tail_d",
+   "when": {
+    "touching": [
+     "tail",
+     "d"
+    ]
+   },
+   "if": "tailgo == 1",
+   "do": [
+    {
+     "set": [
+      "tailgo",
+      0
+     ]
+    },
+    {
+     "destroy": "other"
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "self_x",
+       "self_y + 10 - 150 * floor((self_y - 7) / 150)"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bite",
+   "when": {
+    "touch": [
+     "head",
+     "body"
+    ]
+   },
+   "if": "dead == 0",
+   "do": [
+    {
+     "set": [
+      "dead",
+      1
+     ]
+    },
+    {
+     "play": "crash"
+    },
+    {
+     "shake": 3
+    },
+    {
+     "end": "lose"
+    }
+   ]
+  },
+  {
+   "id": "eat",
+   "when": {
+    "touch": [
+     "head",
+     "apple"
+    ]
+   },
+   "if": "fresh == 0 && dead == 0",
+   "do": [
+    {
+     "destroy": "other"
+    },
+    {
+     "add": [
+      "len",
+      1
+     ]
+    },
+    {
+     "add": [
+      "grow",
+      1
+     ]
+    },
+    {
+     "add": [
+      "score",
+      10
+     ]
+    },
+    {
+     "play": "eat"
+    },
+    {
+     "set": [
+      "fresh",
+      1
+     ]
+    },
+    {
+     "emit": "ate"
+    }
+   ]
+  },
+  {
+   "id": "next_apple",
+   "when": {
+    "event": "ate"
+   },
+   "if": "len < 300",
+   "do": [
+    {
+     "emit": "new_apple"
+    }
+   ]
+  },
+  {
+   "id": "full",
+   "when": {
+    "event": "ate"
+   },
+   "if": "len >= 300",
+   "do": [
+    {
+     "set": [
+      "won",
+      1
+     ]
+    },
+    {
+     "play": "win"
+    },
+    {
+     "end": "win"
+    }
+   ]
+  },
+  {
+   "id": "apple_off_body",
+   "when": {
+    "touching": [
+     "apple",
+     "body"
+    ]
+   },
+   "do": [
+    {
+     "set": [
+      "fresh",
+      1
+     ]
+    },
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "apple_off_head",
+   "when": {
+    "touching": [
+     "apple",
+     "head"
+    ]
+   },
+   "if": "fresh == 1",
+   "do": [
+    {
+     "teleport": {
+      "target": "self",
+      "to": [
+       "random(0, 19) * 10 + 5",
+       "random(0, 14) * 10 + 17"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "unlock_side",
+   "when": {
+    "event": "ate"
+   },
+   "if": "u_side == 0 && len >= 25",
+   "do": [
+    {
+     "set": [
+      "u_side",
+      1
+     ]
+    },
+    {
+     "set": [
+      "wrapx",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast_until",
+      "time + 3"
+     ]
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "save": true
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "unlock_sky",
+   "when": {
+    "event": "check_sky"
+   },
+   "if": "u_sky == 0 && portals >= 15",
+   "do": [
+    {
+     "set": [
+      "u_sky",
+      1
+     ]
+    },
+    {
+     "set": [
+      "wrapy",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast",
+      2
+     ]
+    },
+    {
+     "set": [
+      "toast_until",
+      "time + 3"
+     ]
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "save": true
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "unlock_garden",
+   "when": {
+    "event": "ate"
+   },
+   "if": "u_garden == 0 && score >= 150",
+   "do": [
+    {
+     "set": [
+      "u_garden",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast",
+      3
+     ]
+    },
+    {
+     "set": [
+      "toast_until",
+      "time + 3"
+     ]
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "save": true
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "restore_garden",
+   "when": {
+    "event": "check_best"
+   },
+   "if": "u_garden == 0 && best >= 150",
+   "do": [
+    {
+     "set": [
+      "u_garden",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "unlock_night",
+   "when": {
+    "event": "ate"
+   },
+   "if": "u_night == 0 && score >= 450",
+   "do": [
+    {
+     "set": [
+      "u_night",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast",
+      4
+     ]
+    },
+    {
+     "set": [
+      "toast_until",
+      "time + 3"
+     ]
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "save": true
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "restore_night",
+   "when": {
+    "event": "check_best"
+   },
+   "if": "u_night == 0 && best >= 450",
+   "do": [
+    {
+     "set": [
+      "u_night",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "unlock_checker",
+   "when": {
+    "event": "ate"
+   },
+   "if": "u_checker == 0 && score >= 1000",
+   "do": [
+    {
+     "set": [
+      "u_checker",
+      1
+     ]
+    },
+    {
+     "set": [
+      "toast",
+      5
+     ]
+    },
+    {
+     "set": [
+      "toast_until",
+      "time + 3"
+     ]
+    },
+    {
+     "play": "unlock"
+    },
+    {
+     "save": true
+    },
+    {
+     "emit": "recount"
+    }
+   ]
+  },
+  {
+   "id": "restore_checker",
+   "when": {
+    "event": "check_best"
+   },
+   "if": "u_checker == 0 && best >= 1000",
+   "do": [
+    {
+     "set": [
+      "u_checker",
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "id": "recount",
+   "when": {
+    "event": "recount"
+   },
+   "do": [
+    {
+     "set": [
+      "ucount",
+      "u_side + u_sky + u_garden + u_night + u_checker"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "record",
+   "when": {
+    "end": "any"
+   },
+   "if": "score > best",
+   "do": [
+    {
+     "set": [
+      "best",
+      "score"
+     ]
+    },
+    {
+     "save": true
+    }
+   ]
+  }
+ ],
+ "checks": {
+  "scenarios": [
+   {
+    "name": "wall_up_kills",
+    "max_seconds": 5,
+    "script": [
+     {
+      "press": "up"
+     },
+     {
+      "wait": 1.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "dead",
+      "eq": 1
+     },
+     {
+      "ended": "lose"
+     }
+    ]
+   },
+   {
+    "name": "side_wall_kills_by_default",
+    "max_seconds": 5,
+    "script": [
+     {
+      "press": "right"
+     },
+     {
+      "wait": 2
+     }
+    ],
+    "expect": [
+     {
+      "var": "dead",
+      "eq": 1
+     },
+     {
+      "ended": "lose"
+     }
+    ]
+   },
+   {
+    "name": "no_instant_reverse",
+    "max_seconds": 5,
+    "script": [
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.15
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "dx",
+      "eq": 1
+     },
+     {
+      "var": "dead",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "two_quick_turns_both_count",
+    "max_seconds": 5,
+    "script": [
+     {
+      "press": "up"
+     },
+     {
+      "press": "left"
+     },
+     {
+      "wait": 0.5
+     }
+    ],
+    "expect": [
+     {
+      "var": "dx",
+      "eq": -1
+     },
+     {
+      "var": "dy",
+      "eq": 0
+     },
+     {
+      "var": "dead",
+      "eq": 0
+     }
+    ]
+   },
+   {
+    "name": "pause_freezes",
+    "max_seconds": 5,
+    "script": [
+     {
+      "press": "right"
+     },
+     {
+      "wait": 0.3
+     },
+     {
+      "press": "pause"
+     },
+     {
+      "wait": 1
+     }
+    ],
+    "expect": [
+     {
+      "var": "paused",
+      "eq": 1
+     },
+     {
+      "var": "hx",
+      "lt": 9
+     }
+    ]
+   },
+   {
+    "name": "locked_portal_does_nothing",
+    "max_seconds": 3,
+    "script": [
+     {
+      "button": "open_unlocks"
+     },
+     {
+      "button": "locked_1"
+     },
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "var": "wrapx",
+      "eq": 0
+     },
+     {
+      "var": "menu",
+      "eq": 1
+     }
+    ]
+   },
+   {
+    "name": "classic_board_is_one_piece",
+    "max_seconds": 3,
+    "script": [
+     {
+      "wait": 0.2
+     }
+    ],
+    "expect": [
+     {
+      "count": "bg",
+      "eq": 1
+     },
+     {
+      "count": "apple",
+      "eq": 1
+     }
+    ]
+   }
+  ]
+ }
+}

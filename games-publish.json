@@ -12,7 +12,8 @@
       {"source": "games/frameless/content", "destination": "frameless"},
       {"source": "examples/2d/honeybound.game2d.json", "destination": "honeybound"},
       {"source": "games/redcraft/content", "destination": "redcraft"},
-      {"source": "examples/chrono-clash", "destination": "chrono-clash"}
+      {"source": "examples/chrono-clash", "destination": "chrono-clash"},
+      {"source": "examples/2d/snake.game2d.json", "destination": "snake"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -87,6 +88,15 @@
       "entry": "games/honeybound/honeybound.game2d.json",
       "files": ["games/honeybound"],
       "arguments": ["content/games/honeybound/honeybound.game2d.json"]
+    },
+    {
+      "slug": "snake",
+      "name": "Snake",
+      "kind": "2d",
+      "entry": "games/snake/snake.game2d.json",
+      "files": ["games/snake"],
+      "arguments": ["content/games/snake/snake.game2d.json"],
+      "page": "pages/snake"
     },
     {
       "slug": "redcraft",

@@ -1,0 +1,83 @@
+{
+ "tagline": "The original: steer a snake of squares, eat apples to grow, and keep going until the snake fills the whole board. Unlock portals and new backgrounds along the way.",
+ "overview": "Snake is the classic arcade game in the colours of an old handheld screen. The snake moves on its own, one square every tenth of a second, and you only choose where it turns. Every apple makes it one square longer and scores ten points, and a longer snake leaves less room to move. All four edges start as walls. Play well and you unlock portals that let the snake wrap around the edges, and new backgrounds (each with its own look for the snake and the apple). Quick double turns are remembered, so tight U-turns work, and the snake can never reverse straight into itself. A calm ambient tune plays underneath, and your best score and unlocks are kept between games.",
+ "story": "Somewhere in a walled garden on a little green screen lives a snake that is always hungry. An apple appears, the snake goes for it, and it grows. Another apple appears somewhere else. The garden never gets bigger, but the snake does, and sooner or later the only thing left in its way is its own tail.",
+ "goal": "Eat apples and stay alive: hitting a wall or biting yourself ends the run. You win by filling the whole board, all 300 squares.",
+ "rules": [
+  "The board is 20 squares wide and 15 high; the snake moves one square every tenth of a second.",
+  "Each apple makes the snake one square longer and is worth 10 points; a new apple then appears somewhere else.",
+  "All four edges are walls until you unlock portals. Running into a wall or into the snake's own body ends the run.",
+  "Side Portals (reach length 25 in one game) make the left and right edges wrap around. Sky Portals (15 trips through the side portals in one game) do the same for the top and bottom. Either can be switched off again.",
+  "New backgrounds unlock with your high score: Garden at 150, Night Sky at 450 and Checker at 1000. Classic is there from the start.",
+  "The snake cannot turn straight back on itself, and two quick turns in a row are both kept, so a U-turn works.",
+  "Fill the board (a snake 300 squares long) to win. The best score and every unlock are saved."
+ ],
+ "controls": [
+  {
+   "input": "Arrow keys",
+   "action": "Turn the snake (the first one starts the game)"
+  },
+  {
+   "input": "P or Esc",
+   "action": "Pause and resume"
+  },
+  {
+   "input": "Space",
+   "action": "Play again after a game over"
+  },
+  {
+   "input": "U",
+   "action": "Open the unlocks list (1 to 6 or a click uses an unlock)"
+  },
+  {
+   "input": "M",
+   "action": "Music on or off"
+  },
+  {
+   "input": "F or F11",
+   "action": "Fullscreen"
+  }
+ ],
+ "characters": [
+  {
+   "name": "The snake",
+   "role": "You",
+   "description": "A row of squares with a darker head that never stops moving: all you decide is where it turns. Every apple adds one square to its tail. Its look changes with the background.",
+   "image": "c1.png"
+  },
+  {
+   "name": "The apple",
+   "role": "Food",
+   "description": "Something to eat somewhere on the board: a plain red square on Classic, a pixel apple on the other backgrounds. Eat it for 10 points and one more square of snake; another one appears straight away.",
+   "image": "c2.png"
+  }
+ ],
+ "tips": [
+  "Once Side Portals are unlocked, use the wrap-around: going off the left or right edge is often the fastest way to an apple on the far side.",
+  "Keep to the edges and leave the middle of the board open as the snake gets long.",
+  "Turn twice quickly to double back along a row: both turns are remembered."
+ ],
+ "gallery": [
+  {
+   "caption": "A new game: press an arrow key to start. The score, the length and the best score are along the top.",
+   "image": "g1.png"
+  },
+  {
+   "caption": "The first apple eaten: 10 points, a snake of four, and the next apple already waiting.",
+   "image": "g2.png"
+  },
+  {
+   "caption": "With Side Portals unlocked: the snake leaves the board on the right and comes back on the left.",
+   "image": "g3.png"
+  },
+  {
+   "caption": "Paused with P: nothing moves until you press it again.",
+   "image": "g4.png"
+  },
+  {
+   "caption": "Game over after hitting the top wall: Space plays again.",
+   "image": "g5.png"
+  }
+ ],
+ "prompt_unavailable": "The prompts that created Snake were not recorded. It was made with Claude Code on Windows and sent to the engine as RedEngine pull request #201; the prompts can be added here with a later update. The pictures on this page were drawn by the engine from the game itself."
+}
