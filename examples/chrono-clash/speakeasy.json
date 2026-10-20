@@ -1,0 +1,174 @@
+{
+  "recipe": { "title": "Chrono Clash: Speakeasy, Chicago 1932", "summary": "A two-level bootlegger warehouse for 4 to 6 player deathmatch: bar in the middle, catwalk mezzanines at both ends, a time-portal pad onto the crate tower." },
+  "meta": { "fps": 60, "duration": 10, "resolution": [1280, 720] },
+  "background": { "sky_top": "#0b1020", "sky_bottom": "#2a2440" },
+  "ambient": { "color": "#ffe6c8", "intensity": 0.38 },
+  "camera": { "fov": 75, "position": [0, 4, 10], "target": [0, 1, 0] },
+  "post": { "ao": 0.7, "outline": 0.4 },
+  "player": { "character": "human", "fov": 90, "walk_speed": 4.5, "sprint_speed": 7, "jump_speed": 5.5, "gravity": 18 },
+  "jump_pads": [ { "id": "portal_pad", "position": [0, 0, -4.6], "size": [1.6, 1.6], "launch_speed": 10 } ],
+  "weapons": { "starting": "smg", "ammo": { "loaded": 40, "capacity": 40, "reserve": 200 } },
+  "combat": { "respawn_secs": 2, "spawn": "farthest", "spawn_protect_secs": 1.5, "regen_delay_secs": 5, "regen_per_sec": 20 },
+  "match": { "min_players": 1, "countdown_secs": 3, "round_secs": 300, "results_secs": 10, "score_to_win": 20, "ready_check": false },
+  "bots": {
+    "fill": 6,
+    "skill": "normal",
+    "roster": [
+      { "name": "Tommy Vance", "character": "human", "style": "rusher" },
+      { "name": "Dusty Rhodes", "character": "cowboy", "style": "sniper" },
+      { "name": "Unit 7", "character": "robot", "style": "balanced" },
+      { "name": "Zorbo", "character": "alien", "style": "acrobat" },
+      { "name": "Merlin", "character": "wizard", "style": "balanced" }
+    ]
+  },
+  "music": true,
+  "death_text": "ERASED FROM HISTORY",
+  "ui": {
+    "title": "Chrono Clash",
+    "start": { "title": "SPEAKEASY - CHICAGO 1932", "text": "First to 20 eliminations wins. Grab the high ground on the catwalks or ride the time portal onto the crate tower.", "button": "Fight" }
+  },
+  "lights": [
+    { "id": "moon", "type": "directional", "direction": [-0.3, -1, 0.4], "color": "#8fa6ff", "intensity": 0.35, "cast_shadows": false },
+    { "id": "lamp_center", "type": "point", "position": [0, 5.2, 0], "color": "#ffc27a", "intensity": 14, "range": 12 },
+    { "id": "lamp_nw", "type": "point", "position": [-6, 5.2, -6], "color": "#ffc27a", "intensity": 11, "range": 10 },
+    { "id": "lamp_ne", "type": "point", "position": [6, 5.2, -6], "color": "#ffc27a", "intensity": 11, "range": 10 },
+    { "id": "lamp_sw", "type": "point", "position": [-6, 5.2, 6], "color": "#ffc27a", "intensity": 11, "range": 10 },
+    { "id": "lamp_se", "type": "point", "position": [6, 5.2, 6], "color": "#ffc27a", "intensity": 11, "range": 10 },
+    { "id": "lamp_mezz_w", "type": "point", "position": [-13, 4.8, 0], "color": "#ff9a5a", "intensity": 9, "range": 10 },
+    { "id": "lamp_mezz_e", "type": "point", "position": [13, 4.8, 0], "color": "#ff9a5a", "intensity": 9, "range": 10 },
+    { "id": "portal_glow", "type": "point", "position": [0, 0.6, -4.6], "color": "#3ee8ff", "intensity": 6, "range": 5 }
+  ],
+  "spawns": [
+    { "id": "s_mezz_w", "position": [-13, 2.4, -6], "yaw_deg": 90, "group": "dm" },
+    { "id": "s_mezz_e", "position": [13, 2.4, 6], "yaw_deg": 270, "group": "dm" },
+    { "id": "s_sw", "position": [-9, 0, 10], "yaw_deg": 90, "group": "dm" },
+    { "id": "s_ne", "position": [9, 0, -10], "yaw_deg": 270, "group": "dm" },
+    { "id": "s_nw", "position": [-9, 0, -10], "yaw_deg": 90, "group": "dm" },
+    { "id": "s_se", "position": [9, 0, 10], "yaw_deg": 270, "group": "dm" },
+    { "id": "s_under_w", "position": [-13, 0, 0], "yaw_deg": 90, "group": "dm" },
+    { "id": "s_under_e", "position": [13, 0, 0], "yaw_deg": 270, "group": "dm" }
+  ],
+  "nav": {
+    "nodes": [
+      { "id": "a1", "pos": [-9, 0, -10] }, { "id": "a2", "pos": [-3, 0, -10] }, { "id": "a0", "pos": [0, 0, -10] }, { "id": "a3", "pos": [3, 0, -10] }, { "id": "a4", "pos": [9, 0, -10] },
+      { "id": "b1", "pos": [-6.8, 0, -2.2] }, { "id": "b2", "pos": [-2, 0, -2.2] }, { "id": "b3", "pos": [2, 0, -2.2] }, { "id": "b4", "pos": [6.8, 0, -2.2] },
+      { "id": "c1", "pos": [-6.8, 0, 2.2] }, { "id": "c2", "pos": [-2, 0, 2.2] }, { "id": "c3", "pos": [2, 0, 2.2] }, { "id": "c4", "pos": [6.8, 0, 2.2] },
+      { "id": "d1", "pos": [-9, 0, 10] }, { "id": "d2", "pos": [-3, 0, 10] }, { "id": "d3", "pos": [3, 0, 10] }, { "id": "d4", "pos": [9, 0, 10] },
+      { "id": "w_stair_bot", "pos": [-6.6, 0, -6] }, { "id": "w_stair_top", "pos": [-11.6, 2.4, -6] },
+      { "id": "e_stair_bot", "pos": [6.6, 0, 6] }, { "id": "e_stair_top", "pos": [11.6, 2.4, 6] },
+      { "id": "w_n", "pos": [-13, 2.4, -10] }, { "id": "w_m", "pos": [-13, 2.4, 0] }, { "id": "w_s", "pos": [-13, 2.4, 10] },
+      { "id": "e_n", "pos": [13, 2.4, 10] }, { "id": "e_m", "pos": [13, 2.4, 0] }, { "id": "e_s", "pos": [13, 2.4, -10] },
+      { "id": "uw1", "pos": [-13, 0, -10.5] }, { "id": "uw2", "pos": [-13, 0, 0] }, { "id": "uw3", "pos": [-13, 0, 10.5] },
+      { "id": "ue1", "pos": [13, 0, 10.5] }, { "id": "ue2", "pos": [13, 0, 0] }, { "id": "ue3", "pos": [13, 0, -10.5] },
+      { "id": "pad", "pos": [0, 0, -4.6] }, { "id": "tower_top", "pos": [0, 2.4, -7] }
+    ],
+    "edges": [
+      ["a1", "a2"], ["a2", "a0"], ["a0", "a3"], ["a3", "a4"],
+      ["d1", "d2"], ["d2", "d3"], ["d3", "d4"],
+      ["b1", "b2"], ["b2", "b3"], ["b3", "b4"],
+      ["c1", "c2"], ["c2", "c3"], ["c3", "c4"],
+      ["b1", "c1"], ["b4", "c4"], ["c1", "d1"], ["b4", "a4"],
+      ["b2", "a2"], ["b3", "a3"], ["c2", "d2"], ["c3", "d3"],
+      ["a2", "w_stair_bot"], ["w_stair_bot", "b1"], ["d3", "e_stair_bot"], ["e_stair_bot", "c4"],
+      ["a1", "uw1"], ["uw1", "uw2"], ["uw2", "uw3"], ["uw3", "d1"], ["uw2", "b1"],
+      ["d4", "ue1"], ["ue1", "ue2"], ["ue2", "ue3"], ["ue3", "a4"], ["ue2", "c4"],
+      ["b2", "pad"], ["b3", "pad"],
+      ["w_stair_top", "w_n"], ["w_stair_top", "w_m"], ["w_m", "w_s"],
+      ["e_stair_top", "e_n"], ["e_stair_top", "e_m"], ["e_m", "e_s"],
+      ["w_stair_bot", "w_stair_top", "climb"], ["e_stair_bot", "e_stair_top", "climb"],
+      ["pad", "tower_top", "pad"],
+      ["w_n", "a1", "drop"], ["w_s", "d1", "drop"], ["e_n", "d4", "drop"], ["e_s", "a4", "drop"], ["tower_top", "a0", "drop"]
+    ]
+  },
+  "objects": [
+    { "id": "floor", "type": "plane", "size": [30, 24], "position": [0, 0, 0], "material": { "color": "#4a3f36", "roughness": 0.9 } },
+    { "id": "roof", "type": "box", "size": [30.6, 0.3, 24.6], "position": [0, 6.15, 0], "material": { "color": "#2a2420", "roughness": 0.9 } },
+    { "id": "beams", "type": "group", "position": [0, 5.8, 0], "collide": false, "children": [
+      { "id": "beam_1", "type": "box", "size": [0.3, 0.4, 24], "position": [-9, 0, 0], "material": { "color": "#3a2c20", "roughness": 0.8 } },
+      { "id": "beam_2", "type": "box", "size": [0.3, 0.4, 24], "position": [-3, 0, 0], "material": { "color": "#3a2c20", "roughness": 0.8 } },
+      { "id": "beam_3", "type": "box", "size": [0.3, 0.4, 24], "position": [3, 0, 0], "material": { "color": "#3a2c20", "roughness": 0.8 } },
+      { "id": "beam_4", "type": "box", "size": [0.3, 0.4, 24], "position": [9, 0, 0], "material": { "color": "#3a2c20", "roughness": 0.8 } }
+    ] },
+
+    { "id": "wall_n", "type": "wall", "from": [-15, -12], "to": [15, -12], "height": 6, "thickness": 0.3,
+      "material": { "color": "#6e3b2e", "roughness": 0.95 }, "trim": "#c9b48a", "baseboard": "#2b211c",
+      "openings": [
+        { "at": 4.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 10.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 19.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 25.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 }
+      ] },
+    { "id": "wall_s", "type": "wall", "from": [-15, 12], "to": [15, 12], "height": 6, "thickness": 0.3,
+      "material": { "color": "#6e3b2e", "roughness": 0.95 }, "trim": "#c9b48a", "baseboard": "#2b211c",
+      "openings": [
+        { "at": 4.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 10.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 19.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 },
+        { "at": 25.5, "width": 2.2, "kind": "window", "sill": 3.4, "height": 1.6 }
+      ] },
+    { "id": "wall_w", "type": "wall", "from": [-15, -12], "to": [-15, 12], "height": 6, "thickness": 0.3,
+      "material": { "color": "#6e3b2e", "roughness": 0.95 }, "trim": "#c9b48a", "baseboard": "#2b211c",
+      "openings": [
+        { "at": 6, "width": 2.2, "kind": "window", "sill": 3.8, "height": 1.4 },
+        { "at": 18, "width": 2.2, "kind": "window", "sill": 3.8, "height": 1.4 }
+      ] },
+    { "id": "wall_e", "type": "wall", "from": [15, -12], "to": [15, 12], "height": 6, "thickness": 0.3,
+      "material": { "color": "#6e3b2e", "roughness": 0.95 }, "trim": "#c9b48a", "baseboard": "#2b211c",
+      "openings": [
+        { "at": 6, "width": 2.2, "kind": "window", "sill": 3.8, "height": 1.4 },
+        { "at": 18, "width": 2.2, "kind": "window", "sill": 3.8, "height": 1.4 }
+      ] },
+
+    { "id": "mezz_w", "type": "box", "size": [4, 0.2, 24], "position": [-13, 2.3, 0], "material": { "color": "#5a4632", "roughness": 0.85 } },
+    { "id": "mezz_e", "type": "box", "size": [4, 0.2, 24], "position": [13, 2.3, 0], "material": { "color": "#5a4632", "roughness": 0.85 } },
+    { "id": "post_w1", "type": "cylinder", "radius": 0.15, "height": 2.2, "position": [-11.25, 1.1, -9], "material": { "color": "#3a3a3a", "metallic": 0.6, "roughness": 0.5 } },
+    { "id": "post_w2", "type": "cylinder", "radius": 0.15, "height": 2.2, "position": [-11.25, 1.1, 9], "material": { "color": "#3a3a3a", "metallic": 0.6, "roughness": 0.5 } },
+    { "id": "post_e1", "type": "cylinder", "radius": 0.15, "height": 2.2, "position": [11.25, 1.1, -9], "material": { "color": "#3a3a3a", "metallic": 0.6, "roughness": 0.5 } },
+    { "id": "post_e2", "type": "cylinder", "radius": 0.15, "height": 2.2, "position": [11.25, 1.1, 9], "material": { "color": "#3a3a3a", "metallic": 0.6, "roughness": 0.5 } },
+    { "id": "stairs_w", "type": "stairs", "position": [-9.2, 0, -6], "rotation": [0, -90, 0], "width": 1.4, "run": 3.6, "rise": 2.4, "steps": 12, "material": { "color": "#6b5038", "roughness": 0.8 } },
+    { "id": "stairs_e", "type": "stairs", "position": [9.2, 0, 6], "rotation": [0, 90, 0], "width": 1.4, "run": 3.6, "rise": 2.4, "steps": 12, "material": { "color": "#6b5038", "roughness": 0.8 } },
+    { "id": "rail_w", "type": "wall", "from": [-11, -4.8], "to": [-11, 6], "y": 2.4, "height": 1.05, "thickness": 0.08, "material": { "color": "#2b2b2b", "metallic": 0.5, "roughness": 0.5 } },
+    { "id": "rail_e", "type": "wall", "from": [11, -6], "to": [11, 4.8], "y": 2.4, "height": 1.05, "thickness": 0.08, "material": { "color": "#2b2b2b", "metallic": 0.5, "roughness": 0.5 } },
+
+    { "id": "bar_counter", "type": "box", "size": [6, 1.1, 1.2], "position": [0, 0.55, 0], "material": { "color": "#5b3a22", "roughness": 0.6 } },
+    { "id": "bar_top", "type": "box", "size": [6.3, 0.08, 1.4], "position": [0, 1.14, 0], "material": { "color": "#2a1a10", "roughness": 0.3, "metallic": 0.1 } },
+    { "id": "bottles", "type": "group", "position": [0, 1.3, 0], "collide": false, "children": [
+      { "id": "bottle_1", "type": "cylinder", "radius": 0.05, "height": 0.28, "position": [-2.2, 0, 0.2], "material": { "color": "#2f6b3a", "opacity": 0.8, "roughness": 0.1 } },
+      { "id": "bottle_2", "type": "cylinder", "radius": 0.05, "height": 0.28, "position": [-1.1, 0, -0.1], "material": { "color": "#8a4a1a", "opacity": 0.8, "roughness": 0.1 } },
+      { "id": "bottle_3", "type": "cylinder", "radius": 0.05, "height": 0.28, "position": [0.3, 0, 0.15], "material": { "color": "#2f6b3a", "opacity": 0.8, "roughness": 0.1 } },
+      { "id": "bottle_4", "type": "cylinder", "radius": 0.05, "height": 0.28, "position": [1.6, 0, -0.2], "material": { "color": "#c8c8c8", "opacity": 0.6, "roughness": 0.1 } },
+      { "id": "bottle_5", "type": "cylinder", "radius": 0.05, "height": 0.28, "position": [2.4, 0, 0.1], "material": { "color": "#8a4a1a", "opacity": 0.8, "roughness": 0.1 } }
+    ] },
+    { "id": "crate_tower", "type": "box", "size": [2, 2.4, 2], "position": [0, 1.2, -7], "material": { "color": "#8a6a3a", "roughness": 0.85 } },
+    { "id": "tower_band", "type": "box", "size": [2.04, 0.12, 2.04], "position": [0, 1.2, -7], "collide": false, "material": { "color": "#3a2a18", "roughness": 0.8 } },
+    { "id": "crate_a", "type": "box", "size": [1.2, 1.2, 1.2], "position": [-5.5, 0.6, 5], "material": { "color": "#9a7442", "roughness": 0.85 } },
+    { "id": "crate_b", "type": "box", "size": [1.2, 1.2, 1.2], "position": [5.5, 0.6, -5], "material": { "color": "#9a7442", "roughness": 0.85 } },
+    { "id": "crate_c", "type": "box", "size": [2, 1.2, 1.2], "position": [-4, 0.6, -4], "material": { "color": "#7d5e34", "roughness": 0.85 } },
+    { "id": "crate_d", "type": "box", "size": [2, 1.2, 1.2], "position": [4, 0.6, 4], "material": { "color": "#7d5e34", "roughness": 0.85 } },
+    { "id": "pillar_1", "type": "cylinder", "radius": 0.35, "height": 6, "position": [-5, 3, 7], "material": { "color": "#55504a", "roughness": 0.9 } },
+    { "id": "pillar_2", "type": "cylinder", "radius": 0.35, "height": 6, "position": [5, 3, -7], "material": { "color": "#55504a", "roughness": 0.9 } },
+    { "id": "barrel_w", "type": "cylinder", "radius": 0.4, "height": 1.1, "position": [-14.2, 0.55, 4], "material": { "color": "#6b2e1e", "roughness": 0.7 } },
+    { "id": "barrel_e", "type": "cylinder", "radius": 0.4, "height": 1.1, "position": [14.2, 0.55, -4], "material": { "color": "#6b2e1e", "roughness": 0.7 } },
+
+    { "id": "portal_disc", "type": "cylinder", "radius": 0.8, "height": 0.04, "position": [0, 0.02, -4.6], "collide": false, "material": { "color": "#3ee8ff", "emissive": "#1ab8d0", "opacity": 0.85 } },
+    { "id": "portal_ring", "type": "cylinder", "radius": 0.9, "height": 0.02, "position": [0, 0.01, -4.6], "collide": false, "material": { "color": "#ff4bd8", "emissive": "#a0208a" } },
+
+    { "id": "sign_speakeasy", "type": "text", "text": "SPEAKEASY", "position": [0, 4.6, -11.8], "height": 0.5,
+      "backing": "#1a1010", "material": { "color": "#ff5a4a", "emissive": "#b02010" } },
+    { "id": "sign_year", "type": "text", "text": "CHICAGO 1932", "position": [0, 3.9, -11.8], "height": 0.25,
+      "material": { "color": "#ffd27a", "emissive": "#6a4a10" } },
+
+    { "id": "shades", "type": "group", "position": [0, 0, 0], "collide": false, "children": [
+      { "id": "shade_c", "type": "cone", "radius": 0.35, "height": 0.3, "position": [0, 5.45, 0], "material": { "color": "#2a2a2a", "emissive": "#5a3a10" } },
+      { "id": "shade_nw", "type": "cone", "radius": 0.35, "height": 0.3, "position": [-6, 5.45, -6], "material": { "color": "#2a2a2a", "emissive": "#5a3a10" } },
+      { "id": "shade_ne", "type": "cone", "radius": 0.35, "height": 0.3, "position": [6, 5.45, -6], "material": { "color": "#2a2a2a", "emissive": "#5a3a10" } },
+      { "id": "shade_sw", "type": "cone", "radius": 0.35, "height": 0.3, "position": [-6, 5.45, 6], "material": { "color": "#2a2a2a", "emissive": "#5a3a10" } },
+      { "id": "shade_se", "type": "cone", "radius": 0.35, "height": 0.3, "position": [6, 5.45, 6], "material": { "color": "#2a2a2a", "emissive": "#5a3a10" } },
+      { "id": "bulb_c", "type": "sphere", "radius": 0.12, "position": [0, 5.25, 0], "material": { "color": "#fff0c0", "emissive": "#ffc060" } },
+      { "id": "bulb_nw", "type": "sphere", "radius": 0.12, "position": [-6, 5.25, -6], "material": { "color": "#fff0c0", "emissive": "#ffc060" } },
+      { "id": "bulb_ne", "type": "sphere", "radius": 0.12, "position": [6, 5.25, -6], "material": { "color": "#fff0c0", "emissive": "#ffc060" } },
+      { "id": "bulb_sw", "type": "sphere", "radius": 0.12, "position": [-6, 5.25, 6], "material": { "color": "#fff0c0", "emissive": "#ffc060" } },
+      { "id": "bulb_se", "type": "sphere", "radius": 0.12, "position": [6, 5.25, 6], "material": { "color": "#fff0c0", "emissive": "#ffc060" } }
+    ] }
+  ]
+}
