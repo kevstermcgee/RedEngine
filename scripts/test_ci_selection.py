@@ -109,6 +109,16 @@ class WhichJobs(unittest.TestCase):
         self.fresh()
         self.assertEqual(self.jobs("recipes/helper.py")["pytools"], True)
 
+    def test_the_deploy_scripts_that_run_on_the_home_box_start_the_python_job_that_tests_them(self):
+        # deploy/red-portmap.py and deploy/red-selfcheck.py are tested by scripts/test_red_deploy.py (tests/red_deploy.rs on the native job): a change to either script, or to
+        # its test, must run it. The systemd units beside them are not Python and start the image build only (deploy/ is part of it).
+        for tool in ("deploy/red-selfcheck.py", "deploy/red-portmap.py", "scripts/test_red_deploy.py"):
+            with self.subTest(tool):
+                self.fresh()
+                self.assertEqual(self.jobs(tool)["pytools"], True)
+        self.fresh()
+        self.assertJobs(["deploy/red-selfcheck.timer", "deploy/red-portmap.service"], native=False, docker=True, pytools=False)
+
     def test_a_name_git_would_quote_still_selects_the_job(self):
         # `git diff --name-only` prints "scripts/\303\274nder.py" in quotes by default: an anchored pattern never matches the opening quote.
         self.assertJobs(["scripts/ünder code.py"], False, False, True)

@@ -1,0 +1,10 @@
+[Unit]
+Description=Restore the router's UPnP mappings for the Red Engine relay and Killchain server if the router lost them (every 10 minutes)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=10min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
