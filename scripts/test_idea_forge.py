@@ -92,6 +92,10 @@ def cli(*args, cwd=None, env=None, check=True):
     return p
 
 
+# A complete wiki page (what `wiki --check` accepts): the stub agents write it as the real ones do, because `ship` refuses a game without one.
+WIKI_PAGE = {"tagline": "t", "overview": "o" * 200, "story": "s" * 150, "goal": "g", "rules": ["a", "b", "c"], "controls": [{"input": "x", "action": "y"}],
+             "characters": [{"name": "Hero", "role": "you", "description": "d", "shot": {"t": 1}}], "gallery": [{"caption": f"c{i}", "shot": {"t": i + 2}} for i in range(3)], "why_made": "w" * 100}
+
 GOOD = {"id": "F1", "key": "no-random-expression", "area": "format", "title": "no random", "severity": 3, "cost_min": 20, "evidence": "rules have no random expression", "workaround": "a die entity", "proposal": "add random(a,b)"}
 
 
@@ -181,6 +185,45 @@ class Wiki(unittest.TestCase):
         for must in ("wiki --init", "wiki --preview", "wiki --check", "docs/analysis/idea-forge/wiki/electric-foundry.json", "`why_made` is YOU speaking", "NOT published"):
             self.assertIn(must, text)
 
+    def test_the_brief_says_the_page_is_committed_with_the_game_and_that_ship_checks_it(self):
+        for kind in ("2d", "3d"):
+            text = idea_forge.brief(idea_forge.make_idea(123456789), "2026-10-08", kind=kind)
+            for must in ("It is committed with the game", "same pull request as the game and the feedback", "CHECKS it with `wiki --check`", "not shipped and not merged",
+                         "`ship` runs the same check on `docs/analysis/idea-forge/wiki/electric-foundry.json` and refuses the game"):
+                self.assertIn(must, text, kind)
+
+    def test_one_check_serves_the_agent_ship_and_publish_and_a_leftover_todo_fails_it(self):
+        self.assertEqual(idea_forge.wiki_check(self.GOOD), [])
+        self.assertEqual(idea_forge.wiki_check(dict(self.GOOD, goal="TODO how you win")), ["`goal` still says TODO"])
+        self.assertEqual(idea_forge.wiki_check(["not", "an", "object"]), ["the wiki file must be a JSON object"], "no crash on a page that is not an object")
+
+    def test_todo_is_a_word_so_an_ordinary_word_that_contains_it_passes(self):
+        """The check gates `ship` and `publish` now: MASTODON in a story must not stop a good game."""
+        for word in ("a MASTODON", "ATODOS", "TODO_LATER_is_one_token", "todo"):
+            self.assertEqual(idea_forge.wiki_check(dict(self.GOOD, story="s" * 150 + " " + word)), [], word)
+        for word in ("TODO", "TODO: more", "(TODO)", "x TODO y"):
+            self.assertEqual(idea_forge.wiki_check(dict(self.GOOD, story="s" * 150 + " " + word)), ["`story` still says TODO"], word)
+        self.assertEqual(idea_forge.wiki_check(dict(self.GOOD, rules=["a", "b", "see MASTODON"])), [])
+        self.assertEqual(idea_forge.wiki_check(dict(self.GOOD, rules=["a", "b", "TODO rule"])), ["`rules` still says TODO"], "a TODO inside a list is still found")
+
+    def test_a_worktrees_page_is_judged_with_the_reason_and_the_way_out(self):
+        wt = tempfile.mkdtemp(prefix="idea_forge_wiki_")
+        path = os.path.join(wt, idea_forge.wiki_file("mine"))
+        missing = idea_forge.worktree_wiki_problems(wt, "mine")
+        self.assertEqual(len(missing), 1)
+        self.assertIn("no wiki page: docs/analysis/idea-forge/wiki/mine.json does not exist", missing[0])
+        self.assertIn("wiki --init --run", missing[0])
+        os.makedirs(os.path.dirname(path))
+        wr(path, "{not json")
+        self.assertIn("is not valid JSON", idea_forge.worktree_wiki_problems(wt, "mine")[0])
+        wr(path, json.dumps(dict(self.GOOD, rules=["only one"], overview="short")))
+        got = idea_forge.worktree_wiki_problems(wt, "mine")[0]
+        self.assertTrue("`overview` is missing or shorter than 200" in got and "`rules` needs at least 3" in got and "wiki --check --run" in got, got)
+        wr(path, json.dumps(dict(self.GOOD, tagline="TODO")))
+        self.assertIn("`tagline` still says TODO", idea_forge.worktree_wiki_problems(wt, "mine")[0])
+        wr(path, json.dumps(self.GOOD))
+        self.assertEqual(idea_forge.worktree_wiki_problems(wt, "mine"), [])
+
 
 class Feedback(unittest.TestCase):
     def test_findings_are_checked(self):
@@ -217,6 +260,43 @@ class Feedback(unittest.TestCase):
         self.assertLess(text.index("no random"), text.index("search found nothing"), "severity 3 ranks first")
         self.assertIn("## Keep", text)
         self.assertIn("verify is fast", text)
+
+
+class Skipped(unittest.TestCase):
+    """A feedback file whose findings block is malformed is still skipped (one bad note must not stop the backlog), but it is named."""
+
+    BAD = {"2026-10-08-2d-broken.md": "# run\n\n```json findings\n[{\"id\": \"F1\",,]\n```\n", "2026-10-08-2d-nofence.md": "# run\n\nno block at all\n",
+           "2026-10-08-2d-notalist.md": "# run\n\n```json findings\n{\"id\": \"F1\"}\n```\n"}
+
+    def texts(self):
+        return dict(self.BAD, **{"2026-10-09-2d-fine.md": good_feedback(), "DIGEST.md": "# not a run"})
+
+    def test_rows_from_keeps_skipping_but_names_each_file_and_why(self):
+        plain = idea_forge.rows_from(self.texts())
+        skipped = []
+        rows = idea_forge.rows_from(self.texts(), skipped)
+        self.assertEqual(rows, plain, "naming the skipped files changes nothing else")
+        self.assertEqual({r["run"] for r in rows}, {"2026-10-09-2d-fine"})
+        self.assertEqual(sorted(n for n, _ in skipped), sorted(self.BAD), "DIGEST.md is not a run and is never named")
+        why = dict(skipped)
+        self.assertIn("no ```json findings block", why["2026-10-08-2d-nofence.md"])
+        self.assertIn("must be a JSON list", why["2026-10-08-2d-notalist.md"])
+        self.assertTrue(why["2026-10-08-2d-broken.md"])
+
+    def test_the_digest_says_which_files_it_skipped(self):
+        d = tempfile.mkdtemp()
+        for name, text in self.texts().items():
+            wr(os.path.join(d, name), text)
+        skipped = []
+        rows = idea_forge.collect_findings(d, skipped)
+        self.assertEqual(len(rows), 1)
+        text = idea_forge.digest_text(rows, skipped)
+        self.assertIn("SKIPPED 3 feedback file(s)", text)
+        for name in self.BAD:
+            self.assertIn(name, text)
+        self.assertEqual(idea_forge.digest_text(rows), idea_forge.digest_text(rows, []), "nothing skipped, no line")
+        self.assertNotIn("SKIPPED", idea_forge.digest_text(rows, []))
+        self.assertEqual(idea_forge.skipped_line([]), "")
 
 
 class Guard(unittest.TestCase):
@@ -272,6 +352,8 @@ for todo, text in (("TODO: the design paragraph (the mechanic in one sentence, t
                    ("TODO: what the engine did well that should be kept (commands, messages, speed).", "validate and verify were fast and precise and named every fix.")):
     t = t.replace(todo, text)
 open(p, "w").write(t)
+os.makedirs("docs/analysis/idea-forge/wiki", exist_ok=True)
+open("docs/analysis/idea-forge/wiki/{slug}.json", "w").write({json.dumps(WIKI_PAGE)!r})
 print(json.dumps({{"type": "assistant", "message": {{"content": [{{"type": "tool_use", "name": "Bash", "input": {{"command": "verify"}}}}]}}}}))
 print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 120000}}))
 """
@@ -326,7 +408,8 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         subprocess.run(["git", "-C", self.wt, "checkout", "--", "src/lib.rs"], check=True)
         cli("ship", slug, "--no-push")
         files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
-        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
+        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md", f"docs/analysis/idea-forge/wiki/{slug}.json"]),
+                         "the game's wiki page goes in the same commit as the game and its feedback")
 
     def test_a_2d_games_generator_ships_beside_it_and_feedback_check_runs_it(self):
         self.run_it()
@@ -344,7 +427,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         wr(gen, f"from pathlib import Path\n(Path(__file__).resolve().parent.parent / {slug + '.game2d.json'!r}).write_text({game!r})\n")
         cli("ship", slug, "--no-push")
         files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
-        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"examples/2d/{slug}/build.py", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"]))
+        self.assertEqual(sorted(files), sorted([f"examples/2d/{slug}.game2d.json", f"examples/2d/{slug}/build.py", f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md", f"docs/analysis/idea-forge/wiki/{slug}.json"]))
 
     def test_ship_refuses_unfinished_feedback(self):
         self.run_it()
@@ -354,6 +437,79 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         r = cli("ship", slug, "--no-push", check=False)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("feedback is not ready", r.stderr)
+
+
+    def wiki_path(self):
+        return os.path.join(self.wt, "docs", "analysis", "idea-forge", "wiki", f"{self.idea['slug']}.json")
+
+    def head(self):
+        return subprocess.run(["git", "-C", self.wt, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+
+    def test_ship_refuses_a_game_without_its_wiki_page_and_changes_nothing(self):
+        self.run_it()
+        slug = self.idea["slug"]
+        os.remove(self.wiki_path())
+        before = self.head()
+        p = cli("ship", slug, "--no-push", check=False)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("refusing to ship", p.stderr)
+        self.assertIn(f"no wiki page: docs/analysis/idea-forge/wiki/{slug}.json does not exist", p.stderr, "the exact reason")
+        self.assertIn("wiki --init --run", p.stderr, "and the command that fixes it")
+        self.assertIn(self.wt, p.stderr)
+        self.assertEqual(self.head(), before, "nothing was committed")
+        self.assertEqual(subprocess.run(["git", "-C", self.wt, "diff", "--cached", "--name-only"], capture_output=True, text=True).stdout, "", "nothing was staged")
+        self.assertTrue(os.path.isdir(self.wt))
+        self.assertEqual(idea_forge.load_state()["runs"][-1]["status"], "built", "the run stays built, waiting for its page")
+        # the fix the message names works: write the page, ship again
+        os.makedirs(os.path.dirname(self.wiki_path()), exist_ok=True)
+        wr(self.wiki_path(), json.dumps(WIKI_PAGE))
+        cli("ship", slug, "--no-push")
+        self.assertNotEqual(self.head(), before)
+
+    def test_ship_refuses_a_page_that_fails_the_wiki_check_with_the_same_words_as_wiki_check(self):
+        self.run_it()
+        slug = self.idea["slug"]
+        for page, want in ((json.dumps(dict(WIKI_PAGE, rules=["one"])), "`rules` needs at least 3"), (json.dumps(dict(WIKI_PAGE, tagline="TODO later")), "`tagline` still says TODO"),
+                           ("{broken", "is not valid JSON")):
+            wr(self.wiki_path(), page)
+            p = cli("ship", slug, "--no-push", check=False)
+            self.assertNotEqual(p.returncode, 0, page)
+            self.assertIn(want, p.stderr)
+            env = dict(self.env, IDEA_FORGE_RUN=os.path.join(self.wt, ".idea-forge"))
+            c = cli("wiki", "--check", cwd=self.wt, env=env, check=False)
+            self.assertNotEqual(c.returncode, 0, "ship refuses exactly what `wiki --check` fails")
+        wr(self.wiki_path(), json.dumps(WIKI_PAGE))
+        env = dict(self.env, IDEA_FORGE_RUN=os.path.join(self.wt, ".idea-forge"))
+        self.assertIn("wiki OK", cli("wiki", "--check", cwd=self.wt, env=env).stdout)
+        cli("ship", slug, "--no-push")
+
+    def test_a_feedback_only_ship_needs_no_page_and_stages_none(self):
+        self.run_it()
+        slug = self.idea["slug"]
+        wr(self.wiki_path(), "{broken")   # a page nobody finished: irrelevant when the game itself is not shipped
+        run = [r for r in idea_forge.load_state()["runs"] if r["slug"] == slug][-1]
+        self.assertEqual(idea_forge.ship_problems(run, feedback_only=True), [])
+        self.assertTrue(idea_forge.ship_problems(run))
+        identity = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}   # in-process: a CI runner has no git identity
+        with mock.patch.dict(os.environ, identity), contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.do_ship(run, no_push=True, feedback_only=True)
+        files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
+        self.assertEqual(files, [f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"])
+
+    def test_a_branch_whose_main_moved_on_meanwhile_is_judged_by_what_it_changed_itself(self):
+        """Seen on the two stranded runs: the tip of origin/main is far ahead of the run's base, and every file main gained looked like the run's own change (600+ `stray` files)."""
+        self.run_it()
+        slug = self.idea["slug"]
+        other = os.path.join(os.path.dirname(self.wt), "other")
+        subprocess.run(["git", "clone", "-q", os.path.join(os.path.dirname(self.wt), "remote.git"), other], check=True, capture_output=True)
+        wr(os.path.join(other, "src", "newer.rs"), "// merged to main while the run worked\n")
+        git(other, "add", "-A")
+        git(other, "commit", "-q", "-m", "main moves on")
+        git(other, "push", "-q", "origin", "main")
+        git(self.wt, "fetch", "-q", "origin")
+        self.assertNotIn("src/newer.rs", idea_forge.changed_paths(self.wt))
+        self.assertEqual(idea_forge.ship_problems([r for r in idea_forge.load_state()["runs"] if r["slug"] == slug][-1]), [])
+        cli("ship", slug, "--no-push")
 
 
 class Notes(unittest.TestCase):
@@ -696,6 +852,10 @@ for todo, text in (("TODO: the design paragraph (the mechanic in one sentence, t
                    ("TODO: what the engine did well that should be kept (commands, messages, speed).", "validate and verify were fast and precise and named every fix.")):
     t = t.replace(todo, text)
 open(p, "w").write(t)
+if not os.environ.get("IDEA_FORGE_STUB_NOWIKI"):
+    os.makedirs("docs/analysis/idea-forge/wiki", exist_ok=True)
+    with open("docs/analysis/idea-forge/wiki/%s.json" % slug, "w") as f:
+        f.write({json.dumps(WIKI_PAGE)!r})
 if log:
     with open(log, "a") as f:
         f.write("end %s %f\\n" % (kind, time.time()))
@@ -708,7 +868,7 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.25, "duration_ms": 6000
         env["IDEA_FORGE_AUTO_MERGE"] = "1"
         self.log = os.path.join(self.base, "stub.log")
         env["IDEA_FORGE_STUB_LOG"] = self.log
-        self.saved = {k: os.environ.get(k) for k in list(env) + ["IDEA_FORGE_STUB_FAIL", "IDEA_FORGE_STUB_FIX"]}
+        self.saved = {k: os.environ.get(k) for k in list(env) + ["IDEA_FORGE_STUB_FAIL", "IDEA_FORGE_STUB_FIX", "IDEA_FORGE_STUB_NOWIKI"]}
         os.environ.update(env)
         self.addCleanup(self.restore)
 
@@ -784,7 +944,7 @@ class DailyEndToEnd(E2EBase):
         for r in runs:
             files = subprocess.run(["git", "-C", os.path.join(self.base, f"wt-{r['kind']}-{r['slug']}"), "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
             game = f"examples/3d/{r['slug']}/{r['slug']}.json" if r["kind"] == "3d" else f"examples/2d/{r['slug']}.game2d.json"
-            self.assertEqual(sorted(files), sorted([game, f"docs/analysis/idea-forge/{r['date']}-{r['kind']}-{r['slug']}.md"]))
+            self.assertEqual(sorted(files), sorted([game, f"docs/analysis/idea-forge/{r['date']}-{r['kind']}-{r['slug']}.md", f"docs/analysis/idea-forge/wiki/{r['slug']}.json"]))
 
     def test_a_finished_day_is_a_no_op_and_next_runs_one_game(self):
         self.assertEqual(self.daily("--order", "2d,3d", "--next"), 0)
@@ -824,6 +984,186 @@ class DailyEndToEnd(E2EBase):
         self.assertEqual(self.daily("--order", "2d,3d", "--next", "--no-ship"), 0)
         self.assertEqual(self.removed, [])
         self.assertIn("not shipped", self.day()["slots"]["2d"]["detail"])
+
+    def remote_sha(self, ref):
+        p = subprocess.run(["git", "-C", self.remote, "rev-parse", "--verify", "-q", ref], capture_output=True, text=True)
+        return p.stdout.strip() if p.returncode == 0 else ""
+
+    def remote_changes(self, branch):
+        """What a branch of the bare remote changes since it left main (the merge-base diff), and in how many commits."""
+        files = subprocess.run(["git", "-C", self.remote, "diff", "--name-only", f"main...{branch}"], capture_output=True, text=True).stdout.split()
+        count = subprocess.run(["git", "-C", self.remote, "rev-list", "--count", f"main..{branch}"], capture_output=True, text=True).stdout.strip()
+        return sorted(files), int(count or 0)
+
+    def kept_run(self, order="2d,3d"):
+        """One run whose agent wrote no page: built, refused by `ship`, kept. Returns its ledger row."""
+        os.environ["IDEA_FORGE_STUB_NOWIKI"] = "1"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(self.daily("--order", order, "--next"), 0)
+        return self.state()["runs"][-1]
+
+    def scratch_clone(self, name):
+        d = os.path.join(self.base, name)
+        subprocess.run(["git", "clone", "-q", self.remote, d], check=True, capture_output=True)
+        return d
+
+    def test_a_game_without_its_page_is_not_shipped_and_its_run_is_kept_for_a_human(self):
+        os.environ["IDEA_FORGE_STUB_NOWIKI"] = "1"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(self.daily("--order", "2d,3d"), 0, "a refused ship is not a failed game: it is waiting for a human")
+        day = self.day()
+        self.assertEqual({k: v["status"] for k, v in day["slots"].items()}, {"2d": "review", "3d": "review"})
+        for k in ("2d", "3d"):
+            self.assertIn("no wiki page", day["slots"][k]["detail"])
+            self.assertIn("worktree kept", day["slots"][k]["detail"])
+        self.assertIn("review: not shipped", out.getvalue(), "the night's log says so, loudly")
+        self.assertEqual(self.removed, [], "no worktree is archived or removed after a refused ship")
+        runs = self.state()["runs"]
+        for r in runs:
+            self.assertEqual(r["status"], "built")
+            self.assertNotIn("archived", r)
+            self.assertNotIn("pr", r)
+            self.assertTrue(os.path.isdir(os.path.join(self.base, f"wt-{r['kind']}-{r['slug']}")))
+            self.assertTrue(os.path.isfile(os.path.join(self.home, "feedback", f"{r['date']}-{r['kind']}-{r['slug']}.md")), "the feedback is still kept locally")
+            branches = subprocess.run(["git", "-C", self.remote, "branch", "--list", r["branch"]], capture_output=True, text=True).stdout
+            self.assertEqual(branches.strip(), "", "the game was not pushed")
+            # ... but its feedback was: ADR 2026-10-08 says `produce` always delivers it, so it goes out alone as a feedback-only PR on a branch of its own
+            fb = f"docs/analysis/idea-forge/{r['date']}-{r['kind']}-{r['slug']}.md"
+            self.assertTrue(r["feedback_pr"].startswith("https://example.test/pull/"), r)
+            self.assertEqual(r["feedback_branch"], r["branch"] + "-feedback")
+            self.assertEqual(self.remote_changes(r["feedback_branch"]), ([fb], 1), "one commit, the feedback file and nothing else")
+            self.assertIn(f"its feedback went out as a feedback-only PR: {r['feedback_pr']}", day["slots"][r["kind"]]["detail"])
+            self.assertFalse(r.get("feedback_only"), "the RUN is not a feedback-only run: its game is still to ship")
+            self.assertIn(f"feedback PR {r['feedback_pr']}", cli("ledger").stdout)
+            # the run itself is exactly as the agent left it: no commit on its branch, nothing staged, its game and page work still in the worktree
+            wt = os.path.join(self.base, f"wt-{r['kind']}-{r['slug']}")
+            self.assertEqual(subprocess.run(["git", "-C", wt, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(), self.remote_sha("main"))
+            self.assertEqual(subprocess.run(["git", "-C", wt, "diff", "--cached", "--name-only"], capture_output=True, text=True).stdout, "")
+            self.assertTrue(os.path.isfile(os.path.join(wt, idea_forge.game_file(r["kind"], r["slug"]))) if r["kind"] == "2d" else os.path.isdir(os.path.join(wt, "examples", "3d", r["slug"])))
+        self.assertTrue(all(p["feedback_only"] for p in idea_forge.tracked_prs()), "settle merges them like any feedback-only PR")
+        later = idea_forge.datetime.date.fromisoformat(runs[0]["date"]) + idea_forge.datetime.timedelta(days=3)
+        reasons = {g["slug"]: g["reason"] for g in idea_forge.stranded_runs(today=later)}
+        for r in runs:
+            self.assertIn(f"(its feedback is already on its own PR: {r['feedback_pr']})", reasons[r["slug"]], "the inbox says the findings are already in the repo")
+        self.assertEqual(sorted(p["slug"] for p in idea_forge.tracked_prs()), sorted(r["slug"] for r in runs))
+
+    def test_a_kept_run_ships_later_with_its_game_and_page_and_its_feedback_is_not_sent_twice(self):
+        """The feedback PR must not make the later ship fail (the branch, the open PR) or leave the same file in two PRs that cannot both merge."""
+        row = self.kept_run()
+        slug, kind, wt = row["slug"], row["kind"], row["worktree"]
+        game = idea_forge.game_file(kind, slug) if kind == "2d" else f"examples/3d/{slug}/{slug}.json"
+        fb, page = f"docs/analysis/idea-forge/{row['date']}-{kind}-{slug}.md", idea_forge.wiki_file(slug)
+        os.makedirs(os.path.dirname(os.path.join(wt, page)), exist_ok=True)
+        wr(os.path.join(wt, page), json.dumps(WIKI_PAGE))   # the maintainer writes the page
+        with contextlib.redirect_stdout(io.StringIO()):
+            pr = idea_forge.do_ship(row)
+        self.assertTrue(pr.startswith("https://example.test/pull/"))
+        now = self.state()["runs"][-1]
+        self.assertEqual((now["status"], now["pr"], now["feedback_pr"]), ("shipped", pr, row["feedback_pr"]))
+        self.assertNotEqual(pr, row["feedback_pr"])
+        self.assertEqual(self.remote_changes(row["branch"]), (sorted([game, fb, page]), 1), "the feedback PR is not merged yet, so the game's PR still carries the file")
+        self.assertEqual(sorted(p["url"] for p in idea_forge.tracked_prs()), sorted([pr, row["feedback_pr"]]), "both are settled")
+        # both can merge, in either order, with no conflict and one copy of the file
+        main = self.scratch_clone("both")
+        git(main, "merge", "-q", "--no-edit", "origin/" + row["feedback_branch"])
+        git(main, "merge", "-q", "--no-edit", "origin/" + row["branch"])
+        self.assertEqual(rd(os.path.join(main, fb)), rd(os.path.join(wt, fb)), "one copy of the file, as the agent wrote it")
+        self.assertTrue(os.path.isfile(os.path.join(main, page)))
+
+    def test_a_kept_runs_feedback_that_is_already_merged_is_left_out_of_the_game_pr(self):
+        row = self.kept_run("3d,2d")
+        slug, kind, wt = row["slug"], row["kind"], row["worktree"]
+        game = idea_forge.game_file(kind, slug) if kind == "2d" else f"examples/3d/{slug}/{slug}.json"
+        fb, page = f"docs/analysis/idea-forge/{row['date']}-{kind}-{slug}.md", idea_forge.wiki_file(slug)
+        main = self.scratch_clone("landing")
+        git(main, "merge", "-q", "--no-edit", "origin/" + row["feedback_branch"])   # the nightly's settle merged the feedback PR
+        git(main, "push", "-q", "origin", "main")
+        self.assertEqual(self.remote_changes(row["feedback_branch"])[1], 0, "merged")
+        os.makedirs(os.path.dirname(os.path.join(wt, page)), exist_ok=True)
+        wr(os.path.join(wt, page), json.dumps(WIKI_PAGE))
+        with contextlib.redirect_stdout(io.StringIO()):
+            pr = idea_forge.do_ship(row)
+        self.assertTrue(pr)
+        changes, commits = self.remote_changes(row["branch"])
+        self.assertNotIn(fb, changes, "the file is on main already: not sent again")
+        self.assertTrue(game in changes and page in changes, changes)
+        git(main, "fetch", "-q", "origin")
+        git(main, "merge", "-q", "--no-edit", "origin/" + row["branch"])   # and the game's PR merges cleanly on top
+        self.assertTrue(os.path.isfile(os.path.join(main, page)) and os.path.isfile(os.path.join(main, fb)))
+        self.assertIn(wt, self.removed, "the run is archived and removed once the game's PR exists")
+
+    def test_the_feedback_goes_alone_only_when_the_page_is_all_that_is_wrong_and_a_failure_to_send_it_is_reported(self):
+        os.environ["IDEA_FORGE_STUB_NOWIKI"] = "1"
+        self.assertEqual(self.daily("--order", "2d,3d", "--next", "--no-ship"), 0)
+        self.assertEqual(self.removed, [])
+        row = self.state()["runs"][-1]
+        wt, fbranch = row["worktree"], row["branch"] + "-feedback"
+        self.assertEqual(self.remote_sha("refs/heads/" + fbranch), "", "--no-ship pushes nothing")
+        wr(os.path.join(wt, "src", "lib.rs"), "// an engine patch\n", "a")   # something besides the page is wrong: the run changed the engine
+        self.assertEqual(idea_forge.send_kept_feedback(row), ("", ""))
+        self.assertEqual(self.remote_sha("refs/heads/" + fbranch), "", "nothing is pushed for a run that is refused for more than its page")
+        git(wt, "checkout", "--", "src/lib.rs")
+        sh(os.path.join(self.base, "gh"), "#!/bin/sh\nexit 1\n")   # the push works, `gh pr create` does not
+        sent, why = idea_forge.send_kept_feedback(row)
+        self.assertEqual(sent, "")
+        self.assertIn("the feedback-only PR could not be made", why)
+        self.assertIn(f"the branch {fbranch} is pushed: open its PR by hand", why)
+        last = self.state()["runs"][-1]
+        self.assertTrue("feedback_pr" not in last and last["status"] == "built", "nothing is recorded for a PR that does not exist")
+
+    def test_a_feedback_pr_that_cannot_be_made_is_said_in_the_slot_and_never_stops_the_night(self):
+        sh(os.path.join(self.base, "gh"), "#!/bin/sh\nexit 1\n")
+        row = self.kept_run()
+        detail = self.day()["slots"][row["kind"]]["detail"]
+        self.assertEqual(self.day()["slots"][row["kind"]]["status"], "review")
+        self.assertIn("the feedback is saved locally; the feedback-only PR could not be made", detail)
+        self.assertIn("no wiki page", detail)
+        self.assertTrue(os.path.isdir(row["worktree"]) and self.removed == [])
+
+    def test_a_run_that_built_nothing_still_ships_its_feedback_the_old_way(self):
+        os.environ["IDEA_FORGE_STUB_FAIL"] = "1"
+        self.assertEqual(self.daily("--order", "2d,3d", "--next"), 1)
+        r = self.state()["runs"][-1]
+        self.assertEqual((r["status"], r["feedback_only"]), ("shipped", True))
+        self.assertNotIn("feedback_pr", r, "a run with no game ships its feedback as its own PR, not a second one")
+
+    def test_a_ship_that_fails_after_the_checks_still_keeps_the_worktree(self):
+        """The worktree is archived and removed only after the PR exists: not when the push fails, nor when `gh` makes no PR."""
+        self.assertEqual(self.daily("--order", "2d,3d", "--next", "--no-ship"), 0)
+        row = self.state()["runs"][-1]
+        git(row["worktree"], "remote", "set-url", "origin", os.path.join(self.base, "no-such-remote.git"))
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            idea_forge.do_ship(row)
+        self.assertEqual(self.removed, [])
+        self.assertTrue(os.path.isdir(row["worktree"]))
+        self.assertEqual(self.state()["runs"][-1]["status"], "built")
+        git(row["worktree"], "remote", "set-url", "origin", self.remote)
+        sh(os.path.join(self.base, "gh"), "#!/bin/sh\nexit 1\n")   # the push works, `gh pr create` does not
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(idea_forge.do_ship(row), "")
+        self.assertEqual(self.removed, [], "no PR, so nothing is archived or removed")
+        self.assertEqual(self.state()["runs"][-1]["status"], "built")
+
+    def test_a_run_left_built_for_days_is_reported_with_what_ship_would_refuse(self):
+        os.environ["IDEA_FORGE_STUB_NOWIKI"] = "1"
+        self.assertEqual(self.daily("--order", "2d,3d", "--next", "--no-ship"), 0)
+        row = self.state()["runs"][-1]
+        today = idea_forge.datetime.date.fromisoformat(row["date"])
+        self.assertEqual(idea_forge.stranded_runs(today=today + idea_forge.datetime.timedelta(days=idea_forge.STRANDED_DAYS)), [], "two days is not stranded yet")
+        got = idea_forge.stranded_runs(today=today + idea_forge.datetime.timedelta(days=3))
+        self.assertEqual([(g["slug"], g["kind"], g["days"]) for g in got], [(row["slug"], row["kind"], 3)])
+        self.assertIn("no wiki page", got[0]["reason"])
+        self.assertNotIn("wiki --init", got[0]["reason"], "a report is short: the fix is named once, by whoever prints it")
+        self.assertEqual(got[0]["worktree"], row["worktree"])
+        self.assertTrue(any(f"stuck: {row['kind']} {row['slug']} built 3 days ago" in l and "ship would refuse" in l
+                            for l in idea_forge.stuck_lines(today=today + idea_forge.datetime.timedelta(days=3))))
+        os.makedirs(os.path.dirname(os.path.join(row["worktree"], idea_forge.wiki_file(row["slug"]))), exist_ok=True)
+        wr(os.path.join(row["worktree"], idea_forge.wiki_file(row["slug"])), json.dumps(WIKI_PAGE))   # the page lands: nothing blocks it any more
+        self.assertIn("ready to ship", idea_forge.stranded_runs(today=today + idea_forge.datetime.timedelta(days=3))[0]["reason"])
+        shutil.rmtree(row["worktree"])   # the worktree is gone: say so, never crash
+        self.assertIn("worktree is gone", idea_forge.stranded_runs(today=today + idea_forge.datetime.timedelta(days=3))[0]["reason"])
+        self.assertEqual(idea_forge.stranded_runs(runs=[dict(row, status="shipped")], today=today + idea_forge.datetime.timedelta(days=30)), [], "only runs that never shipped")
 
 
 @NEEDS_SH
@@ -967,9 +1307,10 @@ class Settle(E2EBase):
         p = os.path.join(self.gh_dir, "merged.log")
         return rd(p).split() if os.path.exists(p) else []
 
-    def game_files(self, slug="x", kind="2d"):
+    def game_files(self, slug="x", kind="2d", wiki=True):
+        """What a game PR carries: the game, its feedback and (as `ship` makes it) its wiki page; `wiki=False` is a PR without the page, which `settle` holds."""
         game = f"examples/2d/{slug}.game2d.json" if kind == "2d" else f"examples/3d/{slug}/{slug}.json"
-        return [game, f"docs/analysis/idea-forge/2026-10-09-{kind}-{slug}.md"]
+        return [game, f"docs/analysis/idea-forge/2026-10-09-{kind}-{slug}.md"] + ([idea_forge.wiki_file(slug)] if wiki else [])
 
     def test_a_pr_whose_checks_all_passed_is_merged_and_recorded(self):
         self.track_game(1)
@@ -982,11 +1323,133 @@ class Settle(E2EBase):
 
     def test_a_3d_game_may_change_its_whole_folder_and_a_feedback_only_pr_only_the_feedback(self):
         self.track_game(2, "y", "3d")
-        self.gh_pr(2, files=["examples/3d/y/y.json", "examples/3d/y/audio/score.json", "docs/analysis/idea-forge/2026-10-09-3d-y.md"])
+        self.gh_pr(2, files=["examples/3d/y/y.json", "examples/3d/y/audio/score.json", "docs/analysis/idea-forge/2026-10-09-3d-y.md", "docs/analysis/idea-forge/wiki/y.json"])
         self.track_game(3, "z", "2d", feedback_only=True)
         self.gh_pr(3, files=self.game_files("z"))
         verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
         self.assertEqual(verdicts, {self.url(2): "merged", self.url(3): "refused"}, "a feedback-only PR that carries a game is not merged")
+
+    def test_a_game_pr_without_its_wiki_page_is_held_with_the_reason_until_the_page_is_in_it(self):
+        """2026-10-19..20: four games merged with CI green and no page, and `publish` could not publish them. The merge now waits for the page."""
+        self.track_game(100, "moth-harvest")
+        self.gh_pr(100, files=self.game_files("moth-harvest", wiki=False))
+        self.track_game(101, "paper-foundry", "3d")
+        self.gh_pr(101, files=self.game_files("paper-foundry", "3d", wiki=False) + ["examples/3d/paper-foundry/audio/score.json"])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            res = idea_forge.settle(0)
+        self.assertEqual(sorted((r[0]["url"], r[1]) for r in res), [(self.url(100), "held"), (self.url(101), "held")])
+        for _pr, _verdict, detail in res:
+            self.assertIn("without its wiki page docs/analysis/idea-forge/wiki/", detail)
+            self.assertIn("could not be published", detail)
+        self.assertIn(f"settle: held: {self.url(100)} (the PR adds the game moth-harvest without its wiki page docs/analysis/idea-forge/wiki/moth-harvest.json", out.getvalue(), "listed as held, with the reason")
+        self.assertEqual(self.merged(), [], "green CI is not enough")
+        self.assertEqual({r["slug"]: r["merge"] for r in self.state()["runs"]}, {"moth-harvest": "held-no-wiki", "paper-foundry": "held-no-wiki"})
+        self.assertEqual(len(idea_forge.tracked_prs()), 2, "still tracked: held is not final")
+        self.gh_pr(100, files=self.game_files("moth-harvest"))   # the page was added to the PR's branch
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = idea_forge.settle(0)
+        self.assertEqual(sorted((r[0]["url"], r[1]) for r in res), [(self.url(100), "merged"), (self.url(101), "held")])
+        self.assertEqual(self.merged(), [self.url(100)])
+        self.assertEqual({r["slug"]: r["merge"] for r in self.state()["runs"]}, {"moth-harvest": "merged", "paper-foundry": "held-no-wiki"})
+
+    def test_a_pr_without_a_game_or_a_game_without_the_gate_is_not_held_for_a_page(self):
+        self.track_game(110, "fb", feedback_only=True)
+        self.gh_pr(110, files=["docs/analysis/idea-forge/2026-10-09-2d-fb.md"])   # feedback only: no game, no page to need
+        self.track_game(111, "other")
+        self.gh_pr(111, files=["docs/analysis/idea-forge/2026-10-09-2d-other.md"])  # a game PR that adds no game file
+        self.track_fix(112)
+        self.gh_pr(112, files=["src/lib.rs", "tests/fix_a_problem.rs"])
+        got = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(got, {self.url(110): "merged", self.url(111): "merged", self.url(112): "merged"})
+        self.assertEqual(idea_forge.pr_missing_wiki({"type": "fix"}, [{"path": "examples/2d/x.game2d.json"}]), "")
+        # the 2D game's generator folder counts as the game, and another game's page does not count as its own
+        pr = {"type": "game", "slug": "x", "kind": "2d", "feedback_only": False}
+        self.assertTrue(idea_forge.pr_missing_wiki(pr, [{"path": "examples/2d/x/build.py"}, {"path": idea_forge.wiki_file("y")}]))
+        self.assertEqual(idea_forge.pr_missing_wiki(pr, [{"path": "examples/2d/x/build.py"}, {"path": idea_forge.wiki_file("x")}]), "")
+
+    def test_the_feedback_pr_of_a_kept_run_is_merged_as_feedback_only_and_recorded_apart_from_the_games_pr(self):
+        """A kept run (built, no page) has a feedback-only PR while its game has none: `merge` is the verdict on the game's PR, so this one is recorded as `feedback_merge`."""
+        st = self.state()
+        st["runs"].append({"code": 5, "slug": "kept", "kind": "2d", "date": "2026-10-09", "status": "built", "feedback_pr": self.url(5), "feedback_branch": "b-feedback"})
+        st["runs"].append({"code": 6, "slug": "kept2", "kind": "2d", "date": "2026-10-09", "status": "built", "feedback_pr": self.url(6), "feedback_branch": "c-feedback"})
+        wr(os.path.join(self.home, "state.json"), json.dumps(st))
+        self.assertEqual([(p["url"], p["feedback_only"]) for p in idea_forge.tracked_prs()], [(self.url(5), True), (self.url(6), True)])
+        self.gh_pr(5, files=["docs/analysis/idea-forge/2026-10-09-2d-kept.md"])
+        self.gh_pr(6, files=self.game_files("kept2"))   # a "feedback-only" PR that carries a game is refused, as for any feedback-only PR
+        with contextlib.redirect_stdout(io.StringIO()):
+            verdicts = {r[0]["url"]: r[1] for r in idea_forge.settle(0)}
+        self.assertEqual(verdicts, {self.url(5): "merged", self.url(6): "refused"})
+        self.assertEqual(self.merged(), [self.url(5)])
+        rows = {r["slug"]: r for r in self.state()["runs"]}
+        self.assertEqual((rows["kept"]["feedback_merge"], rows["kept2"]["feedback_merge"]), ("merged", "refused-paths"))
+        for r in rows.values():
+            self.assertNotIn("merge", r, "the game's own PR does not exist yet: nothing is said about it")
+            self.assertEqual(r["status"], "built")
+        self.assertEqual([p["url"] for p in idea_forge.tracked_prs()], [self.url(6)], "a merged one is done; a refused one stays recorded and tracked like any")
+
+    def install_api_stub(self):
+        """A `gh` that also answers `gh api` (the paginated file list) from files in the stub directory; everything else goes to the usual stub."""
+        shutil.copy2(os.path.join(self.base, "gh"), os.path.join(self.base, "gh_orig"))
+        sh(os.path.join(self.base, "gh"), f'''#!/bin/sh
+if [ "$1" = api ]; then
+  echo "$*" >> "$GH_STUB_DIR/api.log"
+  [ -f "$GH_STUB_DIR/api_fails" ] && exit 1
+  cat "$GH_STUB_DIR/api_files.txt"; exit 0
+fi
+exec {os.path.join(self.base, "gh_orig")} "$@"
+''')
+
+    def big_pr(self, n, listed, extra=()):
+        """A 3D game PR GitHub lists `listed` files of: `gh pr view` shows at most 100 of them, the API shows all (`extra` are the ones past the cut)."""
+        slug = f"big{n}"
+        files = [f"examples/3d/{slug}/audio/a{i}.json" for i in range(listed - 3)] + [f"examples/3d/{slug}/{slug}.json", f"docs/analysis/idea-forge/2026-10-09-3d-{slug}.md", idea_forge.wiki_file(slug)]
+        self.track_game(n, slug, "3d", pr=f"https://github.com/o/r/pull/{n}")
+        self.gh_pr(n, files=files[:100])
+        wr(os.path.join(self.gh_dir, "api_files.txt"), "\n".join(files + list(extra)) + "\n")
+        return files
+
+    def test_a_pr_that_lists_100_files_is_read_in_full_before_it_is_merged(self):
+        """`gh pr view --json files` stops at 100 entries: a stray file past the 100th used to go unseen, and the merge went ahead."""
+        self.install_api_stub()
+        self.big_pr(50, 100, extra=["src/lib.rs"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = idea_forge.settle(0)
+        self.assertEqual([(r[1], "paths" in r[2] or "outside" in r[2]) for r in res], [("refused", True)])
+        self.assertEqual(self.merged(), [])
+        self.assertEqual(self.state()["runs"][-1]["merge"], "refused-paths")
+        self.assertIn("repos/o/r/pulls/50/files", rd(os.path.join(self.gh_dir, "api.log")))
+        self.assertIn("--paginate", rd(os.path.join(self.gh_dir, "api.log")))
+        # exactly 100 files and nothing more: merged, after the same look
+        self.big_pr(51, 100)
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = idea_forge.settle(0)
+        self.assertEqual([r[1] for r in res if r[0]["url"].endswith("/51")], ["merged"])
+        # a list that cannot be read in full is never merged on the strength of its first 100
+        self.big_pr(52, 100, extra=["src/lib.rs"])
+        wr(os.path.join(self.gh_dir, "api_fails"), "")
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = idea_forge.settle(0)
+        got = [r for r in res if r[0]["url"].endswith("/52")]
+        self.assertEqual(got[0][1], "refused")
+        self.assertIn("could not be read", got[0][2])
+        self.assertNotIn("https://github.com/o/r/pull/52", self.merged())
+        os.remove(os.path.join(self.gh_dir, "api_fails"))
+        # 99 files is not cut off: no second look is needed
+        self.big_pr(53, 99)
+        with contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.settle(0)
+        self.assertNotIn("pulls/53/files", rd(os.path.join(self.gh_dir, "api.log")))
+        self.assertEqual(idea_forge.pr_files_all("https://example.test/pull/1"), None, "not a GitHub url: it cannot be asked, so it is never taken as complete")
+
+    def test_the_off_switch_still_says_held_for_its_own_reason(self):
+        self.track_game(120, "moth-harvest")
+        self.gh_pr(120, files=self.game_files("moth-harvest", wiki=False))
+        os.environ["IDEA_FORGE_AUTO_MERGE"] = "0"
+        with contextlib.redirect_stdout(io.StringIO()):
+            res = idea_forge.settle(0)
+        self.assertEqual([(r[1], r[2]) for r in res], [("held", "auto-merge is off")])
+        self.assertNotIn("merge", self.state()["runs"][0], "an off switch records nothing")
 
     def test_a_failed_pending_or_missing_check_is_never_merged(self):
         for n, checks, want in ((10, GREEN + [check("full build (windows-latest)", "FAILURE")], "ci-failed"), (11, GREEN + [check("windows", None, "IN_PROGRESS")], "pending"),
@@ -1260,6 +1723,206 @@ exit 0
         self.wiki("nowiki-game")
         self.assertEqual(idea_forge.publish_games(self.root), ["nowiki-game"], "once the page lands on main the game is published")
 
+    def test_publish_records_why_each_merged_game_is_not_published_and_says_so(self):
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.land("examples/2d/thin-game.game2d.json", "{}")
+        self.land("examples/2d/fine-game.game2d.json", "{}")
+        self.wiki("thin-game", rules=["only one"])
+        self.wiki("fine-game")
+        self.row(1, "nowiki-game", "2d")
+        self.row(2, "thin-game", "2d")
+        self.row(3, "fine-game", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root), ["fine-game"])
+        text = out.getvalue()
+        self.assertIn("publish: nowiki-game: not published, no wiki page", text)
+        self.assertIn("publish: NOT published, merged and waiting: nowiki-game, thin-game", text, "one clear summary line, besides the per-game ones")
+        rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
+        today = idea_forge.datetime.date.today().isoformat()
+        self.assertEqual(rows["nowiki-game"]["publish_blocked"], {"reason": "no wiki page (docs/analysis/idea-forge/wiki/nowiki-game.json is not on main)", "since": "2026-10-09", "last": today},
+                         "`since` is the run's own date, not the first night this code looked")
+        self.assertIn("its wiki page is incomplete: `rules` needs at least 3", rows["thin-game"]["publish_blocked"]["reason"])
+        self.assertNotIn("publish_blocked", rows["fine-game"])
+        self.assertTrue(rows["fine-game"]["published"])
+        self.assertEqual([(g["slug"], g["pr"], g["since"]) for g in idea_forge.unpublished_games()], [("nowiki-game", "https://example.test/pull/1", "2026-10-09"), ("thin-game", "https://example.test/pull/2", "2026-10-09")])
+        self.assertEqual(sum("stuck:" in l and "NOT published since" in l for l in idea_forge.stuck_lines()), 2)
+        # tried again: it keeps the night it was first refused, updates the reason, and clears itself once published
+        st = idea_forge.load_state()
+        for r in st["runs"]:
+            if r["slug"] == "nowiki-game":
+                r["publish_blocked"]["since"] = "2026-10-19"
+        idea_forge.save_state(st)
+        with contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.publish_games(self.root)
+        blocked = {g["slug"]: g for g in idea_forge.unpublished_games()}
+        self.assertEqual((blocked["nowiki-game"]["since"], blocked["nowiki-game"]["last"]), ("2026-10-19", today), "since the first night, not the last")
+        self.wiki("nowiki-game")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(idea_forge.publish_games(self.root), ["nowiki-game"])
+        rows = {r["slug"]: r for r in idea_forge.load_state()["runs"]}
+        self.assertNotIn("publish_blocked", rows["nowiki-game"])
+        self.assertEqual([g["slug"] for g in idea_forge.unpublished_games()], ["thin-game"])
+        self.assertEqual(idea_forge.stuck_lines(), idea_forge.stuck_lines(idea_forge.load_state()["runs"]), "the same report from the ledger or from rows")
+
+    def test_a_game_that_is_not_publishable_any_more_loses_its_block_and_feedback_only_runs_are_never_listed(self):
+        self.row(1, "gone-game", "2d", publish_blocked={"reason": "old", "since": "2026-10-01", "last": "2026-10-02"})   # its file is not on main (reverted, or never merged)
+        self.row(2, "fb-game", "2d", feedback_only=True, publish_blocked={"reason": "x", "since": "2026-10-01", "last": "2026-10-02"})
+        self.assertEqual(idea_forge.unpublished_games(), [{"slug": "gone-game", "kind": "2d", "pr": "https://example.test/pull/1", "reason": "old", "since": "2026-10-01", "last": "2026-10-02"}])
+        with contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.publish_games(self.root)
+        self.assertEqual(idea_forge.unpublished_games(), [])
+
+    def test_the_dry_run_names_the_games_it_would_refuse_and_records_nothing(self):
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.land("examples/2d/fine-game.game2d.json", "{}")
+        self.wiki("fine-game")
+        self.row(1, "nowiki-game", "2d")
+        self.row(2, "fine-game", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(idea_forge.publish_games(self.root, dry_run=True), [])
+        self.assertIn("publish: would NOT publish 2d nowiki-game: no wiki page (docs/analysis/idea-forge/wiki/nowiki-game.json is not on main)", out.getvalue())
+        self.assertIn("publish: would publish 2d fine-game", out.getvalue())
+        self.assertEqual(idea_forge.unpublished_games(), [], "a dry run writes nothing")
+
+    def test_the_nights_last_lines_list_the_games_that_wait_and_the_prs_that_are_held(self):
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.row(1, "nowiki-game", "2d")
+        self.row(2, "old-built", "2d", status="built", date="2026-10-01", pr="", merge="", worktree=os.path.join(self.base, "gone"))
+        self.track = os.path.join(self.gh_dir, "7.json")
+        wr(self.track, json.dumps({"state": "OPEN", "mergeable": "MERGEABLE", "statusCheckRollup": [check("ci")], "files": [{"path": "examples/2d/held-game.game2d.json"}]}))
+        st = idea_forge.load_state()
+        st["runs"].append({"code": 7, "slug": "held-game", "kind": "2d", "date": "2026-10-09", "status": "shipped", "pr": "https://example.test/pull/7", "feedback_only": False})
+        idea_forge.save_state(st)
+        out = io.StringIO()
+        with mock.patch.object(idea_forge, "ROOT", self.root), contextlib.redirect_stdout(out):
+            try:
+                idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", "2026-10-09", "--skip-games"])
+            except SystemExit:
+                pass
+        text = out.getvalue()
+        done = [l for l in text.splitlines() if "nightly done" in l][0]
+        self.assertIn("HELD 1 PR(s)", done)
+        self.assertIn("2 stuck (below)", done)
+        self.assertIn("held: https://example.test/pull/7: the PR adds the game held-game without its wiki page", text)
+        self.assertIn("stuck: 2d nowiki-game is merged (https://example.test/pull/1) but NOT published since", text)
+        self.assertIn("stuck: 2d old-built built ", text)
+        self.assertIn("worktree is gone", text)
+        night = idea_forge.load_state()["nights"]["2026-10-09"]
+        self.assertEqual((night["held"], night["stuck"]), (["https://example.test/pull/7"], 2))
+
+    def test_a_game_refused_for_its_page_costs_no_copy_and_no_screenshot(self):
+        """`publish` runs twice a night, and a screenshot can take 300 s: four blocked games must not each pay that every time before being refused."""
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.land("examples/2d/thin-game.game2d.json", "{}")
+        self.wiki("thin-game", rules=["only one"])
+        self.row(1, "nowiki-game", "2d")
+        self.row(2, "thin-game", "2d")
+        with mock.patch.object(idea_forge, "render_thumbnail", wraps=idea_forge.render_thumbnail) as render, contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(idea_forge.publish_games(self.root), [])
+        self.assertNotIn("nowiki-game", rd(self.frames), "no frame was drawn for a game that has no page")
+        self.assertNotIn("thin-game", rd(self.frames))
+        self.assertEqual([c.args[1] for c in render.call_args_list if "-game" in c.args[1] and "old-game" not in c.args[1]], [], "render_thumbnail was never asked for them")
+        self.assertIn("publish: nowiki-game: not published, no wiki page", out.getvalue(), "still refused, still said")
+        self.assertIn("publish: NOT published, merged and waiting: nowiki-game, thin-game", out.getvalue())
+        d, _ = self.published_tree()
+        self.assertFalse(os.path.exists(os.path.join(d, "projects", "nowiki-game")) or os.path.exists(os.path.join(d, "site", "thumbs", "thin-game.png")))
+
+    def test_a_failed_lookup_keeps_the_recorded_blocks_and_only_a_real_absence_clears_them(self):
+        self.row(1, "waiting-game", "2d", publish_blocked={"reason": "no wiki page", "since": "2026-10-01", "last": "2026-10-02"})
+        broken = os.path.join(self.base, "not-a-repo")   # git cannot answer here: that says nothing about the game
+        os.makedirs(broken)
+        with contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.publish_games(broken)
+        self.assertEqual([(g["slug"], g["since"], g["last"]) for g in idea_forge.unpublished_games()], [("waiting-game", "2026-10-01", "2026-10-02")], "untouched: not cleared, not re-seeded")
+        unknown = []
+        self.assertEqual(idea_forge.publishable(broken, unknown=unknown), [])
+        self.assertEqual([r["slug"] for r in unknown], ["waiting-game"], "`publishable` says which games it could not ask about")
+        unknown = []
+        self.assertEqual(idea_forge.publishable(self.root, unknown=unknown), [])
+        self.assertEqual(unknown, [], "a real repository that does not have the game is an answer")
+        self.assertIsNone(idea_forge.merged_game_files(broken, "2d", "waiting-game"))
+        self.assertEqual(idea_forge.merged_game_files(self.root, "2d", "waiting-game"), [])
+        # the same function: an entry is cleared when the lookup worked and found nothing
+        row = idea_forge.load_state()["runs"][0]
+        idea_forge.record_publish_blocks([], unknown=[row])
+        self.assertIn("publish_blocked", idea_forge.load_state()["runs"][0])
+        idea_forge.record_publish_blocks([])
+        self.assertNotIn("publish_blocked", idea_forge.load_state()["runs"][0])
+
+    def test_a_block_starts_when_the_game_started_waiting_not_when_this_code_first_looked(self):
+        st = idea_forge.load_state()
+        st["runs"] += [{"code": 1, "slug": "a-game", "kind": "2d", "date": "2026-10-12", "status": "shipped"}, {"code": 2, "slug": "b-game", "kind": "2d", "status": "shipped"},
+                       {"code": 3, "slug": "c-game", "kind": "2d", "date": "not a date", "status": "shipped"}]
+        idea_forge.save_state(st)
+        rows = idea_forge.load_state()["runs"]
+        idea_forge.record_publish_blocks([(r, "no wiki page") for r in rows], today="2026-10-25")
+        got = {r["slug"]: r["publish_blocked"] for r in idea_forge.load_state()["runs"]}
+        self.assertEqual(got["a-game"], {"reason": "no wiki page", "since": "2026-10-12", "last": "2026-10-25"}, "since the run's own date")
+        self.assertEqual(got["b-game"]["since"], "2026-10-25", "a row with no date falls back to today")
+        self.assertEqual(got["c-game"]["since"], "2026-10-25")
+        idea_forge.record_publish_blocks([(r, "still") for r in idea_forge.load_state()["runs"]], today="2026-10-26")
+        again = {r["slug"]: r["publish_blocked"] for r in idea_forge.load_state()["runs"]}
+        self.assertEqual((again["a-game"]["since"], again["a-game"]["last"], again["b-game"]["since"]), ("2026-10-12", "2026-10-26", "2026-10-25"), "kept while it stays blocked")
+
+    def test_the_dry_run_does_not_say_would_not_publish_for_a_game_a_real_run_would_skip(self):
+        """A game RedEngineGames already lists is recorded as published by a real run whatever its page says; the dry run said it would be refused."""
+        self.land("examples/2d/old-game.game2d.json", "{}")        # listed in RedEngineGames already, no page on main
+        self.land("examples/2d/nowiki-game.game2d.json", "{}")
+        self.row(1, "old-game", "2d")
+        self.row(2, "nowiki-game", "2d")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            idea_forge.publish_games(self.root, dry_run=True)
+        text = out.getvalue()
+        self.assertIn("publish: would skip 2d old-game: projects/old-game already exists in RedEngineGames", text)
+        self.assertNotIn("would NOT publish 2d old-game", text)
+        self.assertIn("publish: would NOT publish 2d nowiki-game: no wiki page", text)
+        self.assertNotIn("unless RedEngineGames already lists it", text, "the listing could be read, so the line is plain")
+        self.assertEqual(idea_forge.unpublished_games(), [], "a dry run writes nothing")
+        with contextlib.redirect_stdout(io.StringIO()) as real:
+            idea_forge.publish_games(self.root)
+        self.assertIn("old-game: projects/old-game already exists", real.getvalue(), "and a real run does exactly that")
+        self.assertTrue([r for r in idea_forge.load_state()["runs"] if r["slug"] == "old-game"][0]["published"])
+        # when RedEngineGames cannot be read the line says what it cannot know
+        self.row(3, "other-game", "2d")
+        self.land("examples/2d/other-game.game2d.json", "{}")
+        out = io.StringIO()
+        with mock.patch.object(idea_forge, "games_checkout", side_effect=RuntimeError("offline")), contextlib.redirect_stdout(out):
+            idea_forge.publish_games(self.root, dry_run=True)
+        self.assertIn("would NOT publish 2d other-game: no wiki page (docs/analysis/idea-forge/wiki/other-game.json is not on main) (unless RedEngineGames already lists it", out.getvalue())
+
+    def test_a_bad_ledger_row_never_stops_a_night_and_a_failing_report_costs_a_warning(self):
+        junk = [[], "x", None, 7, {"status": "built", "date": "2026-10-01"}, {"status": "shipped", "pr": "https://example.test/pull/9", "merge": ""}, {"slug": 5, "status": "shipped", "pr": "https://example.test/pull/8"},
+                {"slug": "no-code", "status": "shipped", "merge": "merged"}]
+        st = idea_forge.load_state()
+        st["runs"] += junk
+        idea_forge.save_state(st)
+        self.row(1, "old-built", "2d", status="built", date="2026-10-01", pr="", merge="", worktree=os.path.join(self.base, "gone"))
+
+        def night(date):
+            out = io.StringIO()
+            with mock.patch.object(idea_forge, "ROOT", self.root), contextlib.redirect_stdout(out):
+                with self.assertRaises(SystemExit) as stop:
+                    idea_forge.main(["nightly", "--claude", self.claude, "--quiet", "--date", date, "--skip-games"])
+            self.assertEqual(stop.exception.code, 0, out.getvalue())
+            return out.getvalue()
+        text = night("2026-10-09")
+        self.assertIn("stuck: 2d old-built built ", text, "the good row is still reported")
+        self.assertIn("nightly done", text)
+        self.assertEqual(idea_forge.load_state()["nights"]["2026-10-09"]["stuck"], 1)
+        self.assertEqual(idea_forge.load_state()["runs"][:len(junk)], junk, "the odd rows are left exactly as they were")
+        with mock.patch.object(idea_forge, "stuck_lines", side_effect=RuntimeError("boom")):
+            text = night("2026-10-10")
+        self.assertIn("warning: could not list what is stuck (RuntimeError: boom); the night goes on", text)
+        self.assertIn("nightly done", text)
+        self.assertIn("2026-10-10", idea_forge.load_state()["nights"], "the night is still recorded")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            idea_forge.main(["ledger"])
+        self.assertIn("old-built", out.getvalue(), "`ledger` shows the rows it can")
+
     def test_a_game_whose_screenshot_cannot_be_drawn_is_not_published_and_is_tried_again(self):
         self.land("examples/2d/blank-game.game2d.json", "{}")
         self.wiki("blank-game")
@@ -1367,6 +2030,52 @@ exit 0
                 pass
         self.assertTrue(idea_forge.load_state()["runs"][0]["published"]["commit"])
         self.assertEqual(idea_forge.load_state()["nights"]["2026-10-09"]["published"], [])   # published at the start of the night, so nothing was left for the end
+
+
+class OddLedgerRows(unittest.TestCase):
+    """One bad row in the ledger (a hand edit, a half-written file) must not stop a night or break the inbox the daily improver reads: the readers skip what they cannot read."""
+
+    def setUp(self):
+        self.home = home()
+        self.today = idea_forge.datetime.date(2026, 10, 20)
+        self.blocked = {"code": 1, "slug": "moth", "kind": "2d", "date": "2026-10-19", "status": "shipped", "pr": "https://example.test/pull/1", "merge": "merged",
+                        "publish_blocked": {"reason": "no page", "since": "2026-10-19", "last": "2026-10-20"}}
+        self.built = {"code": 2, "slug": "old-built", "kind": "2d", "date": "2026-10-01", "status": "built", "worktree": "/nonexistent/wt"}
+        self.held = {"code": 3, "slug": "held-one", "kind": "3d", "date": "2026-10-19", "status": "shipped", "pr": "https://example.test/pull/3", "merge": "held-no-wiki"}
+        self.odd = [[], "x", None, 7, 1.5, True, {}, {"status": "built", "date": "2026-10-01"}, {"status": "shipped", "publish_blocked": {"reason": "r"}, "pr": "u"},
+                    {"slug": None, "status": "built", "date": "2026-10-01"}, {"slug": 5, "status": "built", "date": "2026-10-01"}, {"slug": "no-date", "status": "built"},
+                    {"slug": "bad-date", "status": "built", "date": None}, {"slug": "int-date", "status": "built", "date": 20261001}, {"slug": "bad-block", "status": "shipped", "publish_blocked": "x"},
+                    {"slug": "no-kind-no-pr", "status": "shipped", "merge": "held-no-wiki"}]
+
+    def test_every_reader_skips_what_is_not_a_row_and_still_reports_the_rest(self):
+        runs = self.odd + [self.blocked, self.built, self.held]
+        self.assertEqual([g["slug"] for g in idea_forge.unpublished_games(runs)], ["moth"])
+        self.assertEqual([g["slug"] for g in idea_forge.stranded_runs(runs, self.today)], ["old-built"])
+        self.assertEqual(sorted(g["slug"] for g in idea_forge.held_prs(runs)), ["held-one", "no-kind-no-pr"])
+        lines = idea_forge.stuck_lines(runs, self.today)
+        self.assertEqual(len(lines), 2, lines)
+        self.assertTrue(any("moth is merged" in l for l in lines) and any("old-built built" in l for l in lines))
+
+    def test_a_built_row_that_cannot_be_checked_is_reported_not_raised(self):
+        odd_wt = {"code": 9, "slug": "odd-wt", "kind": "2d", "date": "2026-10-01", "status": "built", "worktree": 5}
+        got = idea_forge.stranded_runs([odd_wt, {"slug": "no-code", "date": "2026-10-01", "status": "built"}], self.today)
+        self.assertEqual(sorted(g["slug"] for g in got), ["no-code", "odd-wt"])
+        self.assertTrue(all(g["reason"] for g in got))
+
+    def test_runs_that_are_not_a_list_give_nothing(self):
+        for runs in ({"runs": [self.blocked]}, {"slug": "x", "status": "built", "date": "2026-10-01"}, "x", 5, True, [], ()):
+            self.assertEqual(idea_forge.unpublished_games(runs), [], repr(runs))
+            self.assertEqual(idea_forge.held_prs(runs), [])
+            self.assertEqual(idea_forge.stranded_runs(runs, self.today), [])
+            self.assertEqual(idea_forge.stuck_lines(runs, self.today), [])
+        self.assertEqual(idea_forge.stuck_lines(None, self.today), [], "no ledger on this machine: nothing, and nothing is created")
+
+    def test_the_nights_report_is_guarded(self):
+        with mock.patch.object(idea_forge, "stuck_lines", side_effect=KeyError("slug")), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(idea_forge.safe_stuck_lines(), [])
+        self.assertEqual(out.getvalue().strip(), "warning: could not list what is stuck (KeyError: 'slug'); the night goes on")
+        with mock.patch.object(idea_forge, "stuck_lines", return_value=["stuck: x"]):
+            self.assertEqual(idea_forge.safe_stuck_lines(), ["stuck: x"])
 
 
 class Refresh(unittest.TestCase):

@@ -7,7 +7,10 @@ is fine: `scripts/contributed_games.py` counts your own note as part of a safe g
 Every note holds the Idea Forge's findings block, so a problem met by anyone ranks as **one** entry, by its `key`, with every report of it: the Idea
 Forge's morning runs, your AI's notes and your cousin's AI's notes alike. `python3 scripts/feedback.py digest` is the ranked inbox of everything (these
 notes, the Idea Forge's runs, maintainers' issues, merged pull requests' "Engine notes", players' reviews and engine notes); the daily improver reads it
-first ([`docs/DAILY_IMPROVER.md`](../DAILY_IMPROVER.md)).
+first ([`docs/DAILY_IMPROVER.md`](../DAILY_IMPROVER.md)). On a machine that runs the Idea Forge, the digest also has a section **Idea Forge games no player can have yet**: the games `publish` could not
+publish (with the reason and since when), the game pull requests the nightly holds for a missing wiki page, and the runs that built and were never shipped for more than two days (with what
+`ship` would refuse), read from the forge's ledger ([`docs/IDEA_FORGE.md`](../IDEA_FORGE.md), "Nothing waits in silence"). A note or run file whose findings block is
+malformed is never ranked, and never invisible: `digest` names it on a `SKIPPED` line, and `feedback.py check` does too for the Idea Forge's run files.
 
 ## Write one
 

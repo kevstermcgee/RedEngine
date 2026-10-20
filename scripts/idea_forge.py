@@ -9,9 +9,9 @@
   idea_forge.py note "TEXT" --area A [--cost-min N] [--fix TEXT]   (the agent) log one snag at the moment it happens
   idea_forge.py wiki --init | --preview | --check                 (the agent) the game's wiki page: rules, story, characters, gallery, why it was made; `publish` draws its pictures
   idea_forge.py feedback --init | --check | --finalize             (the agent, then the CLI) the feedback file: draft it from the notes, validate it, add the measurements
-  idea_forge.py ship [RUN] [--hold]                                commit ONLY the game and its feedback, push the branch, open a PR on RedEngine, then archive the run and remove its worktree
-  idea_forge.py settle [--wait-min N]                              merge the tool's own PRs whose CI has passed (the default; `config --auto-merge off` stops it)
-  idea_forge.py publish [--dry-run]                                put the merged games that RedEngineGames does not have yet there (nightly does this; `config --publish off` stops it)
+  idea_forge.py ship [RUN] [--hold]                                commit ONLY the game, its wiki page and its feedback, push the branch, open a PR on RedEngine, then archive the run and remove its worktree (refuses a game whose page cannot be published)
+  idea_forge.py settle [--wait-min N]                              merge the tool's own PRs whose CI has passed and that carry their game's wiki page (the default; `config --auto-merge off` stops it)
+  idea_forge.py publish [--dry-run]                                put the merged games that RedEngineGames does not have yet there (nightly does this; `config --publish off` stops it); a game it cannot publish is recorded in the ledger with why
   idea_forge.py ledger                                             every run so far
   idea_forge.py digest [--write]                                   the engine backlog: all feedback files, grouped and ranked
 
@@ -32,6 +32,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -107,13 +108,29 @@ def _forge_module():
     return mod
 
 
-def state_dir():
+def state_home():
+    """Where this machine keeps its state; nothing is created (a reader that must not leave a directory behind asks this, not `state_dir`)."""
     d = os.environ.get("IDEA_FORGE_HOME")
     if not d:
         base = os.environ.get("XDG_STATE_HOME") or (os.environ.get("LOCALAPPDATA") if os.name == "nt" else None) or os.path.join(os.path.expanduser("~"), ".local", "state")
         d = os.path.join(base, "idea-forge")
+    return d
+
+
+def state_dir():
+    d = state_home()
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def ledger_runs():
+    """The ledger's runs for a reader that only looks: None when this machine has no ledger (nothing is created, nothing is written)."""
+    p = os.path.join(state_home(), "state.json")
+    try:
+        runs = jload(p).get("runs")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return runs if isinstance(runs, list) else None
 
 
 def load_state():
@@ -262,7 +279,7 @@ Earlier games from this tool were judged unfun, awkward, strange and confusing. 
 
 {known}## Write the game's wiki page (it is published with the game, and a game without a valid one is NOT published)
 
-RedEngineGames shows every game as a small wiki: what it is, the story, the rules and controls, the characters with a picture of each, a gallery of different moments, and why it exists. You write that page as data, once the game works:
+RedEngineGames shows every game as a small wiki: what it is, the story, the rules and controls, the characters with a picture of each, a gallery of different moments, and why it exists. You write that page as data, once the game works. It is committed with the game: `ship` puts `{WIKI_DIR}/{slug}.json` in the same pull request as the game and the feedback, and CHECKS it with `wiki --check` first. A game whose page is missing or fails the check is not shipped and not merged (it could never be published) and waits for a human, so write the page before you stop:
 
     {cli} wiki --init       writes `{WIKI_DIR}/{slug}.json` from a template: replace every TODO
     {cli} wiki --preview    draws every picture to `out/wiki/`: LOOK at each PNG
@@ -289,7 +306,7 @@ missing capability); and what worked well (`--area worked`). One line each, conc
 1. `{cli} feedback --init` writes `{fb}`, pre-filled from your notes, the engine's command trace and a score. Edit it: rank the findings by what would save the next run the most,
    add evidence and a proposed engine change to each, and fill in "Idea fit" and "What worked".
 2. `{cli} feedback --check` must pass.
-3. `{cli} wiki --check` must pass (after you have LOOKED at the `wiki --preview` pictures).
+3. `{cli} wiki --check` must pass (after you have LOOKED at the `wiki --preview` pictures): `ship` runs the same check on `{WIKI_DIR}/{slug}.json` and refuses the game if it fails or the file is missing.
 4. Do not `git push`, open a PR, merge or publish: the CLI does that after review. Commit locally or leave the files uncommitted.
 5. Your last message is six lines: the game path, the `verify` result, the mechanic in one sentence, why a stranger would find it fun, how a first-time player learns it, and your top three findings (one line).
 """
@@ -414,9 +431,12 @@ def score(root, slug, kind="2d"):
 
 
 def changed_paths(root, base="origin/main"):
-    """Paths this branch changed against `base`, including uncommitted and untracked files."""
+    """Paths this branch changed since it left `base`, including uncommitted and untracked files. Measured from the merge-base, not from the tip of `base`: a `main` that moved on while
+    the run worked (or while a built run waited) must not show up as hundreds of files the run "changed" (the two stranded runs of 2026-10-12 and 13 each looked like that)."""
+    fork = subprocess.run(["git", "-C", root, "merge-base", "HEAD", base], capture_output=True, text=True)
+    fork = fork.stdout.strip() if fork.returncode == 0 and fork.stdout.strip() else base
     out = set()
-    for args in (["diff", "--name-only", base], ["diff", "--name-only"], ["ls-files", "--others", "--exclude-standard"]):
+    for args in (["diff", "--name-only", fork], ["diff", "--name-only"], ["ls-files", "--others", "--exclude-standard"]):
         p = subprocess.run(["git", "-C", root] + args, capture_output=True, text=True)
         out.update(l.strip() for l in p.stdout.splitlines() if l.strip())
     return sorted(out)
@@ -473,6 +493,33 @@ def wiki_problems(data):
         if len({json.dumps(x.get("shot"), sort_keys=True) for x in gal if isinstance(x, dict)}) < len(gal):
             out.append("`gallery` repeats a view: each picture needs a different shot")
     return out
+
+
+def wiki_check(data):
+    """`wiki --check`'s whole verdict on a page's data: its problems, and any TODO left in it. The one check the agent's `wiki --check`, `ship` and `publish` all hold a page to."""
+    bad = wiki_problems(data)
+    if isinstance(data, dict):
+        bad += [f"`{k}` still says TODO" for k, v in data.items() if re.search(r"\bTODO\b", json.dumps(v))]   # a word: MASTODON is not a leftover
+    return bad
+
+
+def worktree_wiki_problems(wt, slug, hints=True):
+    """Why the wiki page in a run's worktree could not be published, one sentence each, with the way out unless `hints` is off ([] when it is sound). This is `wiki --check` applied where it
+    still matters: before the game is shipped, because a merged game with no complete page waits in RedEngine unpublished (RedEngineGames' site build refuses it)."""
+    path = os.path.join(wt, wiki_file(slug))
+    me = f"python3 {shlex.quote(os.path.abspath(__file__))}"
+    where = f"--run {shlex.quote(wt)}"
+
+    def fix(how):
+        return f" (fix: {how})" if hints else ""
+    if not os.path.isfile(path):
+        return [f"no wiki page: {wiki_file(slug)} does not exist" + fix(f"{me} wiki --init {where}; replace every TODO; wiki --preview and LOOK at the pictures; wiki --check")]
+    try:
+        data = jload(path)
+    except ValueError as e:
+        return [f"the wiki page {wiki_file(slug)} is not valid JSON: {e}" + fix(f"edit it, then {me} wiki --check {where}")]
+    bad = wiki_check(data)
+    return [f"the wiki page {wiki_file(slug)} is incomplete: " + "; ".join(bad[:5]) + (f"; and {len(bad) - 5} more" if len(bad) > 5 else "") + fix(f"edit it, then {me} wiki --check {where}")] if bad else []
 
 
 def game_dir(kind, slug):
@@ -692,7 +739,7 @@ def cmd_wiki(a):
         data = jload(path)
     except ValueError as e:
         sys.exit(f"{wiki_file(slug)} is not valid JSON: {e}")
-    bad = wiki_problems(data) + [f"`{k}` still says TODO" for k, v in data.items() if "TODO" in json.dumps(v)]
+    bad = wiki_check(data)
     if a.preview:
         scene, out = os.path.join(root, game_file(kind, slug)), os.path.join(root, "out", "wiki")
         shots = [(f"character-{i + 1}-{x.get('name', '')}", x, CHARACTER_SIZE) for i, x in enumerate(data.get("characters") or []) if isinstance(x, dict)] + \
@@ -842,14 +889,18 @@ def all_sources(ref="origin/main"):
     return texts
 
 
-def rows_from(texts):
+def rows_from(texts, skipped=None):
+    """Every finding of every feedback text, as rows. A text whose findings block is missing or malformed is skipped (one bad note must not stop the backlog), but not silently:
+    pass a list as `skipped` and it gets (name, why) for each, which `digest` and `feedback.py check` print."""
     rows = []
     for name in sorted(texts):
         if not name.endswith(".md") or name.startswith("DIGEST"):
             continue
         try:
             found = read_findings(texts[name])
-        except ValueError:
+        except ValueError as e:
+            if skipped is not None:
+                skipped.append((name, str(e)))
             continue
         for f in found:
             if isinstance(f, dict) and f.get("title"):
@@ -924,10 +975,10 @@ def backlog_text(groups, statuses=("open", "recurring", "partial", "in-progress"
     return "\n".join(out)
 
 
-def current_backlog():
+def current_backlog(skipped=None):
     texts = all_sources()
     st = load_state()
-    return build_backlog(rows_from(texts), read_fixes(texts), st.get("improvements", {}))
+    return build_backlog(rows_from(texts, skipped), read_fixes(texts), st.get("improvements", {}))
 
 
 def known_issues_section(groups, limit=12):
@@ -946,7 +997,10 @@ If you hit one of these, log it with the SAME key (`note ... --key KEY`) and you
 
 
 def cmd_backlog(a):
-    groups = current_backlog()
+    skipped = []
+    groups = current_backlog(skipped)
+    if skipped:
+        print(skipped_line(skipped), file=sys.stderr)   # stderr: `--json` output stays parseable
     if a.export:
         print("export " + export_feedback_note(groups))
         return
@@ -1149,7 +1203,7 @@ def do_run(a, kind, code=None):
     jdump(run, os.path.join(run_dir, "run.json"))
     wr(os.path.join(run_dir, "brief.md"), prompt)
     st = load_state()
-    st["runs"] = [r for r in st["runs"] if not (r["code"] == code and r["slug"] == idea["slug"] and r.get("kind", "2d") == kind)]   # a re-run replaces its own row
+    st["runs"] = [r for r in st["runs"] if not (isinstance(r, dict) and r.get("code") == code and r.get("slug") == idea["slug"] and r.get("kind", "2d") == kind)]   # a re-run replaces its own row
     row = {"code": code, "slug": idea["slug"], "kind": kind, "title": idea["title"], "date": today, "worktree": wt, "branch": branch, "status": "running", "owned": owned}
     st["runs"].append(row)
     save_state(st)
@@ -1170,8 +1224,8 @@ def do_run(a, kind, code=None):
     status = "built" if all(s_["ok"] for s_ in run["score"][:3]) else "incomplete"
     store_feedback(fb)
     st = load_state()
-    for r in st["runs"]:
-        if r["code"] == code and r["slug"] == idea["slug"] and r.get("kind", "2d") == kind:
+    for r in ledger_rows(st["runs"]):
+        if r.get("code") == code and r.get("slug") == idea["slug"] and r.get("kind", "2d") == kind:
             r.update(status=status, minutes=round((run["finished"] - run["started"]) / 60, 1), feedback_ok=not fb_problems, notes=len(read_notes(run_dir)), agent=ended["status"])
             row = r
     save_state(st)
@@ -1197,9 +1251,9 @@ class ShipRefused(Exception):
 
 def find_run(ref):
     """The most recent ledger row for `slug`, `kind/slug` or a worktree path."""
-    for r in reversed(load_state()["runs"]):
-        kind = r.get("kind", "2d")
-        if ref in (r["slug"], f"{kind}/{r['slug']}") or (r.get("worktree") and os.path.abspath(r["worktree"]) == os.path.abspath(ref)):
+    for r in reversed(ledger_rows(load_state()["runs"])):
+        kind, slug = r.get("kind", "2d"), row_slug(r)
+        if slug and ref in (slug, f"{kind}/{slug}") or (r.get("worktree") and os.path.abspath(r["worktree"]) == os.path.abspath(ref)):
             return r
     sys.exit(f"no run `{ref}` in the ledger (`idea_forge.py ledger`)")
 
@@ -1220,27 +1274,50 @@ def archive_run(row):
         shutil.copytree(src, dest, dirs_exist_ok=True)
     remove_worktree(wt)
     st = load_state()
-    for r in st["runs"]:
-        if r["code"] == row["code"] and r["slug"] == row["slug"] and r.get("kind", "2d") == row.get("kind", "2d"):
+    for r in ledger_rows(st["runs"]):
+        if same_run(r, row):
             r.update(archived=dest, worktree_removed=True)
     save_state(st)
 
 
-def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
-    """Commit ONLY the game and its feedback (only the feedback when the game did not build), push, open the PR; returns the PR url ('' with no_push).
-    Raises ShipRefused with the reason when not shippable."""
-    wt, slug, kind = r["worktree"], r["slug"], r.get("kind", "2d")
+def ship_problems(r, feedback_only=False, hints=True):
+    """Every reason `ship` would refuse this run right now, as sentences ([] when it would ship). Nothing is changed: `do_ship` refuses on exactly these, and the digest
+    shows them for a run that was left behind. A game that cannot be published is one of them (its wiki page is missing or fails `wiki --check`)."""
+    wt, slug, kind = r.get("worktree"), r["slug"], r.get("kind", "2d")
+    if not wt or not os.path.isdir(wt):
+        return [f"its worktree is gone ({wt or 'none recorded'}), so there is nothing to ship"]
+    if not os.path.isfile(os.path.join(wt, RUN_DIRNAME, "run.json")):
+        return [f"{wt} has no {RUN_DIRNAME}/run.json: it is not an Idea Forge run"]
+    out = []
     stray = [p for p in changed_paths(wt) if not allowed_path(p, slug, kind) and not p.startswith(RUN_DIRNAME + "/")]
     if stray:
-        raise ShipRefused("the run changed more than the game and its feedback (a missing engine feature is a finding, not a patch):\n  " + "\n  ".join(stray))
+        out.append("the run changed more than the game and its feedback (a missing engine feature is a finding, not a patch):\n  " + "\n  ".join(stray[:12] + ([f"... and {len(stray) - 12} more"] if len(stray) > 12 else [])))
     run = load_run(os.path.join(wt, RUN_DIRNAME))
     fb = feedback_path(wt, run)
     bad = check_feedback_text(rd(fb)) if os.path.exists(fb) else ["no feedback file"]
     if bad:
-        raise ShipRefused("the feedback is not ready:\n  " + "\n  ".join(bad))
+        out.append("the feedback is not ready:\n  " + "\n  ".join(bad))
+    if not feedback_only:
+        bad = worktree_wiki_problems(wt, slug, hints)
+        if bad:
+            out.append("no complete wiki page, so the game cannot be published and is not shipped (the run is kept):\n  " + "\n  ".join(bad))
+    return out
+
+
+def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
+    """Commit ONLY the game, its wiki page and its feedback (only the feedback when the game did not build), push, open the PR; returns the PR url ('' with no_push).
+    Raises ShipRefused with the reason when not shippable: a refused ship changes nothing (no commit, no push, the run's worktree stays), because the worktree is archived and
+    removed only at the very end, after the PR exists."""
+    wt, slug, kind = r["worktree"], r["slug"], r.get("kind", "2d")
+    problems = ship_problems(r, feedback_only)
+    if problems:
+        raise ShipRefused("\n".join(problems))
+    run = load_run(os.path.join(wt, RUN_DIRNAME))
+    fb = feedback_path(wt, run)
     store_feedback(fb)
     own = [game_dir(kind, slug)] if kind == "3d" else [game_file(kind, slug)] + ([game_dir(kind, slug)] if os.path.isdir(os.path.join(wt, game_dir(kind, slug))) else [])
-    paths = [os.path.relpath(fb, wt)] + ([] if feedback_only else own)
+    sent = bool(r.get("feedback_pr")) and not feedback_only and feedback_already_on_main(wt, fb)   # an earlier feedback-only PR of this run is merged: this PR carries the game and its page only
+    paths = ([] if sent else [os.path.relpath(fb, wt)]) + ([] if feedback_only else own + [wiki_file(slug)])
     git(wt, "add", "--", *paths)
     title = f"Idea Forge {kind.upper()} run: {run['idea']['title']} (" + ("feedback only: the game did not build" if feedback_only else "feedback and a game built around one mechanic") + ")"
     msg = f"{title}\n\nGenerated by scripts/idea_forge.py from idea code {run['idea']['code']:010d}; the feedback file is {FEEDBACK_DIR}/.\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
@@ -1253,15 +1330,16 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
     git(wt, "push", "-q", "-u", "origin", r["branch"])
     body = (f"## What\n" + ("The engine feedback of a run whose game did not build" if feedback_only else f"A {kind.upper()} game built around one mechanic") +
             f", forged by `scripts/idea_forge.py` (code `{run['idea']['code']:010d}`), and the engine feedback its development produced.\n\n"
-            f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n" + ("" if feedback_only else f"- Game: `{game_file(kind, slug)}`\n") + f"- Feedback: `{os.path.relpath(fb, wt)}`\n\n"
-            "No engine code changed. The nightly run merges this once CI passes (`idea_forge.py settle`; `config --auto-merge off` or `ship --hold` keeps it for a human); the backlog (`idea_forge.py backlog`) ranks its findings with every earlier run.\n\n"
+            f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n" + ("" if feedback_only else f"- Game: `{game_file(kind, slug)}`\n- Wiki page: `{wiki_file(slug)}` (checked at ship; `publish` draws its pictures)\n") +
+            (f"- Feedback: `{os.path.relpath(fb, wt)}`" + (f" (already on main: sent earlier as {r['feedback_pr']})" if sent else "") + "\n\n") +
+            "No engine code changed. The nightly run merges this once CI passes and the game's page is in the PR (`idea_forge.py settle`; `config --auto-merge off` or `ship --hold` keeps it for a human); the backlog (`idea_forge.py backlog`) ranks its findings with every earlier run.\n\n"
             "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
     p = subprocess.run(["gh", "pr", "create", "--base", "main", "--head", r["branch"], "--title", title, "--body", body], cwd=wt, capture_output=True, text=True)
     pr = p.stdout.strip().splitlines()[-1] if p.returncode == 0 and p.stdout.strip() else ""
     print(p.stdout.strip() or p.stderr.strip())
     st = load_state()
-    for x in st["runs"]:
-        if x["slug"] == slug and x.get("kind", "2d") == kind:
+    for x in ledger_rows(st["runs"]):
+        if x.get("slug") == slug and x.get("kind", "2d") == kind:
             x["status"] = "shipped" if pr else x.get("status", "built")
             x["pr"] = pr
             x["feedback_only"] = feedback_only
@@ -1271,6 +1349,75 @@ def do_ship(r, no_push=False, keep=False, feedback_only=False, hold=False):
     if pr and r.get("owned") and not keep:
         archive_run(r)
     return pr
+
+
+FEEDBACK_BRANCH_SUFFIX = "-feedback"   # the branch a kept run's feedback-only PR is pushed on: <run branch>-feedback
+
+
+def feedback_already_on_main(wt, fb):
+    """Is the run's feedback file `fb` on `origin/main` byte for byte (after a fetch)? False when that cannot be told: the caller then simply includes the file, which git merges without
+    a conflict when main has the same bytes."""
+    rel = os.path.relpath(fb, wt).replace(os.sep, "/")
+    subprocess.run(["git", "-C", wt, "fetch", "-q", "origin", "main"], capture_output=True)
+    there = subprocess.run(["git", "-C", wt, "rev-parse", "--verify", "-q", f"origin/main:{rel}"], capture_output=True, text=True)
+    mine = subprocess.run(["git", "-C", wt, "hash-object", "--", fb], capture_output=True, text=True)
+    return there.returncode == 0 and mine.returncode == 0 and there.stdout.strip() == mine.stdout.strip()
+
+
+def send_kept_feedback(r):
+    """A built game that `ship` refuses for its wiki page ALONE is kept for a maintainer (merging it would put a game on main that `publish` refuses), but its engine feedback must not wait
+    with it: ADR 2026-10-08 says `produce` always delivers feedback. So the feedback file goes out ALONE, as a feedback-only PR on its own branch (`<branch>-feedback`, built with git plumbing
+    from `origin/main` and a temporary index, so the run's branch, index and worktree are exactly as they were), tracked by `settle` as `feedback_pr` on the run. The run is NOT marked
+    shipped, keeps its worktree and its `built` status, so a later `ship` still ships the game with its page (and leaves the feedback out when this PR is already merged: see `do_ship`).
+    Returns (the PR url, ""); ("", "") when this does not apply (the run is refused for something besides its page: the feedback then stays local until the run is fixed and shipped);
+    ("", why) when it applied and failed. Never raises: the night goes on."""
+    try:
+        if r.get("feedback_pr"):
+            return r["feedback_pr"], ""
+        if not ship_problems(r, hints=False) or ship_problems(r, feedback_only=True, hints=False):
+            return "", ""
+        wt, kind = r["worktree"], r.get("kind", "2d")
+        run = load_run(os.path.join(wt, RUN_DIRNAME))
+        fb = feedback_path(wt, run)
+        rel = os.path.relpath(fb, wt).replace(os.sep, "/")
+        branch = r["branch"] + FEEDBACK_BRANCH_SUFFIX
+        subprocess.run(["git", "-C", wt, "fetch", "-q", "origin", "main"], capture_output=True)
+        base = git(wt, "rev-parse", "--verify", "origin/main")
+        title = f"Idea Forge {kind.upper()} run: {run['idea']['title']} (feedback only: the game's wiki page is not written yet)"
+        msg = f"{title}\n\nGenerated by scripts/idea_forge.py from idea code {run['idea']['code']:010d}; the feedback file is {FEEDBACK_DIR}/.\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
+
+            def plumb(*args):
+                p = subprocess.run(["git", "-C", wt, *args], capture_output=True, text=True, env=env)
+                if p.returncode:
+                    raise RuntimeError(f"git {args[0]} failed: " + (p.stderr or p.stdout).strip())
+                return p.stdout.strip()
+            plumb("read-tree", base)
+            plumb("update-index", "--add", "--cacheinfo", f"100644,{plumb('hash-object', '-w', '--', fb)},{rel}")
+            tree = plumb("write-tree")
+            if tree == plumb("rev-parse", f"{base}^{{tree}}"):
+                return "", ""   # already on main (an earlier PR of this run was merged): nothing to send
+            commit = plumb("commit-tree", tree, "-p", base, "-m", msg)
+        git(wt, "push", "-q", "origin", f"{commit}:refs/heads/{branch}")
+        body = (f"## What\nThe engine feedback of a run whose game was built but is NOT shipped, forged by `scripts/idea_forge.py` (code `{run['idea']['code']:010d}`).\n\n"
+                f"- Idea: YOU {run['idea']['you']}, BUT {run['idea']['but']}.\n- Feedback: `{rel}`\n\n"
+                f"The game `{r['slug']}` is kept in a worktree for a maintainer: its wiki page `{wiki_file(r['slug'])}` is missing or fails `wiki --check`, and a game merged without its page can never be "
+                "published. It ships later as a PR of its own (`idea_forge.py ship`), once its page is written. This PR carries no game, so the findings reach the repository tonight.\n\n"
+                "No engine code changed.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)")
+        p = subprocess.run(["gh", "pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body], cwd=wt, capture_output=True, text=True)
+        pr = p.stdout.strip().splitlines()[-1] if p.returncode == 0 and p.stdout.strip() else ""
+        if not pr:
+            raise RuntimeError(f"`gh pr create` made no PR (the branch {branch} is pushed: open its PR by hand): " + " ".join((p.stderr or p.stdout).split())[:200])
+        st = load_state()
+        for x in ledger_rows(st["runs"]):
+            if same_run(x, r):
+                x["feedback_pr"], x["feedback_branch"] = pr, branch
+        save_state(st)
+        r["feedback_pr"], r["feedback_branch"] = pr, branch
+        return pr, ""
+    except (Exception, SystemExit) as e:
+        return "", "the feedback-only PR could not be made: " + " ".join(str(e).split())[:240]
 
 
 def cmd_ship(a):
@@ -1362,7 +1509,11 @@ def produce(a, kind):
         pr = do_ship(row, keep=a.keep, feedback_only=not built)
     except ShipRefused as e:
         store_feedback(feedback_path(wt, run))
-        return "review", "not shipped (worktree kept; the feedback is saved locally): " + str(e)[:200]
+        why = " ".join(str(e).split())[:320]
+        sent, failed = send_kept_feedback(row) if built else ("", "")   # refused for its page alone: the findings still reach the repo, the game waits
+        if sent:
+            return "review", f"not shipped (worktree kept; its feedback went out as a feedback-only PR: {sent}; the game ships once its page is written): " + why
+        return "review", "not shipped (worktree kept; the feedback is saved locally" + (f"; {failed}" if failed else "") + "): " + why
     note = " (feedback auto-completed)" if completed else ""
     if built:
         return "done", (pr or "committed (no PR url)") + note
@@ -1442,15 +1593,37 @@ def auto_merge_enabled():
     return bool(load_state().get("config", {}).get("auto_merge", True))
 
 
+GH_FILES_CAP = 100       # `gh pr view --json files` lists at most this many files, whatever the PR changes (checked with gh 2.45: a 167-file PR gives 100)
+API_FILES_LIMIT = 3000   # and GitHub's own files API stops listing at this many
+
+
+def pr_files_all(url):
+    """Every path a PR changes, read page by page from GitHub's API (`gh api --paginate`); None when it cannot be read (not a GitHub PR url, `gh` failed, or the PR is bigger than the API lists)."""
+    m = re.match(r"https?://[^/]+/([^/]+)/([^/]+)/pull/(\d+)", url)
+    if not m:
+        return None
+    p = subprocess.run(["gh", "api", "--paginate", f"repos/{m.group(1)}/{m.group(2)}/pulls/{m.group(3)}/files", "--jq", ".[].filename"], capture_output=True, text=True)
+    paths = [l for l in p.stdout.splitlines() if l]
+    return paths if p.returncode == 0 and paths and len(paths) < API_FILES_LIMIT else None
+
+
 def pr_status(url):
-    """GitHub's view of a PR as a dict (state, mergeable, checks, files), or None when `gh` cannot say."""
+    """GitHub's view of a PR as a dict (state, mergeable, checks, files), or None when `gh` cannot say. A list of exactly GH_FILES_CAP files may be cut off, so the whole list is fetched; when that
+    fails `files_incomplete` is set and `settle` merges nothing it could not see all of."""
     p = subprocess.run(["gh", "pr", "view", url, "--json", "state,mergeable,statusCheckRollup,files"], capture_output=True, text=True)
     if p.returncode:
         return None
     try:
-        return json.loads(p.stdout)
+        s_ = json.loads(p.stdout)
     except ValueError:
         return None
+    if isinstance(s_, dict) and len(s_.get("files") or []) >= GH_FILES_CAP:
+        full = pr_files_all(url)
+        if full is not None:
+            s_["files"] = [{"path": x} for x in full]
+        else:
+            s_["files_incomplete"] = True
+    return s_
 
 
 def checks_verdict(rollup):
@@ -1478,11 +1651,15 @@ def tracked_prs():
     """The PRs this tool opened that are not finished: only these are ever merged by `settle`, never an arbitrary PR."""
     st = load_state()
     seen, out = set(), []
-    for r in st["runs"]:
-        url = r.get("pr", "")
-        if url.startswith("http") and r.get("status") == "shipped" and r.get("merge") not in ("merged", "closed") and not r.get("hold") and url not in seen:
+    for r in ledger_rows(st["runs"]):   # a row that is not a row, or has no slug, is skipped: one bad entry must not stop the night's settle
+        url, slug = r.get("pr") or "", row_slug(r)
+        if slug and isinstance(url, str) and url.startswith("http") and r.get("status") == "shipped" and r.get("merge") not in ("merged", "closed") and not r.get("hold") and url not in seen:
             seen.add(url)
-            out.append({"url": url, "type": "game", "slug": r["slug"], "kind": r.get("kind", "2d"), "feedback_only": bool(r.get("feedback_only"))})
+            out.append({"url": url, "type": "game", "slug": slug, "kind": r.get("kind", "2d"), "feedback_only": bool(r.get("feedback_only"))})
+        fbu = r.get("feedback_pr") or ""   # the feedback-only PR of a run that is kept (built, not shipped): merged like any feedback-only PR, recorded as `feedback_merge`
+        if slug and isinstance(fbu, str) and fbu.startswith("http") and r.get("feedback_merge") not in ("merged", "closed") and fbu not in seen:
+            seen.add(fbu)
+            out.append({"url": fbu, "type": "game", "slug": slug, "kind": r.get("kind", "2d"), "feedback_only": True})
     for key, imp in st.get("improvements", {}).items():
         url = imp.get("pr", "")
         if url.startswith("http") and imp.get("status") == "open" and url not in seen:
@@ -1493,9 +1670,11 @@ def tracked_prs():
 
 def record_pr(url, **fields):
     st = load_state()
-    for r in st["runs"]:
+    for r in ledger_rows(st["runs"]):
         if r.get("pr") == url:
             r.update(fields)
+        if r.get("feedback_pr") == url and "merge" in fields:
+            r["feedback_merge"] = fields["merge"]   # not `merge`: that is the verdict on the run's game PR, which does not exist yet
     for imp in st.get("improvements", {}).values():
         if imp.get("pr") == url:
             if fields.get("merge") == "merged":
@@ -1516,6 +1695,18 @@ def pr_paths_ok(pr, files):
     return all(allowed_path(p, pr["slug"], pr["kind"]) for p in paths) and (not pr["feedback_only"] or all(p.startswith(FEEDBACK_DIR + "/") for p in paths))
 
 
+def pr_missing_wiki(pr, files):
+    """Why to hold (not merge) a PR that adds a game without the game's wiki page in the same PR; "" when it is fine. Merging such a game is how four games sat in RedEngine
+    unpublished from 2026-10-19: `publish` refuses a game with no page on main. A feedback-only PR carries no game and is never held for this."""
+    if pr["type"] != "game" or pr["feedback_only"]:
+        return ""
+    paths = {f.get("path", "") for f in files}
+    slug, kind = pr["slug"], pr["kind"]
+    if not any(p == game_prefix(kind, slug) or p.startswith(game_dir(kind, slug)) for p in paths) or wiki_file(slug) in paths:
+        return ""
+    return f"the PR adds the game {slug} without its wiki page {wiki_file(slug)}, so it could not be published: add the page to the PR's branch (idea_forge.py wiki --check)"
+
+
 def settle_one(pr):
     """Merge one tracked PR if, and only if, it is open, mergeable, within its path limits and every CI check has passed. Returns (verdict, detail)."""
     url = pr["url"]
@@ -1531,9 +1722,16 @@ def settle_one(pr):
         return "closed", "closed without merging"
     if not auto_merge_enabled():
         return "held", "auto-merge is off"
+    if s_.get("files_incomplete"):
+        record_pr(url, merge="refused-paths")
+        return "refused", f"the PR changes {GH_FILES_CAP} or more files and GitHub's whole list could not be read, so its paths cannot all be checked: left for a human"
     if not pr_paths_ok(pr, s_.get("files") or []):
         record_pr(url, merge="refused-paths")
         return "refused", "the PR changes files outside what its kind may change: left for a human"
+    why = pr_missing_wiki(pr, s_.get("files") or [])
+    if why:
+        record_pr(url, merge="held-no-wiki")   # still tracked: once the page is on the PR's branch the next settle merges it
+        return "held", why
     verdict = checks_verdict(s_.get("statusCheckRollup") or [])
     if verdict == "failed":
         record_pr(url, merge="ci-failed")
@@ -1612,25 +1810,32 @@ def games_remote():
 
 
 def merged_game_files(root, kind, slug, ref="origin/main"):
-    """(path on `ref`, path inside projects/<slug>/) for every file of a game that is on `ref`; empty when the game is not there (not merged yet, or its run failed)."""
+    """(path on `ref`, path inside projects/<slug>/) for every file of a game that is on `ref`; empty when the game is not there (not merged yet, or its run failed); None when git could not
+    be asked at all (no such ref, not a repository): "not there" and "could not look" are different answers, and only the first may clear a game's `publish_blocked`."""
     game = game_file(kind, slug)
     prefix = game_prefix(kind, slug)
     p = subprocess.run(["git", "-C", root, "ls-tree", "-r", "--name-only", ref, "--", prefix.rstrip("/")], capture_output=True, text=True)
-    paths = [l for l in p.stdout.splitlines() if l] if p.returncode == 0 else []
+    if p.returncode:
+        return None
+    paths = [l for l in p.stdout.splitlines() if l]
     if game not in paths:
         return []
     base = os.path.dirname(game)
     return [(x, x[len(base) + 1:]) for x in paths]
 
 
-def publishable(root, ref="origin/main"):
-    """The ledger rows whose game is on main and not yet in RedEngineGames, oldest first, each with its files. A game whose run did not build (feedback only) never is."""
+def publishable(root, ref="origin/main", unknown=None):
+    """The ledger rows whose game is on main and not yet in RedEngineGames, oldest first, each with its files. A game whose run did not build (feedback only) never is. A row whose game git
+    could not be asked about is appended to `unknown` (a list, when one is given): it is neither publishable nor known to be gone."""
     out = []
-    for r in load_state()["runs"]:
-        if r.get("status") != "shipped" or r.get("feedback_only") or r.get("published"):
+    for r in ledger_rows(load_state()["runs"]):
+        if not row_slug(r) or r.get("status") != "shipped" or r.get("feedback_only") or r.get("published"):
             continue
         files = merged_game_files(root, r.get("kind", "2d"), r["slug"], ref)
-        if files:
+        if files is None:
+            if unknown is not None:
+                unknown.append(r)
+        elif files:
             out.append((r, files))
     return out
 
@@ -1737,6 +1942,10 @@ def stage_games(root, clone, items, ref="origin/main"):
         if slug in have or os.path.exists(os.path.join(clone, "projects", slug)):
             skipped.append((r, f"projects/{slug} already exists in RedEngineGames"))
             continue
+        why = merged_wiki(root, slug, ref)[1]   # the cheap check first: a game without its page must not cost a copy and a screenshot (up to 300 s) every night, twice a night
+        if why:
+            failed.append((r, why))
+            continue
         for src, rel in files:
             blob = subprocess.run(["git", "-C", root, "show", f"{ref}:{src}"], capture_output=True)
             if blob.returncode:
@@ -1766,20 +1975,29 @@ def stage_games(root, clone, items, ref="origin/main"):
 GAMES_META = "site/games-meta.json"
 
 
+def merged_wiki(root, slug, ref="origin/main"):
+    """(the page's data, "") when the game's wiki page is on `ref` and passes `wiki --check`'s rules; (None, why) when it is missing or not sound: the first thing `publish` needs
+    and the cheap one (no engine, no pictures), so `publish --dry-run` can say which games it would refuse."""
+    blob = subprocess.run(["git", "-C", root, "show", f"{ref}:{wiki_file(slug)}"], capture_output=True)
+    if blob.returncode:
+        return None, f"no wiki page ({wiki_file(slug)} is not on main)"
+    try:
+        data = json.loads(blob.stdout)
+    except ValueError as e:
+        return None, f"its wiki page is not valid JSON: {e}"
+    bad = wiki_check(data)
+    if bad:
+        return None, "its wiki page is incomplete: " + "; ".join(bad[:3])
+    return data, ""
+
+
 def build_wiki(root, clone, r, entry, ref="origin/main"):
     """The game's wiki page for RedEngineGames: its agent's data from `ref`, every `shot` drawn by the engine into `site/wiki/<slug>/`, then RedEngineGames' own `site/wiki.py` as the judge.
     Returns "" when the page is in the clone, else why the game cannot be published yet (a game without a complete page is not listed: the site refuses it)."""
     slug, kind = r["slug"], r.get("kind", "2d")
-    blob = subprocess.run(["git", "-C", root, "show", f"{ref}:{wiki_file(slug)}"], capture_output=True)
-    if blob.returncode:
-        return f"no wiki page ({wiki_file(slug)} is not on main)"
-    try:
-        data = json.loads(blob.stdout)
-    except ValueError as e:
-        return f"its wiki page is not valid JSON: {e}"
-    bad = wiki_problems(data)
-    if bad:
-        return "its wiki page is incomplete: " + "; ".join(bad[:3])
+    data, why = merged_wiki(root, slug, ref)
+    if why:
+        return why
     scene, folder = playable_scene(clone, entry), os.path.join(clone, "site", "wiki", slug)
     shutil.rmtree(folder, ignore_errors=True)
     seen = set()
@@ -1840,16 +2058,132 @@ def push_games(clone, message):
     raise RuntimeError(f"the push was rejected {PUBLISH_PUSH_TRIES} times: " + last[-200:])
 
 
+def same_run(x, r):
+    """Are two ledger rows the same run? (a run is its idea code, slug and kind)"""
+    return isinstance(x, dict) and x.get("code") == r.get("code") and x.get("slug") == r.get("slug") and x.get("kind", "2d") == r.get("kind", "2d")
+
+
+def iso_date(value, default):
+    """`value` when it is a YYYY-MM-DD date string, else `default`."""
+    try:
+        return datetime.date.fromisoformat(value).isoformat()
+    except (TypeError, ValueError):
+        return default
+
+
+def record_publish_blocks(blocked, today=None, unknown=()):
+    """Write into the ledger why each merged game could not be published: `publish_blocked: {reason, since, last}` on its run. `since` is when the game started waiting: kept while it stays
+    blocked, else the run's own date (it was shipped that day and merged soon after: the first night this code looked is not when the wait began). `blocked` is [(row, why)] of this run of
+    `publish`, which looked at every merged unpublished game, so any other run loses its entry (it published, was listed by hand, or is no longer on main) EXCEPT the rows in `unknown`,
+    the ones git could not be asked about: a failed lookup says nothing, so their entries stay. `unpublished_games` and the feedback inbox read this: a game that cannot publish must never
+    wait in silence (2026-10-19: four merged games did)."""
+    today = today or datetime.date.today().isoformat()
+    st = load_state()
+    for x in ledger_rows(st["runs"]):
+        hit = [why for r, why in blocked if same_run(x, r)]
+        if hit:
+            x["publish_blocked"] = {"reason": hit[0], "since": (x.get("publish_blocked") or {}).get("since") or iso_date(x.get("date"), today), "last": today}
+        elif not any(same_run(x, r) for r in unknown):
+            x.pop("publish_blocked", None)
+    save_state(st)
+
+
+STRANDED_DAYS = 2   # a run that built a game and was never shipped counts as stranded once it is older than this
+
+
+def ledger_rows(runs):
+    """The ledger rows that are dicts. A hand-edited or damaged ledger (`[]`, `"x"` or `null` among the runs, or `runs` not a list at all) must not stop a reader: such a row is skipped."""
+    return [r for r in runs if isinstance(r, dict)] if isinstance(runs, list) else []
+
+
+def row_slug(r):
+    """A row's slug when it has a usable one, else "" (a row without one cannot be named, so the readers skip it)."""
+    slug = r.get("slug")
+    return slug if isinstance(slug, str) else ""
+
+
+def unpublished_games(runs=None):
+    """The merged games `publish` could not publish, from the ledger (None runs: this machine's ledger; nothing when it has none): [{slug, kind, pr, reason, since, last}], oldest first."""
+    runs = ledger_runs() if runs is None else runs
+    out = []
+    for r in ledger_rows(runs):
+        b, slug = r.get("publish_blocked"), row_slug(r)
+        if slug and isinstance(b, dict) and r.get("status") == "shipped" and not r.get("feedback_only") and not r.get("published"):
+            out.append({"slug": slug, "kind": str(r.get("kind", "2d")), "pr": str(r.get("pr", "")), "reason": str(b.get("reason", "")), "since": str(b.get("since", "")), "last": str(b.get("last", ""))})
+    return sorted(out, key=lambda g: (g["since"], g["slug"]))
+
+
+def held_prs(runs=None):
+    """The game PRs `settle` holds because the PR has no wiki page for its game, from the ledger: [{slug, kind, pr, date}], oldest first. (A PR held on purpose, by `ship --hold` or the off switch,
+    is not listed: someone chose that.)"""
+    runs = ledger_runs() if runs is None else runs
+    out = []
+    for r in ledger_rows(runs):
+        slug = row_slug(r)
+        if slug and r.get("status") == "shipped" and r.get("merge") == "held-no-wiki":
+            out.append({"slug": slug, "kind": str(r.get("kind", "2d")), "pr": str(r.get("pr", "")), "date": str(r.get("date", ""))})
+    return sorted(out, key=lambda g: (g["date"], g["slug"]))
+
+
+def stranded_runs(runs=None, today=None):
+    """The runs that built a game and were never shipped (status `built`) for more than STRANDED_DAYS, each with what `ship` would refuse today: [{slug, kind, date, days, reason}], oldest first.
+    Read only: the worktree is looked at, never changed."""
+    runs = ledger_runs() if runs is None else runs
+    today = datetime.date.fromisoformat(today) if isinstance(today, str) else (today or datetime.date.today())
+    out = []
+    for r in ledger_rows(runs):
+        slug = row_slug(r)
+        if not slug or r.get("status") != "built":
+            continue
+        try:
+            days = (today - datetime.date.fromisoformat(r["date"])).days
+        except (KeyError, ValueError, TypeError):
+            continue
+        if days <= STRANDED_DAYS:
+            continue
+        try:
+            reasons = ship_problems(r, hints=False)
+        except Exception as e:   # a half-removed worktree (or a row missing a field) must not stop the report
+            reasons = [f"could not be checked: {e}"]
+        why = "; ".join(" ".join(x.split()) for x in reasons) or "nothing blocks it now: it is ready to ship"
+        if r.get("feedback_pr"):
+            why += f" (its feedback is already on its own PR: {r['feedback_pr']})"
+        out.append({"slug": slug, "kind": str(r.get("kind", "2d")), "date": r["date"], "days": days, "worktree": str(r.get("worktree") or ""), "reason": why})
+    return sorted(out, key=lambda g: (g["date"], g["slug"]))
+
+
+def stuck_lines(runs=None, today=None):
+    """What the Idea Forge made that no player can have yet, as log lines (the night's last lines print them; [] when nothing is stuck)."""
+    out = [f"stuck: {g['kind']} {g['slug']} is merged ({g['pr']}) but NOT published since {g['since']}: {g['reason']}" for g in unpublished_games(runs)]
+    out += [f"stuck: {g['kind']} {g['slug']} built {g['days']} days ago ({g['date']}) and was never shipped (worktree {g['worktree'] or 'none'}); ship would refuse: {g['reason']}" for g in stranded_runs(runs, today)]
+    return out
+
+
 def publish_games(root=None, dry_run=False):
     """Put every merged, unpublished game into RedEngineGames: its files under projects/<slug>/ and an entry in `.release-games.json`, which is all RedEngineGames needs to build a
     Windows installer, cut a release and list the game on its site. One commit to main for all of them. Returns the published slugs. Never raises: the night goes on."""
     root = root or ROOT
     try:
         subprocess.run(["git", "-C", root, "fetch", "-q", "origin", "main"], capture_output=True)
-        items = publishable(root)
+        unknown = []
+        items = publishable(root, unknown=unknown)
         if dry_run:
+            clone, have = None, set()
+            if items:
+                try:   # a real run skips a game RedEngineGames already lists (and records it as published), whatever its page says: look, as a real run would (this tool's own scratch clone is refreshed)
+                    clone = games_checkout()
+                    have = {p["slug"] for p in json.loads(rd(os.path.join(clone, GAMES_MANIFEST))).get("data_playables", [])}
+                except (Exception, SystemExit):
+                    clone, have = None, set()
             for r, files in items:
-                print(f"publish: would publish {r.get('kind', '2d')} {r['slug']} ({len(files)} file(s)) and draw its screenshot")
+                kind, slug = r.get("kind", "2d"), r["slug"]
+                why = merged_wiki(root, slug)[1]   # the cheap check; a real run also draws every picture
+                if clone and (slug in have or os.path.exists(os.path.join(clone, "projects", slug))):
+                    print(f"publish: would skip {kind} {slug}: projects/{slug} already exists in RedEngineGames (a real run records it as published)")
+                elif why:
+                    print(f"publish: would NOT publish {kind} {slug}: {why}" + ("" if clone else " (unless RedEngineGames already lists it: a real run skips such a game; it could not be asked)"))
+                else:
+                    print(f"publish: would publish {kind} {slug} ({len(files)} file(s)) and draw its screenshot")
             print("publish: (a real run also draws the screenshot of any listed game that has none)" if items else "publish: no new game (a real run still draws any missing screenshot)")
             return []
         clone = games_checkout()
@@ -1858,11 +2192,14 @@ def publish_games(root=None, dry_run=False):
             print(f"publish: {r['slug']}: not published, {why}")
         st = load_state()
         for r, why in skipped:   # published by hand already: record it so it is not asked about again
-            for x in st["runs"]:
-                if x["code"] == r["code"] and x["slug"] == r["slug"] and x.get("kind", "2d") == r.get("kind", "2d"):
+            for x in ledger_rows(st["runs"]):
+                if same_run(x, r):
                     x["published"] = {"note": why}
             print(f"publish: {r['slug']}: {why}")
         save_state(st)
+        record_publish_blocks(failed, unknown=unknown)
+        if failed:
+            print(f"publish: NOT published, merged and waiting: {', '.join(r['slug'] for r, _ in failed)} (the reason is in the ledger as publish_blocked, and in the feedback inbox: `scripts/feedback.py digest`)")
         made, missing = fill_thumbnails(root, clone)   # every listed game has a screenshot: the older ones that lack one get theirs in the same commit
         if missing:
             print(f"publish: no screenshot could be drawn for: {', '.join(missing)}")
@@ -1876,9 +2213,10 @@ def publish_games(root=None, dry_run=False):
                                 (f"\n\nScreenshots drawn by the engine for: {', '.join(made)}." if made else "") + "\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
         st = load_state()
         for r in staged:
-            for x in st["runs"]:
-                if x["code"] == r["code"] and x["slug"] == r["slug"] and x.get("kind", "2d") == r.get("kind", "2d"):
+            for x in ledger_rows(st["runs"]):
+                if same_run(x, r):
                     x["published"] = {"commit": sha, "date": datetime.date.today().isoformat()}
+                    x.pop("publish_blocked", None)
         save_state(st)
         print(f"publish: published {', '.join(r['slug'] for r in staged) or 'nothing new'}" + (f", screenshots for {', '.join(made)}" if made else "") + f" to {GAMES_REPO} ({sha})")
         return [r["slug"] for r in staged]
@@ -2107,6 +2445,15 @@ def free_gb():
     return shutil.disk_usage(os.path.expanduser("~")).free / 2**30
 
 
+def safe_stuck_lines():
+    """`stuck_lines()` for the night's last lines, which can never stop a night: a ledger it cannot make sense of costs one warning line, not the night's record."""
+    try:
+        return stuck_lines()
+    except Exception as e:
+        print(f"warning: could not list what is stuck ({type(e).__name__}: {e}); the night goes on")
+        return []
+
+
 def cmd_nightly(a):
     """The whole night, under one lock and strictly one agent at a time: today's games (feedback always delivered), then one engine improvement from the backlog they fed."""
     date = a.date or datetime.date.today().isoformat()
@@ -2149,15 +2496,30 @@ def cmd_nightly(a):
             ns = argparse.Namespace(**vars(a))
             ns.budget, ns.timeout_min, ns.key = a.improve_budget, a.improve_timeout_min, None
             result = do_improve(ns)
-        merged, published = [], []
+        merged, published, held = [], [], []
         if not a.dry_run:
-            merged = [pr["url"] for pr, verdict, _ in settle(a.settle_timeout_min) if verdict == "merged"]
+            settled = settle(a.settle_timeout_min)
+            merged = [pr["url"] for pr, verdict, _ in settled if verdict == "merged"]
+            held = [(pr["url"], detail) for pr, verdict, detail in settled if verdict == "held"]
             published = publish_games() if publish_ok else []   # tonight's games, merged just now
             print("feedback note for the nightly maintenance job: " + export_feedback_note())
+        stuck = [] if a.dry_run else safe_stuck_lines()
         st = load_state()
+        review = [] if a.dry_run else [(k, v.get("detail", "")) for k, v in st.get("days", {}).get(date, {}).get("slots", {}).items() if v.get("status") == "review"]
         st.setdefault("nights", {})[date] = {"games_failed": failed, "improve": result[0], "detail": str(result[1])[:300], "merged": merged, "published": published, "at": round(time.time())}
+        if held:
+            st["nights"][date]["held"] = [url for url, _ in held]
+        if stuck:
+            st["nights"][date]["stuck"] = len(stuck)
         save_state(st)
-        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}; merged {len(merged)} PR(s)" + (f"; published {len(published)} game(s)" if not a.dry_run else ""))
+        print(f"{date}: nightly done: games failed {failed}; improvement {result[0]}; merged {len(merged)} PR(s)" + (f"; published {len(published)} game(s)" if not a.dry_run else "") +
+              (f"; HELD {len(held)} PR(s)" if held else "") + (f"; {len(review)} game(s) NOT shipped" if review else "") + (f"; {len(stuck)} stuck (below)" if stuck else ""))
+        for url, why in held:
+            print(f"held: {url}: {why}")
+        for k, detail in review:
+            print(f"stuck: the {k} game of {date} was built but NOT shipped: {detail}")
+        for line in stuck:
+            print(line)
         sys.exit(0)
 
 
@@ -2298,14 +2660,18 @@ def cmd_schedule(a):
 # ---- ledger and digest -------------------------------------------------------------------------------------------------------------------------------
 
 def cmd_ledger(a):
-    runs = load_state()["runs"]
+    runs = ledger_rows(load_state()["runs"])
     if not runs:
         print("no runs yet: `idea_forge.py run`")
     for r in runs:
-        print(f"{r['date']}  {r.get('kind', '2d')}  {r['code']:010d}  {r['slug']:<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')} {r.get('merge', '')}{' published' if r.get('published') else ''}")
+        code = r.get("code") if isinstance(r.get("code"), int) else 0
+        print(f"{r.get('date', '?')}  {r.get('kind', '2d')}  {code:010d}  {row_slug(r) or '?':<28} {r.get('status', '?'):<10} {r.get('minutes', '-'):>5} min  notes {r.get('notes', '-')}  feedback {'ok' if r.get('feedback_ok') else 'no'}  {r.get('pr', '')} {r.get('merge', '')}{' published' if r.get('published') else ''}" +
+              (f"  NOT PUBLISHED since {r['publish_blocked'].get('since', '?')}: {r['publish_blocked'].get('reason', '')}" if isinstance(r.get("publish_blocked"), dict) and not r.get("published") else "") +
+              (f"  feedback PR {r['feedback_pr']} {r.get('feedback_merge', '')}".rstrip() if r.get("feedback_pr") else ""))
 
 
-def collect_findings(directory):
+def collect_findings(directory, skipped=None):
+    """The findings of every feedback file in `directory`; a file with a missing or malformed findings block is skipped, and named in `skipped` (a list of (name, why)) when one is given."""
     rows = []
     for name in sorted(os.listdir(directory)) if os.path.isdir(directory) else []:
         if not name.endswith(".md") or name.startswith("DIGEST"):
@@ -2313,9 +2679,17 @@ def collect_findings(directory):
         try:
             for f in read_findings(rd(os.path.join(directory, name))):
                 rows.append(dict(f, run=name[:-3]))
-        except ValueError:
-            continue
+        except ValueError as e:
+            if skipped is not None:
+                skipped.append((name, str(e)))
     return rows
+
+
+def skipped_line(skipped):
+    """One line naming the feedback files the backlog could not read ('' when there are none): a malformed note is skipped, never invisible."""
+    if not skipped:
+        return ""
+    return f"SKIPPED {len(skipped)} feedback file(s) with a missing or malformed findings block, so none of their findings are ranked: " + "; ".join(f"{n} ({w})" for n, w in skipped) + "."
 
 
 def kind_of(run_name):
@@ -2323,8 +2697,10 @@ def kind_of(run_name):
     return "3d" if re.match(r"\d{4}-\d{2}-\d{2}-3d-", run_name) else "2d"
 
 
-def digest_text(rows):
+def digest_text(rows, skipped=None):
     """Findings from every run grouped by area, ranked by (severity, minutes, how many runs hit it): the engine backlog this loop produces."""
+    if skipped:
+        return digest_text(rows) + "\n" + skipped_line(skipped) + "\n"
     if not rows:
         return "No feedback files yet.\n"
     runs = sorted({r["run"] for r in rows})
@@ -2348,7 +2724,8 @@ def digest_text(rows):
 
 def cmd_digest(a):
     directory = os.path.join(ROOT, FEEDBACK_DIR)
-    text = digest_text(collect_findings(directory))
+    skipped = []
+    text = digest_text(collect_findings(directory, skipped), skipped)
     if a.write:
         os.makedirs(directory, exist_ok=True)
         wr(os.path.join(directory, "DIGEST.md"), text)
@@ -2413,7 +2790,7 @@ def main(argv=None):
     s.add_argument("--run")
     s.set_defaults(f=cmd_wiki)
 
-    s = sub.add_parser("ship")
+    s = sub.add_parser("ship", help="commit the game, its wiki page and its feedback, push, open a PR (refused, with the reason, when the page is missing or fails `wiki --check`)")
     s.add_argument("run", help="the slug, kind/slug or worktree of a run in the ledger")
     s.add_argument("--no-push", action="store_true")
     s.add_argument("--keep", action="store_true", help="keep the worktree after shipping (default: archive the run's notes and transcript, then remove it)")
