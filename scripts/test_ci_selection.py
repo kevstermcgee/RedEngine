@@ -168,6 +168,13 @@ class WhichJobs(unittest.TestCase):
         self.assertJobs(["examples/x/x.json", "games-publish.json", "pages/x/wiki.json"], native=True, docker=True, pytools=True)
         self.assertFalse(self.docs_only)
 
+    def test_a_feedback_note_is_checked_by_the_python_job_and_rides_with_a_game(self):
+        # A note alone is game data, like an Idea Forge run's feedback-only pull request; scripts/test_feedback.py holds it to the format.
+        self.assertJobs(["docs/feedback/2026-10-20-meastwood13-snake.md"], False, False, True, games_only=True)
+        # Sent with a generated 2D game, it keeps the pull request on the fast games path.
+        self.fresh()
+        self.assertJobs(["examples/2d/snake.game2d.json", "docs/feedback/2026-10-20-meastwood13-snake.md"], False, False, True, games_only=True)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
