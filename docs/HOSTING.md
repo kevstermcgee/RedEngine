@@ -77,6 +77,27 @@ key with punctuation cannot go in a short code, so friends use the direct code).
 * Design and the options not taken: `docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md`. Proof: `tests/net_join_flow.rs` (host, short-code join, several
   joiners, wrong / missing / expired codes, direct join, reconnect, host leaving, transport failures).
 
+### What a joiner and a host can count on (ADR 2026-10-20-join-by-short-code-survives-a-wrong-map-and-a-slow-relay)
+
+* **JOIN never freezes the window.** Looking the code up, asking the relay and connecting run on a worker thread (`net::join_task::JoinTask`); the screen says what it is doing
+  and has a CANCEL button. **HOST never freezes it either**: the relay and the router are asked on threads of their own, and the lobby says "connecting to the relay..." until they answer.
+* **Every map is a fresh attempt.** The host plays one map and a joiner must hold the same file, so the maps are tried in turn (the one that worked with this code last time
+  first), each with a new claim from the relay on a new socket (a claim is used once). A host that matches none is told so.
+* **A lost datagram costs a fraction of a second.** `Resolve` is sent four times inside its five seconds and the first answer wins; the `Claim` is repeated while the handshake runs. Both are
+  safe to repeat (the relay gives every `Resolve` its own token and ignores a `Claim` that names a token it already used), and the wire is unchanged: a release 4 client and the deployed relay
+  need nothing new.
+* **A failure says which of these it was**, in words, with what to do next: the relay's name does not resolve (DNS), the relay is switched off (its machine answers that nothing listens),
+  the relay does not answer (down, or this network blocks UDP), the code is not live (mistyped, or the host left or restarted), the host does not answer (asked twice), or the host
+  refused (a wrong key, a full match, a different map, a different **protocol**). A version refusal says what this copy is (`release 4, protocol 17`) and that both players need the newest
+  release; the wire carries no more than the reason, so it cannot say which side is behind. The home screen and the lobby show the same line.
+* **A host's code follows the relay.** A relay that restarts has forgotten every host; the host's next keepalive is answered with a new code, which the lobby shows (with a line saying it
+  changed). A relay that is down when the game starts is asked again every twenty seconds. The lobby lists every code (online, direct, same network) in full, wrapped, in its own case,
+  each with a COPY button; the router's "did not open the port" line only appears when there is no online code.
+* **Pasting is forgiving.** A label in front of a code (`from anywhere (needs UDP 27015 forwarded):`), white space, a trailing newline, `SHA256:` in capitals and a whole file of codes are
+  all fine: JOIN finds the code (`net::join_code::extract_code`). JOIN remembers the last three games that worked (in the player's own `stats.json`, key included, nowhere else) and offers them as
+  one-click REJOIN buttons.
+* Known limits, not fixed here: QUIC over UDP only (a network that drops UDP cannot join; there is no TCP fallback), and a relay is one machine at one home address.
+
 ## Networking
 
 * Allow **UDP** 27015 in the machine's firewall (`ufw allow 27015/udp`) and, in the cloud, the provider's security group.

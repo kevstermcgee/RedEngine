@@ -27,7 +27,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 /// ALPN protocol id: a QUIC client for anything else is refused during the TLS handshake.
@@ -509,6 +509,16 @@ impl Drop for QuicServer {
 /// Set once if the server's certificate verification itself fails, distinct from a connection merely dropping.
 type IdentityFailure = Arc<Mutex<Option<String>>>;
 
+/// When [`QuicClient::connect_claiming`] repeats its `Claim` while the handshake is still going, in milliseconds after the first one. The datagram is
+/// sent from the same socket every time and the repeats stop as soon as the handshake ends (it succeeded, or failed): a claim that was lost (or sent
+/// before the relay's NAT mapping existed) would otherwise leave the handshake talking to a relay that has paired nobody, and it would time out.
+///
+/// Repeating is safe, which is why the original single `Claim` did not need to be single. The relay keeps a claim token until the first `Claim` that
+/// names it arrives and forgets it then: a second one finds nothing and is ignored. Once the address is paired, the relay forwards whatever else that
+/// address sends as opaque bytes to the host, whose game server drops a 9-byte datagram that is no QUIC packet (the claim's first byte, `6`, has the
+/// fixed bit of a QUIC header clear). `tests/net_join_flow.rs` repeats claims after pairing and shows the handshake and the traffic after it are unharmed.
+pub const CLAIM_REPEATS_MS: [u64; 6] = [250, 600, 1100, 1800, 2700, 3800];
+
 /// The production client transport. See the module docs.
 pub struct QuicClient {
     rt: Option<tokio::runtime::Runtime>,
@@ -521,6 +531,8 @@ pub struct QuicClient {
     identity_failure: IdentityFailure,
     /// A handshake task is running (so `reconnect` does not start a second one).
     handshaking: Arc<std::sync::atomic::AtomicBool>,
+    /// The client was closed (the thread that repeats a relay claim stops looking at `handshaking`).
+    closing: Arc<std::sync::atomic::AtomicBool>,
     shared: Arc<ServerShared>,
     rx: mpsc::Receiver<Inbound>,
     tx: mpsc::Sender<Inbound>,
@@ -543,16 +555,40 @@ impl QuicClient {
     /// only when `server` is a relay (`net::relay_server`): the relay cannot know in advance which local port a
     /// client's QUIC handshake will use, so a client claims its pending resolution explicitly, from that very
     /// socket — see `net::relay`'s module doc for why a public IP alone cannot tell two players apart.
+    ///
+    /// The claim is repeated on the schedule [`CLAIM_REPEATS_MS`] until the handshake ends, one way or the other (see there for why that is safe).
     pub fn connect_claiming(server: SocketAddr, server_name: &str, trust: ServerTrust, claim: &[u8]) -> io::Result<QuicClient> {
         let (rt, config, failure) = Self::prepare(trust)?;
         let socket = std::net::UdpSocket::bind(super::client::local_bind_for(server))?;
         socket.send_to(claim, server)?;
+        // The same socket (the same local port) for the repeats: the relay pairs the address the claim came from.
+        let repeater = socket.try_clone()?;
         let endpoint = {
             let _g = rt.enter();
             let async_rt = quinn::default_runtime().ok_or_else(|| io::Error::other("no async runtime found"))?;
             Endpoint::new(quinn::EndpointConfig::default(), None, socket, async_rt)?
         };
-        Ok(Self::finish(rt, endpoint, config, server, server_name, failure))
+        let client = Self::finish(rt, endpoint, config, server, server_name, failure);
+        let (claim, handshaking, closing) = (claim.to_vec(), client.handshaking.clone(), client.closing.clone());
+        let spawned = std::thread::Builder::new().name("red-claim-repeat".into()).spawn(move || {
+            let started = Instant::now();
+            for at in CLAIM_REPEATS_MS {
+                let due = started + Duration::from_millis(at);
+                while Instant::now() < due {
+                    if !handshaking.load(Ordering::Acquire) || closing.load(Ordering::Acquire) {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                if !handshaking.load(Ordering::Acquire) || closing.load(Ordering::Acquire) {
+                    return;
+                }
+                let _ = repeater.send_to(&claim, server);
+            }
+        });
+        // No thread, no repeats: the first claim has been sent and the handshake goes on as before.
+        drop(spawned);
+        Ok(client)
     }
 
     /// The TLS/transport setup shared by [`connect`](Self::connect) and
@@ -599,6 +635,7 @@ impl QuicClient {
             status: Arc::new(Mutex::new(TransportStatus::Connecting)),
             identity_failure: failure,
             handshaking: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            closing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             shared: Arc::new(ServerShared {
                 conns: Mutex::new(HashMap::new()),
                 closed: Mutex::new(Vec::new()),
@@ -714,6 +751,7 @@ impl ClientTransport for QuicClient {
         self.start();
     }
     fn close(&mut self) {
+        self.closing.store(true, Ordering::Release);
         if let Some(c) = lock(&self.conn).take() {
             c.close(VarInt::from_u32(0), b"bye");
         }
@@ -737,7 +775,6 @@ impl Drop for QuicClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
 
     fn wait<T>(what: &str, mut f: impl FnMut() -> Option<T>) -> T {
         let t0 = Instant::now();
@@ -804,5 +841,45 @@ mod tests {
         client.reconnect();
         assert!(matches!(client.status(), TransportStatus::Failed(_)), "a failed identity is not retried");
         assert!(client.send(b"x").is_err());
+    }
+    #[test]
+    fn a_relay_claim_is_repeated_until_the_handshake_ends_and_every_copy_is_the_same_nine_bytes() {
+        // The server here is only a socket that writes down what arrives. The claim must be the first thing on the wire (before any QUIC byte), it is
+        // repeated from the same socket while the handshake is not done, each copy exactly the bytes the deployed relay has always been sent, and a
+        // closed client stops sending it.
+        let claim = super::super::relay::RelayMessage::Claim { token: [1, 2, 3, 4, 5, 6, 7, 8] }.encode();
+        assert_eq!((claim.len(), claim[0]), (9, 6), "the wire format the deployed relay reads");
+        let fake = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        fake.set_read_timeout(Some(Duration::from_millis(50))).unwrap();
+        let id = ServerIdentity::generate(&["localhost".into()]).unwrap().identity;
+        let client =
+            QuicClient::connect_claiming(fake.local_addr().unwrap(), "localhost", ServerTrust::fingerprint(&id.fingerprint()).unwrap(), &claim).unwrap();
+        let (mut first, mut from, mut claims, mut other) = (None, None, 0, 0);
+        let mut buf = [0u8; 2048];
+        let end = Instant::now() + Duration::from_millis(1500);
+        while Instant::now() < end {
+            if let Ok((n, src)) = fake.recv_from(&mut buf) {
+                first.get_or_insert_with(|| buf[..n].to_vec());
+                if buf[..n] == claim[..] {
+                    claims += 1;
+                    assert!(from.is_none_or(|f| f == src), "every copy comes from the one socket the handshake uses");
+                    from = Some(src);
+                } else {
+                    other += 1;
+                }
+            }
+        }
+        assert_eq!(first.as_deref(), Some(&claim[..]), "the claim is the first datagram");
+        assert!(claims >= 3, "the claim was repeated: {claims} copies in 1.5 s");
+        assert!(other >= 1, "the handshake's own packets went to the same place ({other})");
+        drop(client); // closing stops the repeats
+        std::thread::sleep(Duration::from_millis(100));
+        while fake.recv_from(&mut buf).is_ok() {}
+        let quiet = Instant::now() + Duration::from_millis(1500);
+        while Instant::now() < quiet {
+            if let Ok((n, _)) = fake.recv_from(&mut buf) {
+                assert_ne!(buf[..n], claim[..], "a closed client does not keep claiming");
+            }
+        }
     }
 }

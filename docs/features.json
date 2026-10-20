@@ -135,8 +135,8 @@
     "net_client": {
       "summary": "Client handshake, prediction and reconciliation, interpolation with bounded extrapolation, the headless bot, the graphical client's session glue; `red_bot`.",
       "files": ["crates/red_core/src/net/client.rs", "crates/red_core/src/net/game_view.rs", "crates/red_core/src/net/interp.rs", "src/net/predict.rs", "crates/red_core/src/net/happenings.rs", "src/avatar.rs", "src/net/session.rs", "src/net/bot.rs", "src/net/testkit.rs", "src/bin/red_bot.rs", "src/net/memnet.rs", "crates/red_core/src/net/join_code.rs",
-      "src/net/join.rs", "src/bin/red_relay.rs", "crates/red_core/src/net/relay.rs", "crates/red_core/src/net/relay_server.rs"],
-      "tests": ["lib:net::predict", "lib:net::session", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim", "net_join_flow"],
+      "src/net/join.rs", "src/net/join_task.rs", "src/bin/red_relay.rs", "crates/red_core/src/net/relay.rs", "crates/red_core/src/net/relay_server.rs", "crates/red_core/src/net/relay_server/tests.rs"],
+      "tests": ["lib:net::predict", "lib:net::session", "lib:net::join", "net_e2e", "net_flow", "net_auth", "net_rule_state", "net_sim", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile all"],
       "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0034-net-test-and-bad-network-resilience.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport"]

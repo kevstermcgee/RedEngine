@@ -6,6 +6,7 @@
 use super::join_code::JoinCode;
 use super::map_hash;
 use super::quic::{QuicServer, QuicServerOptions, ServerIdentity};
+use super::relay_server::RegisterTiming;
 use super::server::{raise_timer_resolution, Server, ServerConfig};
 use crate::sim::flow::MatchSettings;
 use crate::sim::interest::InterestMap;
@@ -16,6 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 /// What to host.
 #[derive(Debug, Clone)]
@@ -53,6 +55,9 @@ pub struct PublicOptions {
     pub port: u16,
     /// Ask the home router to open the port (UPnP).
     pub upnp: bool,
+    /// Ask this gateway instead of searching the network for one (`portmap::Options::router`): a test points it at the loopback so asking opens nothing
+    /// on any real router. `None` (what HOST uses) searches.
+    pub upnp_router: Option<IpAddr>,
     /// A join key friends must also know (`None` = none). Never sent over the network: clients prove they know it inside the handshake.
     pub key: Option<String>,
     /// Register with a `red_relay` (docs/HOSTING.md) at this `HOST:PORT` instead of relying on UPnP/port
@@ -68,7 +73,15 @@ impl PublicOptions {
     /// identity between runs so the fingerprint friends pin stays the same. `Err` only if the OS random number generator fails: a host
     /// without a key would be open to anyone holding its code, so it does not start instead.
     pub fn for_friends(identity_dir: PathBuf, relay: Option<String>) -> Result<PublicOptions, String> {
-        Ok(PublicOptions { bind: None, identity_dir, port: super::DEFAULT_PORT, upnp: true, key: Some(super::relay::generate_join_key()?), relay })
+        Ok(PublicOptions {
+            bind: None,
+            identity_dir,
+            port: super::DEFAULT_PORT,
+            upnp: true,
+            upnp_router: None,
+            key: Some(super::relay::generate_join_key()?),
+            relay,
+        })
     }
 }
 
@@ -96,10 +109,11 @@ pub struct LocalHost {
     thread: Option<JoinHandle<()>>,
     /// The identity fingerprint clients pin, when hosting over QUIC.
     fingerprint: Option<String>,
-    /// Addresses friends can try: the router's public one (when UPnP worked) first, then this machine's LAN address.
-    join_addresses: Vec<String>,
-    /// What UPnP said (a line for the screen), when it was asked.
-    upnp_note: Option<String>,
+    /// This machine's address on the local network (`HOST:PORT`): friends in the same house can join there.
+    lan_address: Option<String>,
+    /// The router's UPnP answer (the public address when it opened the port, or what went wrong), when it was asked. It is asked on a thread of its
+    /// own, because a router that never answers would otherwise keep the window frozen for seconds.
+    upnp: Arc<Mutex<UpnpState>>,
     key: Option<String>,
     keeper: Option<JoinHandle<()>>,
     /// Registration with the relay, when `PublicOptions::relay` was set. It runs on its own thread so a relay that
@@ -111,13 +125,55 @@ pub struct LocalHost {
 enum RelayState {
     /// No relay was asked for.
     Off,
-    /// The Register is in flight.
+    /// The first Register is in flight.
     Pending,
-    /// Registered: the short code, and the bridge that must live as long as the host (its forwarding threads hold
-    /// their own handles, but dropping it early would needlessly tear down a feature that looks unused).
-    Ready { code: String, _bridge: super::relay_server::HostBridge },
-    /// The relay did not answer, with a line for the screen.
+    /// Registered. The bridge must live as long as the host (its forwarding threads hold their own handles, but dropping it early would send the relay a
+    /// goodbye); it also knows the code the relay *currently* holds this host under, which a relay that restarted changes. `seen_changes` is how many
+    /// changes the lobby has been told about and `changed_at` when the last one happened.
+    Ready { bridge: super::relay_server::HostBridge, seen_changes: u32, changed_at: Option<Instant> },
+    /// The relay did not answer, with a line for the screen. The host keeps asking in the background ([`RELAY_RETRY_EVERY`]): a relay that is started
+    /// five minutes later still gives this game a code.
     Failed(String),
+}
+
+/// What the router said to UPnP.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum UpnpState {
+    /// UPnP was not asked for.
+    Off,
+    /// The router is being asked.
+    Pending,
+    /// The router opened the port: its public address (when it says), and a line about it (a warning when that address cannot be reached from outside).
+    Opened { public: Option<String>, note: String },
+    /// The router would not (or did not answer): the line for the screen.
+    Declined(String),
+}
+
+/// How long a host whose relay did not answer waits before it asks again.
+pub const RELAY_RETRY_EVERY: Duration = Duration::from_secs(20);
+/// How long the lobby keeps saying that the relay's code changed.
+const CODE_CHANGE_NOTICE: Duration = Duration::from_secs(90);
+
+/// How a code in [`LocalHost::share_entries`] reaches a friend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodeKind {
+    /// The relay's short code (with the join key): works from anywhere the relay can be reached.
+    Online,
+    /// The public address of the router when UPnP opened the port: works from anywhere, but only while that port stays open.
+    Direct,
+    /// This machine's address on the local network: only for friends in the same house.
+    SameNetwork,
+}
+
+/// One code to give friends, with what to say about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShareCode {
+    /// How it reaches a friend.
+    pub kind: CodeKind,
+    /// A few words for the screen.
+    pub label: &'static str,
+    /// The code itself, exactly as a friend must type or paste it: its case is part of it (a fingerprint and a key are), so a screen must never change it.
+    pub code: String,
 }
 
 impl LocalHost {
@@ -197,61 +253,31 @@ impl LocalHost {
         let bound = server.local_addr().map_err(|e| format!("cannot read the server address: {e}"))?;
         // A server bound to every interface is still reached from this machine by the loopback.
         let addr = SocketAddr::new(if bind.is_unspecified() { IpAddr::from([127, 0, 0, 1]) } else { bind }, bound.port());
-        // Friends: the router's public address when UPnP opens the port, and this machine's LAN address.
-        let mut join_addresses = Vec::new();
-        let mut upnp_note = None;
+        // Friends: the router's public address when UPnP opens the port (asked on its own thread), and this machine's LAN address.
+        let mut lan_address = None;
         let mut keeper = None;
+        let upnp = Arc::new(Mutex::new(UpnpState::Off));
         let stop = Arc::new(AtomicBool::new(false));
         if let Some(p) = public {
             if p.upnp {
-                let options = crate::net::portmap::Options { port: bound.port(), ..Default::default() };
-                match crate::net::portmap::Keeper::start(&options) {
-                    Ok((mut k, _report)) => {
-                        if let Some(a) = k.found().join_address(bound.port()) {
-                            join_addresses.push(a);
-                        }
-                        upnp_note = Some(match k.found().reachability_warning() {
-                            Some(w) => w,
-                            None => "the router opened the port for your friends".to_string(),
-                        });
-                        let flag = stop.clone();
-                        keeper = std::thread::Builder::new()
-                            .name("red-upnp".into())
-                            .spawn(move || {
-                                while !flag.load(Ordering::Relaxed) {
-                                    std::thread::sleep(std::time::Duration::from_millis(500));
-                                    k.tick();
-                                }
-                                k.stop();
-                            })
-                            .ok();
-                    }
-                    Err(e) => {
-                        upnp_note = Some(format!(
-                            "the router did not open the port ({e}); forward UDP {} to this PC, or friends on your network can still join",
-                            bound.port()
-                        ))
-                    }
+                *upnp.lock().unwrap_or_else(|e| e.into_inner()) = UpnpState::Pending;
+                let options = crate::net::portmap::Options { port: bound.port(), router: p.upnp_router, ..Default::default() };
+                keeper = spawn_upnp(options, stop.clone(), upnp.clone());
+                if keeper.is_none() {
+                    *upnp.lock().unwrap_or_else(|e| e.into_inner()) = UpnpState::Declined("could not ask the router (no thread to do it on)".to_string());
                 }
             }
             if let Some(lan) = super::upnp::local_ip_towards(IpAddr::from([8, 8, 8, 8])) {
-                join_addresses.push(format!("{lan}:{}", bound.port()));
+                lan_address = Some(format!("{lan}:{}", bound.port()));
             }
         }
         let relay_state = Arc::new(Mutex::new(RelayState::Off));
         if let Some(relay) = public.and_then(|p| p.relay.clone()) {
             *relay_state.lock().unwrap_or_else(|p| p.into_inner()) = RelayState::Pending;
             let (state, fp, stop) = (relay_state.clone(), fingerprint.clone(), stop.clone());
-            let spawned = std::thread::Builder::new().name("red-relay-register".into()).spawn(move || {
-                let outcome = match super::relay_server::HostBridge::start(&relay, addr, fp, stop) {
-                    Ok((bridge, code)) => RelayState::Ready { code: super::relay::code_to_string(&code), _bridge: bridge },
-                    Err(e) => {
-                        eprintln!("relay: '{relay}' did not answer: {e}");
-                        RelayState::Failed("NO ONLINE CODE: THE RELAY DID NOT ANSWER. THE ADDRESS BELOW STILL WORKS ON YOUR NETWORK".to_string())
-                    }
-                };
-                *state.lock().unwrap_or_else(|p| p.into_inner()) = outcome;
-            });
+            let spawned = std::thread::Builder::new()
+                .name("red-relay-register".into())
+                .spawn(move || register_with_relay(&relay, addr, fp, &stop, &state, RegisterTiming::default(), RELAY_RETRY_EVERY));
             if spawned.is_err() {
                 *relay_state.lock().unwrap_or_else(|p| p.into_inner()) = RelayState::Failed("NO ONLINE CODE: COULD NOT START THE RELAY LINK".to_string());
             }
@@ -260,7 +286,7 @@ impl LocalHost {
         let flag = stop.clone();
         let thread =
             std::thread::Builder::new().name("red-host".into()).spawn(move || server.run(&flag)).map_err(|e| format!("cannot start the server thread: {e}"))?;
-        Ok(LocalHost { addr, stop, pause, thread: Some(thread), fingerprint, join_addresses, upnp_note, key: cfg_key, keeper, relay: relay_state })
+        Ok(LocalHost { addr, stop, pause, thread: Some(thread), fingerprint, lan_address, upnp, key: cfg_key, keeper, relay: relay_state })
     }
 
     /// The identity fingerprint clients must pin (`sha256:<hex>`), when this host speaks QUIC.
@@ -268,22 +294,50 @@ impl LocalHost {
         self.fingerprint.as_deref()
     }
 
-    /// The join codes to give friends: the public address first (if the router opened the port), then the LAN one.
+    /// The direct join codes to give friends: the public address first (if the router opened the port), then the LAN one.
     pub fn join_codes(&self) -> Vec<JoinCode> {
-        self.join_addresses.iter().map(|a| JoinCode { address: a.clone(), fingerprint: self.fingerprint.clone(), key: self.key.clone() }).collect()
+        self.direct_addresses().into_iter().map(|(_, a)| JoinCode { address: a, fingerprint: self.fingerprint.clone(), key: self.key.clone() }).collect()
     }
 
-    /// What the router said about opening the port, for the screen.
-    pub fn upnp_note(&self) -> Option<&str> {
-        self.upnp_note.as_deref()
+    /// The addresses a direct code can name, best first, each with how far it reaches.
+    fn direct_addresses(&self) -> Vec<(CodeKind, String)> {
+        let mut out = Vec::new();
+        if let UpnpState::Opened { public: Some(a), .. } = &*self.upnp.lock().unwrap_or_else(|e| e.into_inner()) {
+            out.push((CodeKind::Direct, a.clone()));
+        }
+        out.extend(self.lan_address.iter().map(|a| (CodeKind::SameNetwork, a.clone())));
+        out
+    }
+
+    /// What the router said about opening the port, for the screen (`None` while it is still being asked, or when it was not).
+    pub fn upnp_note(&self) -> Option<String> {
+        match &*self.upnp.lock().unwrap_or_else(|e| e.into_inner()) {
+            UpnpState::Opened { note, .. } => Some(note.clone()),
+            UpnpState::Declined(note) => Some(note.clone()),
+            UpnpState::Off | UpnpState::Pending => None,
+        }
+    }
+
+    /// True while the router is being asked to open the port.
+    pub fn upnp_pending(&self) -> bool {
+        matches!(&*self.upnp.lock().unwrap_or_else(|e| e.into_inner()), UpnpState::Pending)
     }
 
     /// The six-character code the relay resolves (`PublicOptions::relay`, registered and accepted). This is the public half: friends are
     /// given [`share_codes`](Self::share_codes), which carry the admission key as well. `None` while registration is still in flight or after it failed.
+    /// It follows the relay: a relay that restarted has forgotten this host and hands out a new code at the next keepalive, which shows here.
     pub fn relay_code(&self) -> Option<String> {
         match &*self.relay.lock().unwrap_or_else(|p| p.into_inner()) {
-            RelayState::Ready { code, .. } => Some(code.clone()),
+            RelayState::Ready { bridge, .. } => Some(super::relay::code_to_string(&bridge.code())),
             _ => None,
+        }
+    }
+
+    /// How many times the relay has changed this host's code since it registered (`0` = never). A screen showing the code compares it with what it showed.
+    pub fn relay_code_changes(&self) -> u32 {
+        match &*self.relay.lock().unwrap_or_else(|p| p.into_inner()) {
+            RelayState::Ready { bridge, .. } => bridge.code_changes(),
+            _ => 0,
         }
     }
 
@@ -291,6 +345,12 @@ impl LocalHost {
     /// registering with a relay worked, then the direct codes (`HOST:PORT#sha256:...#key`) for friends on the same network or behind a
     /// forwarded port. Each one on its own is enough to join; none is joinable without the key this host requires.
     pub fn share_codes(&self) -> Vec<String> {
+        self.share_entries().into_iter().map(|e| e.code).collect()
+    }
+
+    /// [`share_codes`](Self::share_codes) with a label each, so a screen can say what every code is for. The text of a code is never to be altered
+    /// (not upper-cased, not cut): a fingerprint and a key are case-sensitive.
+    pub fn share_entries(&self) -> Vec<ShareCode> {
         // A key a short code cannot carry (punctuation) would make a code nobody could type back: leave the relay form out, the direct codes still work.
         let carriable = self.key.as_deref().is_none_or(super::relay::ShortJoin::can_carry);
         let relay = self
@@ -298,8 +358,14 @@ impl LocalHost {
             .as_deref()
             .and_then(super::relay::parse_code)
             .filter(|_| carriable)
-            .map(|code| super::relay::ShortJoin { code, key: self.key.clone() }.format());
-        relay.into_iter().chain(self.join_codes().iter().map(JoinCode::format)).collect()
+            .map(|code| super::relay::ShortJoin { code, key: self.key.clone() }.format())
+            .map(|code| ShareCode { kind: CodeKind::Online, label: "Online code (works from anywhere)", code });
+        let direct = self.direct_addresses().into_iter().map(|(kind, a)| ShareCode {
+            kind,
+            label: if kind == CodeKind::Direct { "Direct code (router port open)" } else { "Same network only" },
+            code: JoinCode { address: a, fingerprint: self.fingerprint.clone(), key: self.key.clone() }.format(),
+        });
+        relay.into_iter().chain(direct).collect()
     }
 
     /// What asking the relay said, when it was asked and did not succeed (a line for the screen).
@@ -310,9 +376,37 @@ impl LocalHost {
         }
     }
 
-    /// True while the relay has been asked and has not answered yet.
+    /// True while the relay has been asked for the first time and has not answered yet.
     pub fn relay_pending(&self) -> bool {
         matches!(&*self.relay.lock().unwrap_or_else(|p| p.into_inner()), RelayState::Pending)
+    }
+
+    /// The line the lobby shows the host about how friends can reach them, or `None` when there is nothing to say.
+    ///
+    /// While the relay is being asked: that it is. When it did not answer: that, and what the router said (the UPnP trouble is only worth the host's
+    /// attention then, because with a relay code friends do not need the router's port at all). When the relay changed the code: that, for a while.
+    /// With no relay at all (`RE2_RELAY=off`): what the router said.
+    pub fn lobby_notice(&self) -> Option<String> {
+        let upnp = self.upnp_note();
+        let mut relay = self.relay.lock().unwrap_or_else(|p| p.into_inner());
+        match &mut *relay {
+            RelayState::Off => upnp,
+            RelayState::Pending => Some("CONNECTING TO THE RELAY...".to_string()),
+            RelayState::Failed(note) => Some(match upnp {
+                Some(u) => format!("{note} {u}"),
+                None => note.clone(),
+            }),
+            RelayState::Ready { bridge, seen_changes, changed_at } => {
+                let changes = bridge.code_changes();
+                if changes != *seen_changes {
+                    *seen_changes = changes;
+                    *changed_at = Some(Instant::now());
+                }
+                changed_at
+                    .filter(|t| t.elapsed() < CODE_CHANGE_NOTICE)
+                    .map(|_| "THE ONLINE CODE CHANGED (THE RELAY WAS RESTARTED): FRIENDS NEED THE NEW ONE".to_string())
+            }
+        }
     }
 
     /// The transport settings a client on this machine joins with (pinned to this host's own identity over QUIC, or plain loopback UDP).
@@ -347,8 +441,15 @@ impl Drop for LocalHost {
     /// Stops the server (its clients are told) and waits for its thread.
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
+        // The router thread removes the mapping when it stops; a router that is still being asked (seconds) is not waited for, the thread finishes the job.
         if let Some(k) = self.keeper.take() {
-            let _ = k.join();
+            for _ in 0..200 {
+                if k.is_finished() {
+                    let _ = k.join();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
         if let Some(t) = self.thread.take() {
             // The server stops within a tick or two; if it somehow cannot (a blocked write), give up on it rather than hold the program open.
@@ -361,6 +462,105 @@ impl Drop for LocalHost {
             }
         }
     }
+}
+
+/// Registers with the relay on a thread of its own and keeps trying (every [`RELAY_RETRY_EVERY`]) until it works or the host stops: a relay that was down
+/// when the game started still gives it a code once it is up. `state` says where it stands.
+fn register_with_relay(
+    relay: &str,
+    addr: SocketAddr,
+    fingerprint: Option<String>,
+    stop: &Arc<AtomicBool>,
+    state: &Arc<Mutex<RelayState>>,
+    timing: RegisterTiming,
+    retry_every: Duration,
+) {
+    let set = |s: RelayState| *state.lock().unwrap_or_else(|p| p.into_inner()) = s;
+    loop {
+        match super::relay_server::HostBridge::start_with(relay, addr, fingerprint.clone(), stop.clone(), super::relay_server::DEFAULT_HOST_KEEPALIVE, timing) {
+            Ok((bridge, _code)) => {
+                set(RelayState::Ready { bridge, seen_changes: 0, changed_at: None });
+                return;
+            }
+            Err(e) => {
+                eprintln!("relay: '{relay}' did not answer: {e}");
+                set(RelayState::Failed(format!(
+                    "NO ONLINE CODE YET: THE RELAY DID NOT ANSWER. TRYING AGAIN EVERY {} S. THE ADDRESS BELOW STILL WORKS ON YOUR NETWORK.",
+                    retry_every.as_secs().max(1)
+                )));
+            }
+        }
+        let until = Instant::now() + retry_every;
+        while Instant::now() < until {
+            if stop.load(Ordering::Relaxed) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+    }
+}
+
+/// A port mapping the router opened: what a friend can be told about it, and the upkeep it needs while the game runs.
+trait PortMapping: Send {
+    /// The router's public `HOST:PORT` for this game (when it says) and a warning when that address cannot be reached from outside.
+    fn describe(&self, port: u16) -> (Option<String>, Option<String>);
+    /// Renews the lease when it is due.
+    fn tick(&mut self);
+    /// Removes the mapping.
+    fn stop(self: Box<Self>);
+}
+
+impl PortMapping for crate::net::portmap::Keeper {
+    fn describe(&self, port: u16) -> (Option<String>, Option<String>) {
+        (self.found().join_address(port), self.found().reachability_warning())
+    }
+    fn tick(&mut self) {
+        crate::net::portmap::Keeper::tick(self);
+    }
+    fn stop(self: Box<Self>) {
+        crate::net::portmap::Keeper::stop(*self);
+    }
+}
+
+/// Asks the router to open the port on a thread of its own, records the answer in `state`, then renews the mapping until `stop` and removes it.
+fn spawn_upnp(options: crate::net::portmap::Options, stop: Arc<AtomicBool>, state: Arc<Mutex<UpnpState>>) -> Option<JoinHandle<()>> {
+    let port = options.port;
+    let ask = move || -> Result<Box<dyn PortMapping>, String> {
+        crate::net::portmap::Keeper::start(&options).map(|(k, _report)| Box::new(k) as Box<dyn PortMapping>).map_err(|e| e.to_string())
+    };
+    spawn_upnp_with(ask, port, stop, state)
+}
+
+/// [`spawn_upnp`] with the asking given (a test asks nothing and answers as it likes).
+fn spawn_upnp_with(
+    ask: impl FnOnce() -> Result<Box<dyn PortMapping>, String> + Send + 'static,
+    port: u16,
+    stop: Arc<AtomicBool>,
+    state: Arc<Mutex<UpnpState>>,
+) -> Option<JoinHandle<()>> {
+    std::thread::Builder::new()
+        .name("red-upnp".into())
+        .spawn(move || {
+            let set = |s: UpnpState| *state.lock().unwrap_or_else(|p| p.into_inner()) = s;
+            match ask() {
+                Ok(mut mapping) => {
+                    let (public, warning) = mapping.describe(port);
+                    set(UpnpState::Opened { public, note: warning.unwrap_or_else(|| "the router opened the port for your friends".to_string()) });
+                    while !stop.load(Ordering::Relaxed) {
+                        std::thread::sleep(Duration::from_millis(500));
+                        mapping.tick();
+                    }
+                    mapping.stop();
+                }
+                Err(e) => set(UpnpState::Declined(format!(
+                    "the router did not open the port ({e}); forward UDP {port} to this PC, or friends on your network can still join"
+                ))),
+            }
+        })
+        .ok()
 }
 
 /// The host's saved identity (`cert.pem`, `key.pem` in `dir`), made on first use. A damaged pair is replaced: friends then need the new fingerprint.
@@ -443,6 +643,7 @@ mod tests {
             identity_dir: dir.clone(),
             port: 0,
             upnp: false,
+            upnp_router: None,
             key: Some("sesame".into()),
             relay: None,
         };
@@ -497,18 +698,29 @@ mod tests {
         let silent = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
         let dir = std::env::temp_dir().join(format!("re2_host_deadrelay_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let public = PublicOptions { identity_dir: dir.clone(), port: 0, upnp: false, key: None, relay: Some(silent.local_addr().unwrap().to_string()) };
+        let public = PublicOptions {
+            bind: Some(IpAddr::from([127, 0, 0, 1])),
+            identity_dir: dir.clone(),
+            port: 0,
+            upnp: false,
+            upnp_router: None,
+            key: None,
+            relay: Some(silent.local_addr().unwrap().to_string()),
+        };
         let started = Instant::now();
         let host = LocalHost::start(&lab(), &HostOptions { fill: Some(0), spawn_group: "duel".into(), public: Some(public), ..Default::default() }).unwrap();
         assert!(started.elapsed() < Duration::from_secs(5), "start returned after {:?}: the Register must not block it", started.elapsed());
         assert!(host.relay_pending() && host.relay_code().is_none());
+        assert_eq!(host.lobby_notice().as_deref(), Some("CONNECTING TO THE RELAY..."), "the lobby says what is going on while it waits");
+        assert!(host.share_entries().iter().all(|e| e.kind != CodeKind::Online), "no online code until the relay gives one");
         let end = Instant::now() + Duration::from_secs(30);
         while host.relay_pending() && Instant::now() < end {
             std::thread::sleep(Duration::from_millis(50));
         }
         assert!(!host.relay_pending() && host.relay_code().is_none());
         let note = host.relay_note().expect("a failure leaves a line for the screen");
-        assert!(note.contains("RELAY"), "{note}");
+        assert!(note.contains("RELAY") && note.contains("TRYING AGAIN"), "{note}");
+        assert_eq!(host.lobby_notice().as_deref(), Some(note.as_str()));
         drop(host);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -521,5 +733,208 @@ mod tests {
         assert!(skill.contains("godlike") && skill.contains("nightmare"), "{skill}");
         let group = LocalHost::start(&lab(), &HostOptions { spawn_group: "nowhere".into(), ..Default::default() }).err().unwrap();
         assert!(group.contains("nowhere"), "{group}");
+    }
+    // ---- the lobby's view of the relay and the router ----
+
+    const FP: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    /// A host with nothing running, in the given relay and router states: only the accessors the lobby reads.
+    fn bare_host(relay: RelayState, upnp: UpnpState) -> LocalHost {
+        LocalHost {
+            addr: "127.0.0.1:27015".parse().unwrap(),
+            stop: Arc::new(AtomicBool::new(false)),
+            pause: Arc::new(AtomicBool::new(false)),
+            thread: None,
+            fingerprint: Some(FP.to_string()),
+            lan_address: Some("192.168.0.5:27015".to_string()),
+            upnp: Arc::new(Mutex::new(upnp)),
+            key: Some("K7Q2MZ4PWTXA".to_string()),
+            keeper: None,
+            relay: Arc::new(Mutex::new(relay)),
+        }
+    }
+
+    fn declined() -> UpnpState {
+        UpnpState::Declined(
+            "the router did not open the port (UDP 27015 is already mapped to 192.168.0.133:27015: leaving it alone); forward UDP 27015 to this PC".into(),
+        )
+    }
+
+    /// A relay serving on a thread of its own until the returned flag is set; its socket is closed when the thread has ended.
+    fn run_relay(bind: SocketAddr) -> (SocketAddr, Arc<AtomicBool>, JoinHandle<()>) {
+        let relay = super::super::relay_server::RelayServer::bind(super::super::relay_server::RelayServerOptions {
+            bind,
+            housekeeping_tick: Duration::from_millis(20),
+            ..Default::default()
+        })
+        .unwrap();
+        let (addr, stop) = (relay.local_addr(), Arc::new(AtomicBool::new(false)));
+        let flag = stop.clone();
+        (addr, stop, std::thread::spawn(move || relay.run(&flag)))
+    }
+
+    fn wait_for<T>(what: &str, secs: u64, mut f: impl FnMut() -> Option<T>) -> T {
+        let end = Instant::now() + Duration::from_secs(secs);
+        loop {
+            if let Some(v) = f() {
+                return v;
+            }
+            assert!(Instant::now() < end, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn the_router_is_asked_on_its_own_thread_and_its_answer_reaches_the_lobby_later() {
+        struct Fake(Arc<AtomicBool>);
+        impl PortMapping for Fake {
+            fn describe(&self, port: u16) -> (Option<String>, Option<String>) {
+                (Some(format!("203.0.113.9:{port}")), None)
+            }
+            fn tick(&mut self) {}
+            fn stop(self: Box<Self>) {
+                self.0.store(true, Ordering::Relaxed);
+            }
+        }
+        let (state, stop, removed) = (Arc::new(Mutex::new(UpnpState::Pending)), Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
+        let started = Instant::now();
+        let remove = removed.clone();
+        let thread = spawn_upnp_with(
+            move || {
+                std::thread::sleep(Duration::from_millis(400)); // a router that takes its time
+                Ok(Box::new(Fake(remove)) as Box<dyn PortMapping>)
+            },
+            27015,
+            stop.clone(),
+            state.clone(),
+        )
+        .unwrap();
+        assert!(started.elapsed() < Duration::from_millis(200), "asking the router returned at once: {:?}", started.elapsed());
+        assert_eq!(*state.lock().unwrap(), UpnpState::Pending);
+        let opened = wait_for("the router's answer", 5, || match &*state.lock().unwrap() {
+            UpnpState::Pending => None,
+            other => Some(other.clone()),
+        });
+        assert_eq!(opened, UpnpState::Opened { public: Some("203.0.113.9:27015".into()), note: "the router opened the port for your friends".into() });
+        stop.store(true, Ordering::Relaxed);
+        thread.join().unwrap();
+        assert!(removed.load(Ordering::Relaxed), "the mapping is removed when the host stops");
+    }
+
+    #[test]
+    fn a_router_that_declines_leaves_a_line_that_says_what_to_do() {
+        let (state, stop) = (Arc::new(Mutex::new(UpnpState::Pending)), Arc::new(AtomicBool::new(false)));
+        let thread = spawn_upnp_with(
+            || Err("UDP 27015 is already mapped to 192.168.0.133:27015 ('red-engine 27015'): leaving it alone".to_string()),
+            27015,
+            stop,
+            state.clone(),
+        )
+        .unwrap();
+        thread.join().unwrap();
+        let UpnpState::Declined(note) = state.lock().unwrap().clone() else { panic!("declined") };
+        assert!(note.contains("did not open the port") && note.contains("leaving it alone") && note.contains("forward UDP 27015"), "{note}");
+    }
+
+    #[test]
+    fn the_routers_complaint_is_only_shown_when_there_is_no_online_code() {
+        let relay_down = RelayState::Failed("NO ONLINE CODE YET: THE RELAY DID NOT ANSWER. TRYING AGAIN EVERY 20 SECONDS".into());
+        // The relay is being asked: that, and nothing about the router.
+        assert_eq!(bare_host(RelayState::Pending, declined()).lobby_notice().as_deref(), Some("CONNECTING TO THE RELAY..."));
+        // The relay did not answer: both lines, because now the router's port is what friends have.
+        let both = bare_host(relay_down, declined()).lobby_notice().unwrap();
+        assert!(both.contains("NO ONLINE CODE YET") && both.contains("did not open the port"), "{both}");
+        // No relay at all (RE2_RELAY=off): the router's line is all there is to say.
+        assert!(bare_host(RelayState::Off, declined()).lobby_notice().unwrap().contains("did not open the port"));
+        // A relay that gave a code: the router's trouble is not the host's business, so the lobby does not show it.
+        let (addr, stop, thread) = run_relay("127.0.0.1:0".parse().unwrap());
+        let quit = Arc::new(AtomicBool::new(false));
+        let (bridge, _) = super::super::relay_server::HostBridge::start(&addr.to_string(), "127.0.0.1:9".parse().unwrap(), None, quit.clone()).unwrap();
+        let ready = bare_host(RelayState::Ready { bridge, seen_changes: 0, changed_at: None }, declined());
+        assert_eq!(ready.lobby_notice(), None);
+        quit.store(true, Ordering::Relaxed);
+        stop.store(true, Ordering::Relaxed);
+        thread.join().unwrap();
+    }
+
+    #[test]
+    fn every_code_is_offered_with_what_it_is_for_and_in_its_own_case() {
+        let (addr, stop, thread) = run_relay("127.0.0.1:0".parse().unwrap());
+        let quit = Arc::new(AtomicBool::new(false));
+        let (bridge, code) =
+            super::super::relay_server::HostBridge::start(&addr.to_string(), "127.0.0.1:9".parse().unwrap(), Some(FP.into()), quit.clone()).unwrap();
+        let upnp = UpnpState::Opened { public: Some("203.0.113.9:27015".into()), note: "the router opened the port for your friends".into() };
+        let host = bare_host(RelayState::Ready { bridge, seen_changes: 0, changed_at: None }, upnp);
+        let entries = host.share_entries();
+        assert_eq!(entries.iter().map(|e| e.kind).collect::<Vec<_>>(), [CodeKind::Online, CodeKind::Direct, CodeKind::SameNetwork]);
+        assert_eq!(entries[0].code, format!("{}-K7Q2-MZ4P-WTXA", super::super::relay::code_to_string(&code)));
+        assert_eq!(entries[1].code, format!("203.0.113.9:27015#{FP}#K7Q2MZ4PWTXA"), "the identity stays lower case and the key as it is");
+        assert_eq!(entries[2].code, format!("192.168.0.5:27015#{FP}#K7Q2MZ4PWTXA"));
+        assert!(entries.iter().all(|e| !e.label.is_empty()));
+        assert_eq!(host.share_codes(), entries.iter().map(|e| e.code.clone()).collect::<Vec<_>>());
+        for e in &entries {
+            assert!(super::super::join::JoinTarget::parse(&e.code).is_ok(), "what the lobby lists is what JOIN accepts: {}", e.code);
+        }
+        quit.store(true, Ordering::Relaxed);
+        stop.store(true, Ordering::Relaxed);
+        thread.join().unwrap();
+    }
+
+    #[test]
+    fn a_relay_that_restarts_gives_the_lobby_a_new_code_and_a_line_that_says_so() {
+        let (addr, stop, thread) = run_relay("127.0.0.1:0".parse().unwrap());
+        let quit = Arc::new(AtomicBool::new(false));
+        let (bridge, original) = super::super::relay_server::HostBridge::start_with_keepalive(
+            &addr.to_string(),
+            "127.0.0.1:9".parse().unwrap(),
+            Some(FP.into()),
+            quit.clone(),
+            Duration::from_millis(100),
+        )
+        .unwrap();
+        let host = bare_host(RelayState::Ready { bridge, seen_changes: 0, changed_at: None }, UpnpState::Off);
+        let first = host.share_codes()[0].clone();
+        assert!(first.starts_with(&super::super::relay::code_to_string(&original)) && host.lobby_notice().is_none() && host.relay_code_changes() == 0);
+        // The relay goes away and comes back empty on the same port.
+        stop.store(true, Ordering::Relaxed);
+        thread.join().unwrap();
+        let (_, stop2, thread2) = run_relay(addr);
+        let now = wait_for("the lobby to follow the relay", 5, || host.relay_code().filter(|c| *c != super::super::relay::code_to_string(&original)));
+        assert_ne!(host.share_codes()[0], first, "the code on show is the new one");
+        assert!(host.share_codes()[0].starts_with(&now));
+        assert_eq!(host.relay_code_changes(), 1);
+        let notice = host.lobby_notice().expect("the host is told");
+        assert!(notice.contains("CHANGED") && notice.contains("NEW"), "{notice}");
+        quit.store(true, Ordering::Relaxed);
+        stop2.store(true, Ordering::Relaxed);
+        thread2.join().unwrap();
+    }
+
+    #[test]
+    fn a_relay_that_is_started_late_still_gives_a_host_that_waited_its_code() {
+        // The relay is not there when the game starts (the first tries fail and the lobby says it will keep trying), and is there a moment later.
+        let free = {
+            let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            socket.local_addr().unwrap()
+        };
+        let (state, stop) = (Arc::new(Mutex::new(RelayState::Pending)), Arc::new(AtomicBool::new(false)));
+        let timing = RegisterTiming { wait: Duration::from_millis(100), tries: 2 };
+        let thread = {
+            let (state, stop) = (state.clone(), stop.clone());
+            std::thread::spawn(move || {
+                register_with_relay(&free.to_string(), "127.0.0.1:9".parse().unwrap(), None, &stop, &state, timing, Duration::from_millis(200))
+            })
+        };
+        let note = wait_for("the first failure", 5, || match &*state.lock().unwrap() {
+            RelayState::Failed(n) => Some(n.clone()),
+            _ => None,
+        });
+        assert!(note.contains("TRYING AGAIN"), "{note}");
+        let (_, relay_stop, relay_thread) = run_relay(free);
+        wait_for("a code from the late relay", 10, || matches!(&*state.lock().unwrap(), RelayState::Ready { .. }).then_some(()));
+        stop.store(true, Ordering::Relaxed);
+        thread.join().unwrap();
+        relay_stop.store(true, Ordering::Relaxed);
+        relay_thread.join().unwrap();
     }
 }

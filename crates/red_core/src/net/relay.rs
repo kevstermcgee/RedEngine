@@ -620,4 +620,32 @@ mod tests {
         // The host already holding the one slot can still refresh its own lease at the cap.
         assert!(t.register(addr(1), None, now + Duration::from_secs(1), 1).is_ok());
     }
+    #[test]
+    fn the_control_messages_are_the_bytes_the_deployed_relay_and_every_released_client_speak() {
+        // Golden bytes. The relay on the always-on machine and the clients people have installed (releases 2, 3 and 4) speak exactly this; a change to
+        // any of these breaks one of them silently, so changing a byte here is a protocol change (`PROTOCOL_VERSION`'s cousin: nothing in the relay
+        // protocol is versioned) and needs a new relay port or a coordinated deploy, never a quiet edit.
+        let code: RelayCode = *b"H3PQXR";
+        let token: ClaimToken = [1, 2, 3, 4, 5, 6, 7, 8];
+        let fingerprint = format!("sha256:{}", "ab".repeat(32));
+        let cases: Vec<(RelayMessage, Vec<u8>)> = vec![
+            (RelayMessage::Register { fingerprint: None }, vec![1, 0]),
+            (RelayMessage::Register { fingerprint: Some(fingerprint.clone()) }, [&[1u8, 71][..], fingerprint.as_bytes()].concat()),
+            (RelayMessage::Registered { code }, [&[2u8][..], b"H3PQXR"].concat()),
+            (RelayMessage::Resolve { code }, [&[3u8][..], b"H3PQXR"].concat()),
+            (RelayMessage::Resolved { fingerprint: None, token }, vec![4, 0, 1, 2, 3, 4, 5, 6, 7, 8]),
+            (RelayMessage::Resolved { fingerprint: Some(fingerprint.clone()), token }, [&[4u8, 71][..], fingerprint.as_bytes(), &token[..]].concat()),
+            (RelayMessage::CodeNotFound, vec![5]),
+            (RelayMessage::Claim { token }, vec![6, 1, 2, 3, 4, 5, 6, 7, 8]),
+            (RelayMessage::Unregister, vec![7]),
+        ];
+        for (message, bytes) in cases {
+            assert_eq!(message.encode(), bytes, "{message:?} encodes to the bytes it always did");
+            assert_eq!(RelayMessage::decode(&bytes), Some(message.clone()), "and those bytes decode to it");
+        }
+        // The sizes the live relay was probed with (2026-10-20): Registered 7, Resolved 10 without an identity and 81 with one, Claim 9.
+        assert_eq!(RelayMessage::Registered { code }.encode().len(), 7);
+        assert_eq!(RelayMessage::Resolved { fingerprint: Some(fingerprint), token }.encode().len(), 81);
+        assert_eq!(RelayMessage::Claim { token }.encode().len(), 9);
+    }
 }
