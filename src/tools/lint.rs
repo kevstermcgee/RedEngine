@@ -29,6 +29,8 @@
 //! | `style-sky`    | a game with a default sky gradient and no `sky`/`clock`                       |
 //! | `net-hud`      | the client reads more variables than a networked match sends (64), or an event/outcome name is over 32 bytes |
 
+mod peaceful;
+
 use super::reach::{Reach, DROP_THRESHOLD};
 use super::world::{Item, ItemKind, MapWorld};
 use crate::collide::ground_height_at;
@@ -152,6 +154,7 @@ pub fn lint(world: &MapWorld, reach: &Reach) -> Vec<Finding> {
     check_terrain(world, &mut out);
     check_carry(world, &mut out);
     check_speed_cap(world, &mut out);
+    peaceful::check_swing(world, &mut out);
     check_style(world, &mut out);
     check_net_hud(world, &mut out);
     // A total order: findings of one severity and code used to keep the order the checks happened to produce them in, which follows hash-map iteration and
