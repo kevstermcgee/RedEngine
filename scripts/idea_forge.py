@@ -41,6 +41,9 @@ import proc_supervisor  # noqa: E402  (every child process here runs under a dea
 import game_generators  # noqa: E402  (a game's generator, kept beside it, still writes the committed game)
 FORGE_DIR = os.path.join(ROOT, "examples", "2d", "idea-forge")
 FEEDBACK_DIR = "docs/analysis/idea-forge"   # always forward slashes: git reports paths that way on every OS, and Windows accepts them
+# Everyone else's feedback notes (a maintainer's AI session, a person): the same findings block, so one problem hit anywhere ranks as one key
+# (scripts/feedback.py, docs/feedback/README.md). Fixes are still recorded only in FEEDBACK_DIR/fixes.json.
+NOTES_DIR = "docs/feedback"
 RUN_DIRNAME = ".idea-forge"
 KINDS = ("2d", "3d")
 MAX_ATTEMPTS = 2        # a daily slot whose agent produced nothing that builds is tried once more with a fresh idea
@@ -84,7 +87,7 @@ def jdump(obj, path):
     wr(path, json.dumps(obj, indent=1))
 
 
-AREAS = ("discovery", "docs", "cli", "diagnostics", "format", "runtime", "verify", "publish", "perf", "tooling", "idea-fit", "worked")
+AREAS = ("discovery", "docs", "cli", "diagnostics", "format", "runtime", "verify", "publish", "perf", "tooling", "ui", "network", "idea-fit", "worked")
 PARTS = ("adjective", "noun", "you", "but", "pushback", "goal", "story")
 
 
@@ -814,13 +817,16 @@ def store_feedback(path):
 
 
 def repo_texts(ref="origin/main"):
-    """{file name: text} of the feedback files (and fixes.json) merged on `ref`; {} when this checkout has no such ref."""
+    """{file name: text} of the feedback files (and fixes.json) merged on `ref`, Idea Forge runs and everyone's notes (NOTES_DIR) alike; {} when this
+    checkout has no such ref."""
     out = {}
-    p = subprocess.run(["git", "-C", ROOT, "ls-tree", "-r", "--name-only", ref, "--", FEEDBACK_DIR + "/"], capture_output=True, text=True)
+    p = subprocess.run(["git", "-C", ROOT, "ls-tree", "-r", "--name-only", ref, "--", FEEDBACK_DIR + "/", NOTES_DIR + "/"], capture_output=True, text=True)
     if p.returncode:
         return out
     for path in p.stdout.split():
-        if path.endswith(".md") or path.endswith("fixes.json"):
+        if path.startswith(NOTES_DIR + "/") and (os.path.basename(path) == "README.md" or not path.endswith(".md")):
+            continue
+        if path.endswith(".md") or path == FIXES_FILE:
             q = subprocess.run(["git", "-C", ROOT, "show", f"{ref}:{path}"], capture_output=True, text=True)
             if q.returncode == 0:
                 out[os.path.basename(path)] = q.stdout
