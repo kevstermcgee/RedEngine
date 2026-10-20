@@ -242,5 +242,5 @@ fn the_stats_line_keeps_every_field_it_had_in_order_and_appends_the_refusals_whe
     // The reader `red_engine2 servers` uses on the journal still gets the player count and phase out of the longer line.
     let journal = format!("1790798221.5 host red_server[321]: {line}\n");
     let players = parse_players(&journal, 1790798225, Some(60)).expect("the longer line still parses");
-    assert_eq!((players.count, players.phase.as_str()), (0, "waiting"));
+    assert_eq!((players.count, players.phase.as_str()), (0, "playing"), "open play (no lobby) reports its phase as playing");
 }
