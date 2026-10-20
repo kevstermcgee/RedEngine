@@ -481,7 +481,9 @@ print(json.dumps({{"type": "result", "total_cost_usd": 0.5, "duration_ms": 12000
         run = [r for r in idea_forge.load_state()["runs"] if r["slug"] == slug][-1]
         self.assertEqual(idea_forge.ship_problems(run, feedback_only=True), [])
         self.assertTrue(idea_forge.ship_problems(run))
-        idea_forge.do_ship(run, no_push=True, feedback_only=True)
+        identity = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}   # in-process: a CI runner has no git identity
+        with mock.patch.dict(os.environ, identity), contextlib.redirect_stdout(io.StringIO()):
+            idea_forge.do_ship(run, no_push=True, feedback_only=True)
         files = subprocess.run(["git", "-C", self.wt, "show", "--name-only", "--format=", "HEAD"], capture_output=True, text=True).stdout.split()
         self.assertEqual(files, [f"docs/analysis/idea-forge/{self.today()}-2d-{slug}.md"])
 
