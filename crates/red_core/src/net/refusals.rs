@@ -154,7 +154,7 @@ impl Refusals {
         let why = match which {
             Refusal::Version => {
                 let who = if facts.version < PROTOCOL_VERSION { "the client is the old side and must update" } else { "this server is the old side and must be redeployed" };
-                format!("the client speaks protocol v{} and this server v{PROTOCOL_VERSION}, so {who}", facts.version)
+                format!("the client speaks protocol v{} and this server v{PROTOCOL_VERSION}, so {who}; {map}", facts.version)
             }
             Refusal::WrongMap => format!(
                 "the client's map is {:08x} and this server plays {server_map:08x}; client protocol v{}",
