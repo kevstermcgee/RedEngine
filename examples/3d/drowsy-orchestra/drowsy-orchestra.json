@@ -827,7 +827,7 @@
   "objective": [
    {
     "if": "choosing == 1",
-    "text": "BELL! Pick a law: LEFT-CLICK Hush (slow Tock) | RIGHT-CLICK Loud (walls stay open) | C Sleep (no Tock, words cost 2)"
+    "text": "BELL! Pick a law: LEFT-CLICK Hush (slow Tock) | RIGHT-CLICK Loud (walls stay open) | CTRL Sleep (no Tock, words cost 2)"
    },
    {
     "if": "ch == 1",
@@ -839,7 +839,7 @@
    },
    {
     "if": "ch == 3 && law == 0",
-    "text": "Cross the red band: the Tock eats a minute if it catches you. STILL freezes it."
+    "text": "Cross the orange band: the Tock eats a minute if it catches you. STILL freezes it."
    },
    {
     "if": "ch == 4",

@@ -236,10 +236,10 @@ def ui():
                 2: "Law LOUD: fast Tock, walls stay open.",
                 3: "Law SLEEP: no Tock, words cost 2."}
     obj = [{"if": "choosing == 1",
-            "text": "BELL! Pick a law: LEFT-CLICK Hush (slow Tock) | RIGHT-CLICK Loud (walls stay open) | C Sleep (no Tock, words cost 2)"},
+            "text": "BELL! Pick a law: LEFT-CLICK Hush (slow Tock) | RIGHT-CLICK Loud (walls stay open) | CTRL Sleep (no Tock, words cost 2)"},
            {"if": "ch == 1", "text": "Press E on the orange MELT chalk: it is written on the wall and the wall melts. Walk through."},
            {"if": "ch == 2 && law == 0", "text": "MELT: wall opens a while. LOW: wall stays, hop it. The bell rings every 10 s: pick a law."},
-           {"if": "ch == 3 && law == 0", "text": "Cross the red band: the Tock eats a minute if it catches you. STILL freezes it."},
+           {"if": "ch == 3 && law == 0", "text": "Cross the orange band: the Tock eats a minute if it catches you. STILL freezes it."},
            {"if": "ch == 4", "text": "You made it."}]
     for n, t in law_line.items():
         obj.append({"if": f"law == {n} && ch == 3", "text": t + " Reach the clock."})
