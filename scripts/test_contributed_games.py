@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The rules that mark a contributor's game pull request safe to merge (scripts/contributed_games.py `verdict`): run directly, python3 scripts/test_contributed_games.py.
 
-What may be marked safe: a new game or an update, by a listed contributor, touching only content inside games they maintain, with its site page. What must
+What may be marked safe: a new game or an update, by a listed maintainer or contributor, touching only content inside games they maintain, with its site page. What must
 always reach the owner: engine files, someone else's game, a game claimed from its maintainer, its own client, launch arguments beyond its files, a missing
 page, a name or a source that is taken, non-content files, large files, symlinks and removals.
 """
@@ -64,6 +64,13 @@ class SafeToMerge(unittest.TestCase):
                                   "arguments": ["content/games/neon-snake/neon-snake.game2d.json"], "page": "pages/neon-snake",
                                   "forked_from": {"slug": "prop-hunt-yard", "version": 3}})
         self.assertEqual(run(head, changed), ([], ["neon-snake"]))
+
+    def test_their_own_feedback_note_rides_with_their_game_and_someone_elses_does_not(self):
+        mine = SNAKE_FILES + [("added", f"docs/feedback/2026-10-20-{ME}-snake.md", None), ("added", f"docs/feedback/2026-10-21-{ME}.md", None)]
+        self.assertEqual(run(with_snake(), mine), ([], ["snake"]))
+        theirs = SNAKE_FILES + [("modified", "docs/feedback/2026-10-20-kevstermcgee-loop.md", None)]
+        self.assertIn("`docs/feedback/2026-10-20-kevstermcgee-loop.md` is outside the games you maintain", run(with_snake(), theirs)[0])
+        self.assertTrue(run(with_snake(), SNAKE_FILES + [("added", "docs/feedback/notes.md", None)])[0], "a note must be named for its author")
 
     def test_an_update_to_their_own_game_a_new_map_and_a_new_picture(self):
         changed = [("modified", "examples/chrono-clash/speakeasy.json", None), ("added", "examples/chrono-clash/colosseum.json", None),
@@ -165,6 +172,24 @@ class NeedsTheOwner(unittest.TestCase):
         head["playables"].pop(1)
         head["collections"]["games"].pop(1)
         self.assertIn("removing `chrono-clash`", self.problems(head, [("modified", "games-publish.json", None)]))
+
+
+class Comment(unittest.TestCase):
+    PR = {"number": 201, "head": {"sha": "abc1234def"}, "user": {"login": "meastwood13"}}
+    TEAM = ["kevstermcgee", "meastwood13"]
+
+    def test_a_maintainer_merges_their_own_safe_game_and_the_other_hears_of_it(self):
+        text = cg.message(self.PR, self.TEAM, [], [], ["snake"])
+        self.assertIn("**Safe to merge** (`snake`)", text)
+        self.assertIn("@meastwood13, merge it yourself when you are ready (`gh pr merge 201 --merge`); @kevstermcgee for your information", text)
+
+    def test_a_contributor_s_safe_game_waits_for_a_maintainer_s_tap(self):
+        text = cg.message(dict(self.PR, user={"login": "friend"}), self.TEAM, [], [], ["kart"])
+        self.assertIn("@kevstermcgee @meastwood13: one tap merges it", text)
+
+    def test_what_needs_a_look_goes_to_the_other_maintainers(self):
+        text = cg.message(self.PR, self.TEAM, [], ["`src/lib.rs` is outside the games you maintain"], ["snake"])
+        self.assertTrue(text.splitlines()[1].startswith("@kevstermcgee **Needs a maintainer's eyes**"), text)
 
 
 if __name__ == "__main__":
