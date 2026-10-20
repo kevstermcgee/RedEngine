@@ -1,54 +1,70 @@
 name: Reachability
 
-# An outside-in check of the machine that hosts Red Engine games. Nothing in hosting has ever been tested from outside the home network (the
-# server's own journal, the LAN and the router's port-mapping table are all inside it); a GitHub-hosted runner is a real machine on the
-# internet, so what it can reach is what a friend in another state can reach. `scripts/net_probe.py` explains each check and prints one JSON
-# object; this file only runs it and puts the result in the job summary. No key, no secret and nothing from the host's configuration is used:
-# the relay check asks about a code that cannot exist, and the QUIC check stops after the TLS handshake (the join key is only checked later,
-# inside the encrypted Hello).
+# The outside-in watch on the machine that hosts Red Engine games (the relay and the Killchain server at the owner's home). The box checks itself from the inside
+# (its units, its router mappings, protocol drift); this job is what a friend in another state gets. A GitHub-hosted runner is a real machine on the internet: the
+# relay stopped for three days, a server on an old protocol and a router mapping that lapsed for 40 s an hour all looked fine from inside the home network.
+#
+# Every hour, at minute 17, it runs `scripts/net_probe.py` against the owner's public name (its OWNER_HOST): a Resolve for a code that cannot exist on the relay (UDP 28016,
+# the answer must be CodeNotFound) and a stateless QUIC Version Negotiation probe, then a QUIC/TLS handshake, on the game port (UDP 27015). No key, no secret, nothing that can join a match.
+# A failure of a REQUIRED target (the name lookup, the relay or the game port) is not reported at once: the probe retries internally and this workflow probes once more
+# CONFIRM_AFTER_SECONDS later, so a blip or a server restart does not raise an alarm and no state has to be kept between runs. Only a second failure (net_probe exit 1)
+# opens ONE issue (label `reachability`) with the run link, the plain-words verdict and the probe's JSON, and mentions the maintainers in .github/contributors.json; while
+# it is open, later failures add a comment (at most one every six hours from the schedule, every time from a manual run), and the first clean pass comments "reachable
+# again" and closes it. A run that failed once and then passed ("recovered") neither opens nor closes anything. Any other exit code (a broken probe, a runner that cannot
+# use UDP, aioquic missing) turns the run red and never touches the issue.
+#
+# The home address is never written anywhere: the probe hides every address it prints (x.x.x.x) and the issue text is hidden again when it is rendered. There are no artifacts.
+# Scheduled workflows only run from the default branch, and GitHub pauses them after 60 days without a push to the repository. Runs can be late by minutes.
+# docs/HOSTING.md, "Reachability watch", says how to read it and how a player runs the same probe on their own machine; ADR 2026-10-20-an-outside-in-watch-confirms-an-outage-with-a-second.
 on:
-  push:
-    branches: [net-probe]
-    paths:
-      - ".github/workflows/reachability.yml"
-      - "scripts/net_probe.py"
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       host:
-        description: "Host name to probe"
-        default: "red-engine.duckdns.org"
+        description: "Probe another server: a host name, not an address (inputs are shown in the log). Empty: the owner's server. With any input set the run never touches the issue."
+        default: ""
       relay_port:
-        description: "Relay UDP port"
-        default: "28016"
+        description: "Relay UDP port (empty: the default)"
+        default: ""
       game_port:
-        description: "Game server (QUIC) UDP port"
-        default: "27015"
+        description: "Game server (QUIC) UDP port (empty: the default)"
+        default: ""
       silent_port:
-        description: "A UDP port nothing should answer on"
-        default: "27016"
-  # Later, once the check has earned a place: every 30 minutes, to see whether the answer changes (a router that forgets its mappings, a
-  # lease that lapses, an address that moves). Uncomment, and push it to main for the schedule to start (GitHub only runs schedules from the
-  # default branch).
-  # schedule:
-  #   - cron: "7,37 * * * *"
+        description: "A UDP port nothing should answer on (empty: the default)"
+        default: ""
 
 permissions:
   contents: read
+  issues: write
 
+# One run at a time: a run that is late meets the next one in the queue (GitHub keeps only the newest waiting run), and runs never overlap, so the
+# "is an issue open" check and the issue that follows it cannot race.
 concurrency:
-  group: reachability-${{ github.ref }}
+  group: reachability
   cancel-in-progress: false
 
 jobs:
   probe:
     name: probe from the internet
+    # Only in the project's own repository: a fork or a mirror must not probe the owner's server every hour or open issues of its own.
+    if: github.repository == 'kevstermcgee/RedEngine'
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: bash
     env:
-      PROBE_HOST: ${{ inputs.host || 'red-engine.duckdns.org' }}
-      PROBE_RELAY_PORT: ${{ inputs.relay_port || '28016' }}
-      PROBE_GAME_PORT: ${{ inputs.game_port || '27015' }}
-      PROBE_SILENT_PORT: ${{ inputs.silent_port || '27016' }}
+      # Inputs reach the shell only through the environment, never pasted into a script.
+      PROBE_HOST: ${{ inputs.host }}
+      PROBE_RELAY_PORT: ${{ inputs.relay_port }}
+      PROBE_GAME_PORT: ${{ inputs.game_port }}
+      PROBE_SILENT_PORT: ${{ inputs.silent_port }}
+      # "A few minutes later": longer than a server restart or a router re-adding a mapping, short enough that an outage is reported within the hour.
+      CONFIRM_AFTER_SECONDS: 180
+      ISSUE_TITLE: Killchain and the relay are not reachable from the internet
+      ISSUE_LABEL: reachability
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v7
 
@@ -66,35 +82,104 @@ jobs:
           uname -srm
           python3 --version
 
-      - name: Probe
+      # Exit codes of net_probe.py: 0 reachable, 1 a required target is not; anything else is not a verdict about the server (2 usage, 3 aioquic missing,
+      # 4 this runner cannot use UDP, 70 the probe crashed) and is never reported as an outage.
+      - name: Probe (a second time a few minutes later when the first fails)
         id: probe
         run: |
-          set -o pipefail
-          "$RUNNER_TEMP/venv/bin/python" scripts/net_probe.py \
-            --host "$PROBE_HOST" \
-            --relay-port "$PROBE_RELAY_PORT" \
-            --game-port "$PROBE_GAME_PORT" \
-            --silent-port "$PROBE_SILENT_PORT" \
-            | tee "$RUNNER_TEMP/probe.json"
+          py="$RUNNER_TEMP/venv/bin/python"
+          out="$RUNNER_TEMP/probe.json"
+          args=(--egress)
+          watch=true
+          if [ -n "$PROBE_HOST" ]; then args+=(--host "$PROBE_HOST"); watch=false; fi
+          if [ -n "$PROBE_RELAY_PORT" ]; then args+=(--relay-port "$PROBE_RELAY_PORT"); watch=false; fi
+          if [ -n "$PROBE_GAME_PORT" ]; then args+=(--game-port "$PROBE_GAME_PORT"); watch=false; fi
+          if [ -n "$PROBE_SILENT_PORT" ]; then args+=(--silent-port "$PROBE_SILENT_PORT"); watch=false; fi
+          rc=0
+          attempts=0
+          for attempt in 1 2; do
+            if [ "$attempt" = 2 ]; then
+              echo "::warning::the first probe did not pass (exit $rc); probing again in $CONFIRM_AFTER_SECONDS s to rule out a blip"
+              sleep "$CONFIRM_AFTER_SECONDS"
+            fi
+            attempts=$attempt
+            rc=0
+            "$py" scripts/net_probe.py "${args[@]}" > "$out" || rc=$?
+            echo "attempt $attempt: exit $rc"
+            if [ "$rc" = 0 ]; then break; fi
+          done
+          if [ "$rc" = 0 ] && [ "$attempts" = 1 ]; then status=ok
+          elif [ "$rc" = 0 ]; then status=recovered
+          elif [ "$rc" = 1 ]; then status=unreachable
+          else status=error
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # Only the owner's server, probed with the defaults, is the watch: an experiment against another target never opens, comments on or closes the issue.
+          echo "watch=$watch" >> "$GITHUB_OUTPUT"
+          echo "probe status: $status after $attempts attempt(s); watch: $watch"
+          echo "::group::probe result (JSON, addresses hidden)"
+          cat "$out"
+          echo "::endgroup::"
 
       - name: Summary
         if: always()
+        env:
+          STATUS: ${{ steps.probe.outputs.status || 'not finished' }}
         run: |
-          python3 - <<'PY'
-          import json, os
-          path = os.path.join(os.environ["RUNNER_TEMP"], "probe.json")
-          out = open(os.environ["GITHUB_STEP_SUMMARY"], "a")
-          try:
-              r = json.load(open(path))
-          except Exception as e:
-              out.write(f"### Reachability: the probe printed no result ({e})\n")
-              raise SystemExit(0)
-          out.write(f"### Reachability of {r['host']}: {'ok' if r['ok'] else 'FAILED'}\n\n")
-          out.write(f"Runner egress (masked): `{r['runner']['egress_ip_masked']}`, started {r['started_utc']}\n\n")
-          out.write("| target | ok | rtt ms | detail |\n|---|---|---|---|\n")
-          for name, t in r["targets"].items():
-              out.write(f"| {name} | {'yes' if t['ok'] else 'NO'} | {t['rtt_ms'] if t['rtt_ms'] is not None else ''} | {t['detail']} |\n")
-          cert = r["targets"].get("game", {}).get("cert_sha256")
-          if cert:
-              out.write(f"\nServer certificate: `{cert}`\n")
-          PY
+          py="$RUNNER_TEMP/venv/bin/python"
+          {
+            echo "Probe status: \`$STATUS\`"
+            echo
+            if [ -s "$RUNNER_TEMP/probe.json" ] && "$py" scripts/net_probe.py --markdown "$RUNNER_TEMP/probe.json" --run-url "$RUN_URL"; then :
+            else echo "### Reachability: the probe printed no result"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Two failures a few minutes apart: ONE issue. An open one (any open issue with the label) gets a comment instead.
+      - name: Open the issue, or add to the one that is open
+        if: ${{ steps.probe.outputs.status == 'unreachable' && steps.probe.outputs.watch == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          py="$RUNNER_TEMP/venv/bin/python"
+          json="$RUNNER_TEMP/probe.json"
+          open="$(gh issue list --label "$ISSUE_LABEL" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$open" ]; then
+            gh label create "$ISSUE_LABEL" --force --color B60205 --description "The outside-in probe could not reach the relay or the game server"
+            # Mentioned, so both maintainers are notified whatever they watch.
+            mention="$("$py" -c 'import json; print(",".join(json.load(open(".github/contributors.json", encoding="utf-8")).get("maintainers", [])))' || true)"
+            "$py" scripts/net_probe.py --markdown "$json" --style issue --run-url "$RUN_URL" --mention "$mention" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$ISSUE_TITLE" --label "$ISSUE_LABEL" --body-file "$RUNNER_TEMP/body.md"
+          else
+            # Not a comment an hour for as long as it lasts: the issue itself is the alarm. The schedule comments again after six hours of silence; a manual run always does.
+            last="$(gh issue view "$open" --json createdAt,comments --jq '[.createdAt, (.comments | map(.createdAt) | max // empty)] | max')"
+            age=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
+            echo "issue #$open is open; its last activity was $age s ago"
+            if [ "$EVENT" = workflow_dispatch ] || [ "$age" -ge 21600 ]; then
+              "$py" scripts/net_probe.py --markdown "$json" --style comment --run-url "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+              gh issue comment "$open" --body-file "$RUNNER_TEMP/comment.md"
+            fi
+          fi
+
+      # Only a clean pass closes it (not a "recovered" one: a link that fails and passes in turn must not close and reopen the issue every hour).
+      - name: Close the issue when it is reachable again
+        if: ${{ steps.probe.outputs.status == 'ok' && steps.probe.outputs.watch == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for open in $(gh issue list --label "$ISSUE_LABEL" --state open --json number --jq '.[].number'); do
+            gh issue comment "$open" --body "Reachable again: the relay and the game server answered the probe's first attempt. Run: $RUN_URL"
+            gh issue close "$open"
+          done
+
+      # The run goes red for a real outage and for a probe that could not give a verdict; a green run is a clean pass or a recovered blip.
+      - name: Fail the run when the targets are unreachable or the probe gave no verdict
+        if: ${{ steps.probe.outputs.status == 'unreachable' || steps.probe.outputs.status == 'error' }}
+        env:
+          STATUS: ${{ steps.probe.outputs.status }}
+        run: |
+          echo "probe status: $STATUS (unreachable: a required target did not answer twice; error: no verdict, see the Probe step)"
+          exit 1
