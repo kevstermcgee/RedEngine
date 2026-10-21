@@ -1249,6 +1249,20 @@ const PREFAB_FIELDS: &[Field] = &[
     opt("asleep", Ty::Bool, "does not move until the camera comes within a tile of it (enemies waiting further along a level)"),
 ];
 
+fn when_ok(v: &Value) -> Result<(), String> {
+    match v.as_str().filter(|s| TRIGGERS.contains(s)) {
+        Some(s) => {
+            let arg = match s {
+                "start" => "true",
+                "end" => "\"win\"",
+                _ => "...",
+            };
+            Err(format!("`when` is an object, not the string \"{s}\": {{ \"{s}\": {arg} }}"))
+        }
+        None => object_ok(v),
+    }
+}
+
 fn object_ok(v: &Value) -> Result<(), String> {
     v.is_object().then_some(()).ok_or_else(|| format!("expected an object, got {}", describe_value(v)))
 }
@@ -2044,7 +2058,7 @@ fn parse_when(ctx: &mut Ctx, path: &str, v: &Value, names: &Names) -> Option<Whe
 
 const RULE_FIELDS: &[Field] = &[
     opt("id", Ty::Str, "a name for messages"),
-    req("when", Ty::Custom(object_ok), "exactly one of: start, every, after, touch, touching, hit, press, click, event, end"),
+    req("when", Ty::Custom(when_ok), "exactly one of: start, every, after, touch, touching, hit, press, click, event, end"),
     opt(
         "side",
         Ty::Custom(sides_ok),
