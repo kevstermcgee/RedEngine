@@ -236,7 +236,9 @@ impl RejectReason {
             RejectReason::WrongMap => "The server has a different copy of the map. Get the same map file the server loads.",
             RejectReason::Full => "The match is full.",
             RejectReason::BadKey => "The join key is wrong. Check the part of the code after the first dash (or after the last #).",
-            RejectReason::NeedsKey => "This game needs a join key and your code has none: use the whole code, with the part after the dash.",
+            RejectReason::NeedsKey => {
+                "This game needs a join key and your code has none: use the whole code, with its key (the part after the first dash, or after the last #)."
+            }
             RejectReason::ServerIsOpen => "You entered a join key but this server does not ask for one, so it may not be the server you meant.",
             RejectReason::ServerIdentity => "The server's identity does not match the one you were given. Not connecting: ask its host.",
         }
@@ -1808,5 +1810,16 @@ mod tests {
         w.u8(0);
         w.u64(0);
         assert!(matches!(ClientMsg::decode(&b), Ok(ClientMsg::Hello(h)) if h.version == 2));
+    }
+
+    #[test]
+    fn a_key_refusal_says_where_the_key_is_in_either_kind_of_code() {
+        // A short code's key comes after its first dash, a long code's after its last '#'. The live server told a long code with its key cut off to use
+        // "the part after the dash", which a long code does not have.
+        for r in [RejectReason::NeedsKey, RejectReason::BadKey] {
+            let text = r.explain();
+            assert!(text.contains("dash") && text.contains('#'), "{r:?}: {text}");
+        }
+        assert!(RejectReason::NeedsKey.explain().contains("whole code"));
     }
 }

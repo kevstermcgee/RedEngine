@@ -888,6 +888,56 @@ fn only_the_relays_own_address_can_change_the_code_a_host_shows() {
 }
 
 #[test]
+fn a_joiners_envelope_that_looks_like_registered_never_changes_the_code_a_host_shows() {
+    // Every joiner's datagram reaches the host from the relay's own address, framed as `[id: u32 LE][payload]`. Pairing 2 with a three-byte payload is
+    // seven bytes that start with `Registered`'s tag: anyone who knows the six characters (not the key) could make the host drop its online code. A
+    // relay's code is always six characters of its alphabet; this one is the id's zero bytes and the payload.
+    let control = Arc::new(UdpSocket::bind(loopback()).unwrap());
+    let game_server = UdpSocket::bind(loopback()).unwrap();
+    game_server.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
+    let game_addr = game_server.local_addr().unwrap();
+    let bridges = Arc::new(Mutex::new(HashMap::new()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let relay = SocketAddr::from(([127, 0, 0, 1], 28016));
+    let original = generate_code().unwrap();
+    let shared = HostShared { code: Mutex::new(original), changes: AtomicU32::new(0), relay_addr: Mutex::new(relay) };
+    let forged = [&2u32.to_le_bytes()[..], b"ABC"].concat();
+    assert!(matches!(RelayMessage::decode(&forged), Some(RelayMessage::Registered { .. })), "the shape this test is about");
+    forward_from_relay(&control, relay, &bridges, game_addr, &forged, &stop, &shared);
+    assert_eq!((*shared.code.lock().unwrap(), shared.changes.load(Ordering::Relaxed)), (original, 0), "the code the host shows is unchanged");
+    // A code with a byte outside the alphabet (lower case, a digit the alphabet leaves out) is no code either.
+    for bad in [*b"abcdef", *b"H3PQX0", *b"H3PQX\0"] {
+        forward_from_relay(&control, relay, &bridges, game_addr, &RelayMessage::Registered { code: bad }.encode(), &stop, &shared);
+        assert_eq!(shared.changes.load(Ordering::Relaxed), 0, "{bad:?}");
+    }
+    assert!(bridges.lock().unwrap().is_empty());
+    let mut buf = [0u8; 64];
+    assert!(game_server.recv_from(&mut buf).is_err(), "dropped, as before: the game never sees three bytes it could not use");
+    // The relay's real answer still gets through.
+    let renewed = loop {
+        let c = generate_code().unwrap();
+        if c != original {
+            break c;
+        }
+    };
+    forward_from_relay(&control, relay, &bridges, game_addr, &RelayMessage::Registered { code: renewed }.encode(), &stop, &shared);
+    assert_eq!((*shared.code.lock().unwrap(), shared.changes.load(Ordering::Relaxed)), (renewed, 1));
+}
+
+#[test]
+fn a_signal_interrupting_a_read_is_a_pause_not_the_end_of_the_hosts_link() {
+    // On Linux a process that is stopped and continued (Ctrl-Z then `fg`, a debugger, `kill -STOP`/`-CONT`) gets `EINTR` from every socket read
+    // that has a timeout (signal(7)). The host's forwarding thread used to end on it, leaving a code the relay still resolved and no host behind it:
+    // every joiner then got "the host did not answer". Reproduced on a throwaway server built from f7d78d3.
+    for kind in [io::ErrorKind::Interrupted, io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut] {
+        assert!(read_paused(&io::Error::from(kind)), "{kind:?} is a pause: the socket reads on");
+    }
+    for kind in [io::ErrorKind::NotConnected, io::ErrorKind::InvalidInput, io::ErrorKind::ConnectionReset] {
+        assert!(!read_paused(&io::Error::from(kind)), "{kind:?} is not a timeout (a bounce has its own arm)");
+    }
+}
+
+#[test]
 fn a_host_that_cannot_reach_the_relay_says_so_after_its_tries_and_does_not_hang() {
     let silent = UdpSocket::bind(loopback()).unwrap();
     let started = Instant::now();

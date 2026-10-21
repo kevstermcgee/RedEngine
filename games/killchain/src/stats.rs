@@ -33,6 +33,12 @@ impl RecentJoin {
             Err(_) => "A SAVED GAME".to_string(),
         }
     }
+
+    /// What REJOIN puts in the JOIN screen's code field: the [`label`](Self::label), never the code. The field draws what it holds (the end of it, when
+    /// it is long), and the code carries the key; [`Stats::code_to_join`] reads the label back as this code.
+    pub fn field_text(&self) -> String {
+        self.label()
+    }
 }
 
 /// How many games JOIN remembers.
@@ -161,6 +167,13 @@ impl Stats {
         self.recent_joins.retain(|r| r.code != code);
         self.recent_joins.insert(0, RecentJoin { code: code.to_string(), map: map.to_string() });
         self.recent_joins.truncate(RECENT_JOINS);
+    }
+
+    /// The code JOIN connects with for what the code field holds (`field`): the saved code of the newest remembered game whose
+    /// [`label`](RecentJoin::label) it is (what REJOIN puts there; typed by hand it works too, in any case), otherwise the field as it is.
+    pub fn code_to_join(&self, field: &str) -> String {
+        let typed = field.trim();
+        self.recent_joins.iter().find(|r| !typed.is_empty() && r.label().eq_ignore_ascii_case(typed)).map_or_else(|| field.to_string(), |r| r.code.clone())
     }
 
     /// The lines the stats screen shows, most interesting first.

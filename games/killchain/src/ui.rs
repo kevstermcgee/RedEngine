@@ -408,8 +408,9 @@ pub fn join_action(id: &str) -> Option<JoinAction> {
 /// How many recent games the join screen offers.
 pub const RECENT_SHOWN: usize = 3;
 
-/// The join screen: one field for the join code a friend sent (paste it), your name, JOIN (CANCEL while one is under way) and BACK, then the games joined
-/// before (`recent`, each a short label with no key in it) to join again with one click. The form's `address` holds the code and its `key` is unused;
+/// The join screen: one field for the join code a friend sent (paste it), your name, JOIN, PASTE and BACK (only CANCEL, in BACK's place, while a join is
+/// under way), then the games joined before (`recent`, each a short label with no key in it) to join again with one click. The form's `address` holds the
+/// code (or, after a REJOIN, that game's label, which JOIN reads back as its saved code: `Stats::code_to_join`) and its `key` is unused;
 /// `message` is the progress line while `busy`, otherwise what went wrong, under the buttons.
 pub fn join_layout(w: u32, h: u32, f: &ConnectForm, recent: &[String], busy: bool, hover: Option<&str>) -> Layout {
     let (mut l, p, (x0, _, x1, _), s) = frame(w, h, "join a game");
@@ -441,12 +442,14 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, recent: &[String], busy: boo
     }
     let third = (rx - lx - 6 * s) / 3;
     if busy {
-        btn(&mut l, "cancel", (lx, y, lx + third, y + 15 * s), Some(p), "CANCEL", s * 2, hover == Some("cancel"), true);
+        // CANCEL takes BACK's place, never JOIN's: a click acts on the press, so the second press of a double-click on JOIN (or on a REJOIN below,
+        // where the progress line now is) would cancel the join the first press started. Nothing else is clickable until it ends; Escape cancels too.
+        btn(&mut l, "cancel", (rx - third, y, rx, y + 15 * s), Some(p), "CANCEL", s * 2, hover == Some("cancel"), true);
     } else {
         btn(&mut l, "connect", (lx, y, lx + third, y + 15 * s), Some(p), "JOIN", s * 2, hover == Some("connect"), true);
+        btn(&mut l, "paste", (lx + third + 3 * s, y, lx + 2 * third + 3 * s, y + 15 * s), Some(p), "PASTE", s * 2, hover == Some("paste"), false);
+        btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
     }
-    btn(&mut l, "paste", (lx + third + 3 * s, y, lx + 2 * third + 3 * s, y + 15 * s), Some(p), "PASTE", s * 2, hover == Some("paste"), false);
-    btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
     y += 15 * s + 6 * s;
     // The games joined before, newest first. They give way to a message: the player is reading what went wrong (or what is happening), and the
     // code of the last attempt is in the field above, so JOIN tries it again.
@@ -1798,6 +1801,61 @@ mod tests {
         let busy = join_layout(1280, 720, &form, &["H3PQXR".to_string()], true, None);
         assert!(busy.rect_of("cancel").is_some() && busy.rect_of("connect").is_none() && busy.rect_of("recent_0").is_none(), "while joining: CANCEL, no list");
         assert_eq!(join_action("cancel"), Some(JoinAction::Cancel));
+    }
+
+    #[test]
+    fn a_double_click_on_join_or_rejoin_never_lands_on_cancel() {
+        // A click acts on the press, and the layout is rebuilt for every click: the first press of a double-click starts the join, the second lands on
+        // whatever the busy screen has in the same place. CANCEL used to take JOIN's own rectangle, so a double-click walked away from the join it had
+        // just started and the player saw JOIN do nothing.
+        let overlap = |a: (i32, i32, i32, i32), b: (i32, i32, i32, i32)| a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3;
+        let recent = ["red-engine.duckdns.org:27015".to_string(), "H3PQXR".to_string(), "203.0.113.9:27015".to_string()];
+        for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
+            let idle = join_layout(w, h, &ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev"), &recent, false, None);
+            let mut form = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
+            form.message = Some("Starting...".into());
+            let busy = join_layout(w, h, &form, &recent, true, None);
+            let cancel = busy.rect_of("cancel").unwrap_or_else(|| panic!("{w}x{h}: CANCEL while joining"));
+            for id in ["connect", "recent_0", "recent_1", "recent_2"] {
+                if let Some(start) = idle.rect_of(id) {
+                    assert!(!overlap(start, cancel), "{w}x{h}: CANCEL {cancel:?} sits under {id} {start:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rejoin_never_puts_a_saved_key_on_screen_and_join_still_uses_it() {
+        // REJOIN used to copy the saved code, key and all, into the code field, which draws the end of what it holds: the key was on screen at once, and
+        // stayed there when the join failed. The field gets the game's label instead, and JOIN reads that label back as the saved code.
+        let key = "K7Q2MZ4PWTXA";
+        let mut stats = Stats::default();
+        stats.remember_join(&format!("red-engine.duckdns.org:27015#sha256:{}#{key}", "ab".repeat(32)), "quarry.json");
+        stats.remember_join("H3PQXR-K7Q2-MZ4P-WTXA", "main.json");
+        let labels: Vec<String> = stats.recent_joins.iter().map(crate::stats::RecentJoin::label).collect();
+        // Any four characters of the key in a row count: a long field shows only its end.
+        let leaks = |t: &str| {
+            let t = t.to_uppercase().replace('-', "");
+            (0..=key.len() - 4).any(|i| t.contains(&key[i..i + 4]))
+        };
+        for r in &stats.recent_joins {
+            let mut form = ConnectForm::new("", "", "Kev");
+            form.address = r.field_text();
+            for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
+                for (busy, message) in [(true, Some("Starting...")), (false, Some("The host did not answer.")), (false, None)] {
+                    form.message = message.map(str::to_string);
+                    let l = join_layout(w, h, &form, &labels, busy, None);
+                    for t in l.widgets.iter().filter_map(|x| x.text.as_deref()) {
+                        assert!(!leaks(t), "{w}x{h}: '{t}' shows the saved key of {}", r.label());
+                    }
+                }
+            }
+            assert_eq!(stats.code_to_join(&form.address), r.code, "JOIN joins the saved code, key included");
+        }
+        // The label typed by hand works the same (any case, spaces around it); anything else is joined as it was typed.
+        assert_eq!(stats.code_to_join("  h3pqxr "), "H3PQXR-K7Q2-MZ4P-WTXA");
+        assert_eq!(stats.code_to_join("BCDEFG-K7Q2"), "BCDEFG-K7Q2");
+        assert_eq!(stats.code_to_join(""), "");
     }
 
     #[test]

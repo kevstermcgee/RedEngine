@@ -506,11 +506,15 @@ impl HostBridge {
             while !stop.load(Ordering::Relaxed) {
                 match control.recv_from(&mut buf) {
                     Ok((n, from)) => forward_from_relay(&control, from, &bridges, local_game_addr, &buf[..n], &stop, &shared),
-                    Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => {}
+                    Err(e) if read_paused(&e) => {}
                     // Windows reports the ICMP "port unreachable" a restarting relay causes as an error on the next read (`WSAECONNRESET`): the
                     // socket is fine and the relay is coming back, so this thread must not give up the host's only way to be reached.
                     Err(e) if is_bounced(&e) => std::thread::sleep(Duration::from_millis(50)),
-                    Err(_) => break,
+                    // Nothing a working socket says: the code stays registered (the keepalive is its own thread) but nobody can reach this host now.
+                    Err(e) => {
+                        eprintln!("relay: this host's link to the relay stopped: {e}");
+                        break;
+                    }
                 }
             }
         });
@@ -584,6 +588,14 @@ fn resolve_relay_within(relay: &str, budget: Duration) -> io::Result<SocketAddr>
 /// this socket is broken.
 fn is_bounced(e: &io::Error) -> bool {
     matches!(e.kind(), io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionRefused)
+}
+
+/// Whether a failed read on a socket with a read timeout is only a pause, after which the same socket reads on: the timeout passed (`WouldBlock`,
+/// `TimedOut`), or a signal cut the wait short (`Interrupted`). On Linux a process that is stopped and continued (Ctrl-Z then `fg`, a debugger,
+/// `kill -STOP` and `-CONT`) gets `EINTR` from every socket read that has a timeout, with or without a signal handler (signal(7)), and the
+/// standard library does not retry it.
+fn read_paused(e: &io::Error) -> bool {
+    matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted)
 }
 
 /// `UdpSocket::bind(("0.0.0.0", 0))` refuses to talk to an IPv6 peer (`EAFNOSUPPORT`) — a real risk here, not a
@@ -669,7 +681,7 @@ pub fn resolve_code(relay: &str, code: super::relay::RelayCode, timeout: Duratio
                 // Something that is not an answer to us (a stray datagram to our port): not worth giving up the wait for.
                 _ => {}
             },
-            Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => {}
+            Err(e) if read_paused(&e) => {}
             Err(e) if is_bounced(&e) => bounced += 1,
             Err(e) => return Err(ResolveError::Unreachable(cannot_send(&e))),
         }
@@ -741,7 +753,8 @@ fn register_with_retry(control: &UdpSocket, relay: &str, fingerprint: Option<Str
                     }
                 }
                 Ok(_) => {}
-                Err(e) if is_bounced(&e) => break, // bounced: nothing is listening there; the next try may find it started
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {} // a signal (see `read_paused`): the wait goes on
+                Err(e) if is_bounced(&e) => break,                     // bounced: nothing is listening there; the next try may find it started
                 Err(_) => break,
             }
         }
@@ -768,9 +781,11 @@ fn forward_from_relay(
     // forwarded into the real local game server as if a brand new joiner had just sent them.
     match RelayMessage::decode(data) {
         // The keepalive's answer is also how a host learns its code changed: a relay that restarted has forgotten it and hands out a new one.
-        // Only the relay's own address may say so (any host on the internet can send this socket a datagram).
+        // Only the relay's own address may say so (any host on the internet can send this socket a datagram), and only with a real code: every
+        // joiner's envelope comes from the relay's address too, and pairing 2 framing a three-byte payload is seven bytes that decode as
+        // `Registered` (its "code" is the id's top bytes and the payload). That one is dropped, as it always was, and changes nothing.
         Some(RelayMessage::Registered { code }) => {
-            if relay_addr == *shared.relay_addr.lock().unwrap_or_else(|p| p.into_inner()) {
+            if super::relay::is_code(&code) && relay_addr == *shared.relay_addr.lock().unwrap_or_else(|p| p.into_inner()) {
                 let mut current = shared.code.lock().unwrap_or_else(|p| p.into_inner());
                 if *current != code {
                     *current = code;
@@ -823,7 +838,7 @@ fn forward_from_relay(
                 }
                 Ok(_) => {}
                 // A bounced datagram (Windows reports the game server's ICMP "port unreachable" as an error here) is the same as silence: wait on.
-                Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) || is_bounced(&e) => {
+                Err(e) if read_paused(&e) || is_bounced(&e) => {
                     if last_reply.elapsed() > DEFAULT_PAIR_IDLE_TIMEOUT {
                         break;
                     }

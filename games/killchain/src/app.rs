@@ -498,7 +498,7 @@ impl Kc {
         if self.joining.is_some() {
             return;
         }
-        let target = match JoinTarget::parse(&self.join_form.address) {
+        let target = match JoinTarget::parse(&self.stats.code_to_join(&self.join_form.address)) {
             Ok(t) => t,
             Err(e) => {
                 self.join_form.message = Some(e.to_string());
@@ -640,7 +640,9 @@ impl Kc {
                 Some(ui::JoinAction::Cancel) => self.cancel_join(),
                 Some(ui::JoinAction::Recent(i)) => {
                     if let Some(recent) = self.stats.recent_joins.get(i) {
-                        self.join_form.address = recent.code.clone();
+                        // The game's label goes in the field, never its code: the code carries the key. JOIN reads the label back as the saved code,
+                        // so a failed REJOIN is tried again with JOIN like any other code.
+                        self.join_form.address = recent.field_text();
                         self.try_join();
                     }
                 }

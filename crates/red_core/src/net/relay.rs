@@ -66,6 +66,12 @@ pub fn generate_token() -> Result<ClaimToken, String> {
     Ok(token)
 }
 
+/// Whether all six bytes are characters a relay makes codes of (what [`generate_code`] gives and [`parse_code`] returns): a datagram that only has a
+/// code's length is not a code.
+pub fn is_code(code: &RelayCode) -> bool {
+    code.iter().all(|b| ALPHABET.contains(b))
+}
+
 /// The code as text.
 pub fn code_to_string(code: &RelayCode) -> String {
     String::from_utf8_lossy(code).into_owned()
