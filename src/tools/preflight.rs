@@ -512,7 +512,6 @@ pub const LONG_FILES: &[(&str, usize)] = &[
     ("src/tools/lint.rs", 1500),
     ("crates/red_core/src/sim/rules_run.rs", 1500),
     ("src/playscript.rs", 1500),
-    ("crates/red_core/src/net/relay_server.rs", 1500),
     ("crates/red_core/src/net/server.rs", 1500),
     ("src/net/session.rs", 1500),
     ("crates/red_core/src/sim/ai/mod.rs", 1250),

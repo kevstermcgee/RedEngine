@@ -48,8 +48,11 @@ pub fn all() -> &'static [&'static str] {
         "solo",
         "host",
         "join",
+        "join-busy",
+        "join-error",
         "stats",
         "lobby",
+        "lobby-notice",
         "lobby-ffa",
         "lobby-duel",
         "results-ffa",
@@ -139,7 +142,7 @@ pub fn home_action(id: &str) -> Option<HomeAction> {
     HOME_BUTTONS.iter().find(|b| b.0 == id).map(|b| b.2)
 }
 
-/// The home screen: the name, five buttons, the version.
+/// The home screen: the name, five buttons, and the release and protocol this copy is (`version`).
 pub fn home_layout(w: u32, h: u32, hover: Option<&str>, version: &str) -> Layout {
     let (mut l, p, (x0, _, x1, _), s) = frame(w, h, "team deathmatch");
     let (bx0, bx1) = (x0 + 18 * s, x1 - 18 * s);
@@ -149,8 +152,10 @@ pub fn home_layout(w: u32, h: u32, hover: Option<&str>, version: &str) -> Layout
         btn(&mut l, id, (bx0, y, bx1, y + bh), Some(p), label, s * 2, hover == Some(id), false);
         y += bh + 5 * s;
     }
-    let foot = format!("{} VS {}   {}", upper(TEAM_NAMES[0]), upper(TEAM_NAMES[1]), upper(version));
-    l.label_fit("footer", Some(p), (x1 - 2) / 2, h as i32 - 10 * s, &foot, s, x1 - 10 * s, DIM);
+    // The release and the protocol on a line of their own: two players whose numbers differ cannot join each other, and this is where they look.
+    let foot = format!("{} VS {}", upper(TEAM_NAMES[0]), upper(TEAM_NAMES[1]));
+    l.label_fit("footer", Some(p), (x1 - 2) / 2, h as i32 - 19 * s, &foot, s, x1 - 10 * s, DIM);
+    l.label_fit("version", Some(p), (x1 - 2) / 2, h as i32 - 10 * s, &upper(version), s, x1 - 10 * s, DIM);
     l
 }
 
@@ -379,6 +384,10 @@ pub enum JoinAction {
     Paste,
     /// Try to join.
     Connect,
+    /// Stop a join that is under way.
+    Cancel,
+    /// Join a game joined before (an index into the recent games the screen listed).
+    Recent(usize),
     /// Back to the home screen.
     Back,
 }
@@ -390,14 +399,20 @@ pub fn join_action(id: &str) -> Option<JoinAction> {
         "field_name" => Some(JoinAction::Name),
         "paste" => Some(JoinAction::Paste),
         "connect" => Some(JoinAction::Connect),
+        "cancel" => Some(JoinAction::Cancel),
         "back" => Some(JoinAction::Back),
-        _ => None,
+        id => id.strip_prefix("recent_").and_then(|n| n.parse::<usize>().ok()).map(JoinAction::Recent),
     }
 }
 
-/// The join screen: one field for the join code a friend sent (paste it), your name, JOIN and BACK. The form's `address` holds the code and its
-/// `key` is unused; `message` is shown under the buttons.
-pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layout {
+/// How many recent games the join screen offers.
+pub const RECENT_SHOWN: usize = 3;
+
+/// The join screen: one field for the join code a friend sent (paste it), your name, JOIN, PASTE and BACK (only CANCEL, in BACK's place, while a join is
+/// under way), then the games joined before (`recent`, each a short label with no key in it) to join again with one click. The form's `address` holds the
+/// code (or, after a REJOIN, that game's label, which JOIN reads back as its saved code: `Stats::code_to_join`) and its `key` is unused;
+/// `message` is the progress line while `busy`, otherwise what went wrong, under the buttons.
+pub fn join_layout(w: u32, h: u32, f: &ConnectForm, recent: &[String], busy: bool, hover: Option<&str>) -> Layout {
     let (mut l, p, (x0, _, x1, _), s) = frame(w, h, "join a game");
     let inner = x1 - x0 - 24 * s;
     let (lx, rx) = (x0 + 12 * s, x1 - 12 * s);
@@ -426,16 +441,37 @@ pub fn join_layout(w: u32, h: u32, f: &ConnectForm, hover: Option<&str>) -> Layo
         y += field_h + 6 * s;
     }
     let third = (rx - lx - 6 * s) / 3;
-    btn(&mut l, "connect", (lx, y, lx + third, y + 15 * s), Some(p), "JOIN", s * 2, hover == Some("connect"), true);
-    btn(&mut l, "paste", (lx + third + 3 * s, y, lx + 2 * third + 3 * s, y + 15 * s), Some(p), "PASTE", s * 2, hover == Some("paste"), false);
-    btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
+    if busy {
+        // CANCEL takes BACK's place, never JOIN's: a click acts on the press, so the second press of a double-click on JOIN (or on a REJOIN below,
+        // where the progress line now is) would cancel the join the first press started. Nothing else is clickable until it ends; Escape cancels too.
+        btn(&mut l, "cancel", (rx - third, y, rx, y + 15 * s), Some(p), "CANCEL", s * 2, hover == Some("cancel"), true);
+    } else {
+        btn(&mut l, "connect", (lx, y, lx + third, y + 15 * s), Some(p), "JOIN", s * 2, hover == Some("connect"), true);
+        btn(&mut l, "paste", (lx + third + 3 * s, y, lx + 2 * third + 3 * s, y + 15 * s), Some(p), "PASTE", s * 2, hover == Some("paste"), false);
+        btn(&mut l, "back", (rx - third, y, rx, y + 15 * s), Some(p), "BACK", s * 2, hover == Some("back"), false);
+    }
     y += 15 * s + 6 * s;
+    // The games joined before, newest first. They give way to a message: the player is reading what went wrong (or what is happening), and the
+    // code of the last attempt is in the field above, so JOIN tries it again.
+    if !busy && f.message.is_none() {
+        for (i, label) in recent.iter().take(RECENT_SHOWN).enumerate() {
+            let id = format!("recent_{i}");
+            let rect = (lx, y, rx, y + 11 * s);
+            let sc = fit_both("W", rect, s);
+            let text = ellipsize(&format!("REJOIN  {}", upper(label)), rect.2 - rect.0 - 4 * sc, sc);
+            btn(&mut l, &id, rect, Some(p), &text, sc, hover == Some(id.as_str()), false);
+            y += 11 * s + 3 * s;
+        }
+    }
     if let Some(m) = &f.message {
-        // Four lines at most: a longer message is set smaller (never cut), so an error that says what to do keeps its second half on a 4:3 window too.
+        // Several lines, at the largest size at which all of it fits above the bottom of the window: an error that says what to do keeps its second half.
         let text = upper(m);
-        let ms = (1..=s).rev().find(|sc| red_engine2::ui::wrap(&text, inner, *sc).len() <= 4).unwrap_or(1);
-        for (i, line) in red_engine2::ui::wrap(&text, inner, ms).into_iter().take(4).enumerate() {
-            l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * (text_height(ms) + 2 * ms), &line, ms, inner, [255, 170, 120, 255]);
+        let avail = h as i32 - y - 4 * s;
+        let pitch = |sc: i32| text_height(sc) + 2 * sc;
+        let ms = (1..=s).rev().find(|sc| red_engine2::ui::wrap(&text, inner, *sc).len() as i32 * pitch(*sc) <= avail).unwrap_or(1);
+        let room = (avail / pitch(ms)).max(1) as usize;
+        for (i, line) in red_engine2::ui::wrap(&text, inner, ms).into_iter().take(room).enumerate() {
+            l.label_left(&format!("message_{i}"), Some(p), lx, y + i as i32 * pitch(ms), &line, ms, inner, if busy { DIM } else { [255, 170, 120, 255] });
         }
     }
     l
@@ -478,6 +514,15 @@ pub fn stats_layout(w: u32, h: u32, st: &Stats, hover: Option<&str>) -> Layout {
 // lobby
 // ---------------------------------------------------------------------------------------------------------------------------------
 
+/// One code a host gives friends.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LobbyCode {
+    /// What it is for (`Online code (works from anywhere)`).
+    pub label: String,
+    /// The code, exactly as a friend must paste it.
+    pub code: String,
+}
+
 /// What the team lobby shows.
 #[derive(Debug, Clone, Default)]
 pub struct LobbyView {
@@ -493,8 +538,13 @@ pub struct LobbyView {
     pub time_limit_secs: u16,
     /// Seconds left of a countdown, if one is running.
     pub countdown: Option<u32>,
-    /// Where friends join, when this machine hosts.
-    pub join_address: Option<String>,
+    /// The codes friends join with, best first, when this machine hosts (the online code, then the direct ones). Each is listed in full with a COPY
+    /// button; the text of a code is drawn exactly as it is (it is case-sensitive) and wrapped, never cut.
+    pub codes: Vec<LobbyCode>,
+    /// The code whose COPY button was just pressed (it says COPIED for a moment).
+    pub copied: Option<usize>,
+    /// The release and protocol this copy of the game is (`RELEASE 4  PROTOCOL 17`).
+    pub version: String,
     /// Connection trouble or other news.
     pub message: Option<String>,
     /// Whether this machine hosts the match (the button says START instead of READY).
@@ -518,6 +568,8 @@ pub enum LobbyAction {
     Team(u8),
     /// Toggle ready.
     Ready,
+    /// Put code number `n` (of the ones listed) on the clipboard.
+    Copy(usize),
     /// Leave to the home screen.
     Leave,
 }
@@ -529,6 +581,7 @@ pub fn lobby_action(id: &str) -> Option<LobbyAction> {
         "team_2" => Some(LobbyAction::Team(2)),
         "ready" => Some(LobbyAction::Ready),
         "leave" => Some(LobbyAction::Leave),
+        id if id.starts_with("copy_") => id.strip_prefix("copy_").and_then(|n| n.parse::<usize>().ok()).map(LobbyAction::Copy),
         id => id.strip_prefix("look_").and_then(|n| n.parse::<u8>().ok()).filter(|n| *n < 4).map(LobbyAction::Look),
     }
 }
@@ -549,16 +602,119 @@ pub fn clock(secs: u32) -> String {
     format!("{}:{:02}", secs / 60, secs % 60)
 }
 
-/// The lobby: two team columns (click one to join it), the match rules, READY/START and LEAVE.
+/// How big the lobby's parts are drawn, chosen by [`lobby_metrics`] so the whole card fits the window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LobbyMetrics {
+    /// The pixel multiplier of the whole card (the window's own, or smaller when the codes need the room).
+    pub scale: i32,
+    /// The height of one roster row, in pixels.
+    pub row_h: i32,
+    /// The text scale of the online code (the one to read out: big when there is room).
+    pub online_scale: i32,
+    /// The text scale of the direct codes (long: small when there is not).
+    pub direct_scale: i32,
+    /// Last resort for a very small window: no caption row (the label), the COPY button beside the first line of the code.
+    pub compact: bool,
+}
+
+/// One code, ready to draw: its text cut into lines at the scale it will be drawn at.
+struct CodeBlock {
+    scale: i32,
+    lines: Vec<String>,
+}
+
+/// The height of a code's caption row (its label and its COPY button).
+fn code_caption_h(s: i32) -> i32 {
+    text_height(s) + 4 * s
+}
+
+/// The width of a COPY button (wide enough for COPIED).
+fn copy_button_w(s: i32) -> i32 {
+    text_width("COPIED", s) + 8 * s
+}
+
+/// The code cut into lines no wider than `width` at `scale` (a code has no spaces, so it is cut where the line ends; nothing is dropped or
+/// replaced by an ellipsis), at the largest scale up to `cap` that needs at most two lines (one at least, at the smallest scale, if it needs more).
+fn code_block(code: &str, width: i32, cap: i32) -> CodeBlock {
+    let scale = (1..=cap.max(1)).rev().find(|sc| red_engine2::ui::wrap(code, width, *sc).len() <= 2).unwrap_or(1);
+    CodeBlock { scale, lines: red_engine2::ui::wrap(code, width, scale) }
+}
+
+fn code_blocks(v: &LobbyView, width: i32, m: &LobbyMetrics) -> Vec<CodeBlock> {
+    // Beside a COPY button the text has less room.
+    let width = if m.compact { width - copy_button_w(m.scale) - 4 * m.scale } else { width };
+    v.codes.iter().map(|c| code_block(&c.code, width, if c.code.contains('#') { m.direct_scale } else { m.online_scale })).collect()
+}
+
+/// The height in pixels of one code's entry: its caption row (or, compact, the COPY button's own height beside the first line) and its lines.
+fn code_entry_h(b: &CodeBlock, s: i32, compact: bool) -> i32 {
+    let lines = b.lines.len() as i32 * (text_height(b.scale) + b.scale);
+    if compact {
+        lines.max(code_caption_h(s)) + 3 * s
+    } else {
+        code_caption_h(s) + lines + 4 * s
+    }
+}
+
+/// The height in pixels of everything the lobby shows above the team columns that depends on the codes and the notice.
+fn code_area_h(blocks: &[CodeBlock], s: i32, compact: bool) -> i32 {
+    blocks.iter().map(|b| code_entry_h(b, s, compact)).sum()
+}
+
+/// The card's own width, wrapped notice lines, and total height at `m`.
+fn lobby_sizes(w: u32, v: &LobbyView, m: &LobbyMetrics) -> (i32, Vec<String>, i32) {
+    let (wi, s) = (w as i32, m.scale);
+    let cw = (330 * s).min(wi - 8);
+    // A notice (the relay did not answer, the router did not open the port) gets its own wrapped lines under the codes, so it never lands on the
+    // look chips or the buttons.
+    let note_lines: Vec<String> =
+        v.message.as_deref().map(|t| red_engine2::ui::wrap(&upper(t), cw - 12 * s, s).into_iter().take(5).collect()).unwrap_or_default();
+    let note_h = if note_lines.is_empty() { 0 } else { note_lines.len() as i32 * (text_height(s) + 2 * s) + 3 * s };
+    let blocks = code_blocks(v, cw - 20 * s, m);
+    let version_h = if v.version.is_empty() { 0 } else { text_height(s) + 3 * s };
+    let ch = 116 * s + 6 * m.row_h + note_h + version_h + code_area_h(&blocks, s, m.compact);
+    (cw, note_lines, ch)
+}
+
+/// The largest way to draw the lobby that fits the window: the window's own scale with the codes at their best, the roster rows tightening before the
+/// codes shrink, then smaller codes, then (only if that is still not enough) a smaller card, and for a very small window the compact form. A lobby
+/// with no codes (a joiner's, or a host with none yet) always gets the first.
+pub fn lobby_metrics(w: u32, h: u32, v: &LobbyView) -> LobbyMetrics {
+    let top = scale_for(h);
+    let room = h as i32 - 8;
+    for compact in [false, true] {
+        for s in (1..=top).rev() {
+            let rows = [text_height(s) + 5 * s, text_height(s) + 3 * s, text_height(s) + 2 * s];
+            let styles = [(2 * s, s.max(2) - 1), (s, s.max(2) - 1), (s, 1), (s.max(2) - 1, 1), (1, 1)];
+            // The codes come first (the nicest text size that fits), the roster rows give way before the codes shrink.
+            for (online_scale, direct_scale) in styles {
+                for row_h in rows {
+                    let m = LobbyMetrics { scale: s, row_h, online_scale: online_scale.max(1), direct_scale: direct_scale.max(1), compact };
+                    if lobby_sizes(w, v, &m).2 <= room {
+                        return m;
+                    }
+                }
+            }
+        }
+    }
+    LobbyMetrics { scale: 1, row_h: text_height(1) + 2, online_scale: 1, direct_scale: 1, compact: true }
+}
+
+/// The lobby: two team columns (click one to join it), the match rules, the codes a host gives friends (each with a COPY button), READY/START and LEAVE.
 pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layout {
+    lobby_layout_at(w, h, v, hover, &lobby_metrics(w, h, v))
+}
+
+/// [`lobby_layout`] at the given sizes.
+pub fn lobby_layout_at(w: u32, h: u32, v: &LobbyView, hover: Option<&str>, m: &LobbyMetrics) -> Layout {
     let mut l = Layout::new(w, h);
     let (wi, hi) = (w as i32, h as i32);
-    let s = scale_for(h);
+    let s = m.scale;
     l.panel("wash", (0, 0, wi, hi), None, Some([3, 4, 6, 170]), None);
-    let cw = (330 * s).min(wi - 8);
     let rows = 6;
-    let row_h = text_height(s) + 5 * s;
-    let ch = (104 * s + rows * row_h + 22 * s).min(hi - 8);
+    let row_h = m.row_h;
+    let (cw, note_lines, ch) = lobby_sizes(w, v, m);
+    let ch = ch.min(hi - 8);
     let (x0, y0) = ((wi - cw) / 2, ((hi - ch) / 2).max(4));
     let card = l.panel("card", (x0, y0, x0 + cw, y0 + ch), None, Some(PANEL), Some((EDGE, 1.max(s / 2))));
     let cx = x0 + cw / 2;
@@ -585,9 +741,37 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
         DIM,
     );
     let mut top = y0 + 8 * s + text_height(s * 3) + 4 * s + text_height(s) + 6 * s;
-    if let Some(a) = &v.join_address {
-        l.label_fit("join_address", Some(card), cx, top, &format!("FRIENDS JOIN AT  {}", upper(a)), s, cw - 12 * s, [255, 214, 140, 255]);
-        top += text_height(s) + 5 * s;
+    if !v.version.is_empty() {
+        // Two players whose releases differ cannot join each other: the lobby says which one this is.
+        l.label_fit("version", Some(card), cx, top - 3 * s, &upper(&v.version), s, cw - 12 * s, DIM);
+        top += text_height(s) + 3 * s;
+    }
+    // The codes friends join with: what each is for and a COPY button on one row, the code itself under it in full (wrapped, at its own case). In the
+    // compact form of a very small window the label is left out and the button sits beside the first line.
+    let blocks = code_blocks(v, cw - 20 * s, m);
+    for (i, (code, block)) in v.codes.iter().zip(&blocks).enumerate() {
+        let copy_label = if v.copied == Some(i) { "COPIED" } else { "COPY" };
+        let (copy_w, button_h) = (copy_button_w(s), code_caption_h(s));
+        let id = format!("copy_{i}");
+        let (bx1, bx0) = (x0 + cw - 10 * s, x0 + cw - 10 * s - copy_w);
+        btn(&mut l, &id, (bx0, top, bx1, top + button_h), Some(card), copy_label, s, hover == Some(id.as_str()), v.copied == Some(i));
+        let mut y = top;
+        if !m.compact {
+            l.label_left(&format!("code_label_{i}"), Some(card), x0 + 10 * s, top + 2 * s, &upper(&code.label), s, bx0 - x0 - 14 * s, DIM);
+            y += button_h;
+        }
+        for (k, line) in block.lines.iter().enumerate() {
+            let width = if m.compact { bx0 - x0 - 14 * s } else { cw - 20 * s };
+            l.label_left(&format!("code_{i}_{k}"), Some(card), x0 + 10 * s, y, line, block.scale, width, [255, 214, 140, 255]);
+            y += text_height(block.scale) + block.scale;
+        }
+        top += code_entry_h(block, s, m.compact);
+    }
+    for (i, line) in note_lines.iter().enumerate() {
+        l.label_fit(&format!("message_{i}"), Some(card), cx, top + i as i32 * (text_height(s) + 2 * s), line, s, cw - 12 * s, [255, 170, 120, 255]);
+    }
+    if !note_lines.is_empty() {
+        top += note_lines.len() as i32 * (text_height(s) + 2 * s) + 3 * s;
     }
     let gap = 6 * s;
     let colw = (cw - 20 * s - gap) / 2;
@@ -692,9 +876,6 @@ pub fn lobby_layout(w: u32, h: u32, v: &LobbyView, hover: Option<&str>) -> Layou
     };
     btn(&mut l, "ready", (cx - 80 * s, by, cx + 14 * s, by + 16 * s), Some(card), &main, s * 2, hover == Some("ready"), v.ready);
     btn(&mut l, "leave", (cx + 20 * s, by, cx + 80 * s, by + 16 * s), Some(card), "LEAVE", s * 2, hover == Some("leave"), false);
-    if let Some(m) = &v.message {
-        l.label_fit("message", Some(card), cx, by - text_height(s) - 4 * s, &upper(m), s, cw - 12 * s, [255, 170, 120, 255]);
-    }
     l
 }
 
@@ -1228,7 +1409,7 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
         ..Default::default()
     };
     Some(match name {
-        "home" => home_layout(w, h, None, "v1"),
+        "home" => home_layout(w, h, None, "release 4  protocol 17"),
         "solo" => setup_layout(
             w,
             h,
@@ -1259,7 +1440,17 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
         "join" => {
             let mut f = ConnectForm::new("203.0.113.9:27015", "", "Kev");
             f.message = None;
-            join_layout(w, h, &f, None)
+            join_layout(w, h, &f, &["red-engine.duckdns.org:27015".to_string(), "H3PQXR".to_string()], false, None)
+        }
+        "join-busy" => {
+            let mut f = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
+            f.message = Some("Asking the relay for the host...".into());
+            join_layout(w, h, &f, &["H3PQXR".to_string()], true, None)
+        }
+        "join-error" => {
+            let mut f = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
+            f.message = Some(red_engine2::net::relay_server::ResolveError::NoAnswer("red-engine.duckdns.org:28016".into()).to_string());
+            join_layout(w, h, &f, &["H3PQXR".to_string()], false, None)
         }
         "stats" => {
             let mut st = Stats {
@@ -1291,8 +1482,34 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
                 kill_limit: 50,
                 time_limit_secs: 600,
                 countdown: None,
-                join_address: Some("H3PQXR-K7Q2-MZ4P-WTXA".into()),
+                codes: demo_codes(),
+                copied: None,
+                version: "release 4  protocol 17".into(),
                 message: None,
+                hosting: true,
+                map: "foundry".into(),
+                mode: 0,
+                team_size: 6,
+                look: 1,
+            },
+            None,
+        ),
+        "lobby-notice" => lobby_layout(
+            w,
+            h,
+            &LobbyView {
+                roster: demo_roster(),
+                me: 0,
+                ready: false,
+                kill_limit: 50,
+                time_limit_secs: 600,
+                countdown: None,
+                codes: demo_codes().into_iter().skip(2).collect(),
+                copied: None,
+                version: "release 4  protocol 17".into(),
+                message: Some(
+                    "no online code yet: the relay did not answer. trying again every 20 seconds; the address below still works on your network".into(),
+                ),
                 hosting: true,
                 map: "foundry".into(),
                 mode: 0,
@@ -1403,6 +1620,17 @@ pub fn build(name: &str, w: u32, h: u32) -> Option<Layout> {
     })
 }
 
+/// Sample codes for the lobby pictures and the audit: the shapes a host really has (an online code, a direct code through the router, one for the same
+/// network), with made-up addresses, a made-up identity and a made-up key.
+pub fn demo_codes() -> Vec<LobbyCode> {
+    let fingerprint = format!("sha256:{}", "0123456789abcdef".repeat(4));
+    vec![
+        LobbyCode { label: "Online code (works from anywhere)".into(), code: "H3PQXR-K7Q2-MZ4P-WTXA".into() },
+        LobbyCode { label: "Direct code (router port open)".into(), code: format!("203.0.113.9:27015#{fingerprint}#K7Q2MZ4PWTXA") },
+        LobbyCode { label: "Same network only".into(), code: format!("192.168.0.133:27015#{fingerprint}#K7Q2MZ4PWTXA") },
+    ]
+}
+
 /// Audits every screen at the engine's check sizes; each entry is `(screen, size, problem)`.
 pub fn audit_all() -> Vec<(String, (u32, u32), String)> {
     let mut out = Vec::new();
@@ -1435,75 +1663,211 @@ mod tests {
         );
     }
 
+    fn hosting_view(codes: Vec<LobbyCode>) -> LobbyView {
+        LobbyView {
+            roster: demo_roster(),
+            me: 0,
+            ready: false,
+            kill_limit: 50,
+            time_limit_secs: 600,
+            countdown: None,
+            codes,
+            copied: None,
+            version: "release 4  protocol 17".into(),
+            message: None,
+            hosting: true,
+            map: "foundry".into(),
+            mode: 0,
+            team_size: 6,
+            look: 1,
+        }
+    }
+
+    /// The text of a code as the lobby drew it: its lines, in order, joined.
+    fn drawn_code(l: &Layout, i: usize) -> String {
+        (0..).map_while(|k| l.widgets.iter().find(|x| x.id == format!("code_{i}_{k}"))).filter_map(|x| x.text.clone()).collect()
+    }
+
     #[test]
-    fn the_code_a_host_reads_out_is_never_cut_short_on_the_lobby_screen() {
-        // The relay code carries the join key (`H3PQXR-K7Q2-MZ4P-WTXA`): an ellipsis in it would be a code nobody can join with.
-        let code = "H3PQXR-K7Q2-MZ4P-WTXA";
+    fn every_code_a_host_has_is_listed_in_full_with_its_own_case_and_a_copy_button_at_every_size() {
+        // The relay code carries the join key, the long codes carry an identity and a key that are case-sensitive: an ellipsis, a missing code or an
+        // upper-cased `sha256:` is a code nobody can join with. Wrapped, not cut; each with a button that copies the exact text.
+        let codes = demo_codes();
+        assert!(codes[1].code.contains("#sha256:") && codes[1].code.contains("K7Q2MZ4PWTXA"));
         for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
-            let view = LobbyView {
-                roster: demo_roster(),
-                me: 0,
-                ready: false,
-                kill_limit: 50,
-                time_limit_secs: 600,
-                countdown: None,
-                join_address: Some(code.into()),
-                message: None,
-                hosting: true,
-                map: "foundry".into(),
-                mode: 0,
-                team_size: 6,
-                look: 1,
-            };
-            let l = lobby_layout(w, h, &view, None);
-            let shown = l.widgets.iter().find(|x| x.id == "join_address").and_then(|x| x.text.clone()).unwrap_or_default();
-            assert_eq!(shown, format!("FRIENDS JOIN AT  {code}"), "{w}x{h}: the whole code is on screen, not an ellipsis");
+            let l = lobby_layout(w, h, &hosting_view(codes.clone()), None);
+            for (i, c) in codes.iter().enumerate() {
+                assert_eq!(drawn_code(&l, i), c.code, "{w}x{h}: code {i} is on screen in full, as it is");
+                assert!(l.rect_of(&format!("copy_{i}")).is_some(), "{w}x{h}: a COPY button for code {i}");
+                assert_eq!(lobby_action(&format!("copy_{i}")), Some(LobbyAction::Copy(i)));
+            }
+            assert!(
+                l.widgets.iter().any(|x| x.id == "version" && x.text.as_deref() == Some("RELEASE 4  PROTOCOL 17")),
+                "{w}x{h}: the lobby says which release this is"
+            );
         }
     }
 
     #[test]
+    fn the_lobby_keeps_the_window_scale_for_every_code_at_the_common_sizes() {
+        // Hosting with three codes still fits at the window's own scale on a 1080p screen and on the 4:3 sizes; on a 720p screen the roster rows tighten
+        // before anything shrinks.
+        for (w, h) in [(1920, 1080), (1024, 768), (800, 600)] {
+            let m = lobby_metrics(w, h, &hosting_view(demo_codes()));
+            assert_eq!(m.scale, scale_for(h), "{w}x{h}: {m:?}");
+        }
+        let none = lobby_metrics(1280, 720, &hosting_view(Vec::new()));
+        assert_eq!((none.scale, none.row_h), (3, text_height(3) + 15), "a lobby with no codes is drawn as it always was");
+    }
+
+    #[test]
+    fn a_copied_code_says_so_and_the_others_do_not() {
+        let mut v = hosting_view(demo_codes());
+        v.copied = Some(1);
+        let l = lobby_layout(1280, 720, &v, None);
+        let label = |id: &str| l.widgets.iter().find(|x| x.id == id).and_then(|x| x.text.clone());
+        assert_eq!((label("copy_0"), label("copy_1"), label("copy_2")), (Some("COPY".into()), Some("COPIED".into()), Some("COPY".into())));
+    }
+
+    #[test]
     fn every_way_a_join_can_fail_is_readable_in_full_on_the_join_screen() {
-        // The join screen wraps a message into four lines and drops the rest: an error that says what to do must not lose its second half. The sentences come from the code that raises them.
-        use red_engine2::net::join::JoinError;
+        // The join screen wraps a message at the largest size at which all of it fits above the bottom of the window: an error that says what to do must
+        // not lose its second half. The sentences come from the code that raises them.
+        use red_engine2::net::join::{refusal_text, JoinError};
+        use red_engine2::net::join_task::host_silent;
         use red_engine2::net::protocol::RejectReason;
         use red_engine2::net::relay_server::ResolveError;
+        let relayed = red_engine2::net::join::JoinTarget::parse("H3PQXR-K7Q2-MZ4P-WTXA").unwrap();
+        let direct = red_engine2::net::join::JoinTarget::parse("red-engine.duckdns.org:27015").unwrap();
         let mut messages: Vec<String> = [
             JoinError::RelaysOff,
             JoinError::HostNotVerifiable,
             JoinError::NoIdentity,
-            JoinError::AddressNotFound("host.example.com:27015".into()),
+            JoinError::AddressNotFound("red-engine.duckdns.org:27015".into()),
             JoinError::Relay(ResolveError::CodeNotLive),
             JoinError::Relay(ResolveError::NoAnswer("red-engine.duckdns.org:28016".into())),
+            JoinError::Relay(ResolveError::RelayDown("red-engine.duckdns.org:28016".into())),
         ]
         .iter()
         .map(|e| e.to_string())
         .collect();
+        messages.push(
+            JoinError::Relay(ResolveError::RelayNotFound(format!(
+                "Cannot look up the relay's name, red-engine.duckdns.org ({}).",
+                "failed to lookup address information"
+            )))
+            .to_string(),
+        );
+        messages.push(host_silent(&relayed, 6.0).text);
+        messages.push(host_silent(&direct, 6.0).text);
         messages.extend(
-            [RejectReason::BadKey, RejectReason::NeedsKey, RejectReason::ServerIdentity, RejectReason::WrongMap, RejectReason::Full]
-                .map(|r| r.explain().to_string()),
+            [
+                RejectReason::Version,
+                RejectReason::WrongMap,
+                RejectReason::BadKey,
+                RejectReason::NeedsKey,
+                RejectReason::ServerIsOpen,
+                RejectReason::ServerIdentity,
+                RejectReason::Full,
+            ]
+            .map(|r| refusal_text(r, "release 4, protocol 17")),
         );
         let mut cut = Vec::new();
         for &(w, h) in red_engine2::ui::screens::CHECK_SIZES.iter().filter(|(w, _)| *w >= 640) {
             for m in &messages {
                 let mut form = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
                 form.message = Some(m.clone());
-                let l = join_layout(w, h, &form, None);
-                let shown =
-                    (0..4).filter_map(|i| l.widgets.iter().find(|x| x.id == format!("message_{i}")).and_then(|x| x.text.clone())).collect::<Vec<_>>().join(" ");
+                let l = join_layout(w, h, &form, &["H3PQXR".to_string()], false, None);
+                let shown = (0..40)
+                    .filter_map(|i| l.widgets.iter().find(|x| x.id == format!("message_{i}")).and_then(|x| x.text.clone()))
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 // Letters, not words: a long address may be broken across two lines, and that loses nothing.
                 if shown.split_whitespace().collect::<String>() != upper(m).split_whitespace().collect::<String>() {
                     cut.push(format!("{w}x{h}: {m}"));
                 }
             }
         }
-        assert!(cut.is_empty(), "{} message(s) lose words to the four-line limit:\n{}", cut.len(), cut.join("\n"));
+        assert!(cut.is_empty(), "{} message(s) lose words:\n{}", cut.len(), cut.join("\n"));
+    }
+
+    #[test]
+    fn the_join_screen_offers_recent_games_by_a_label_with_no_key_in_it_and_cancel_while_joining() {
+        let form = ConnectForm::new("", "", "Kev");
+        let l = join_layout(1280, 720, &form, &["red-engine.duckdns.org:27015".to_string(), "H3PQXR".to_string()], false, None);
+        assert!(l.rect_of("recent_0").is_some() && l.rect_of("recent_1").is_some() && l.rect_of("recent_2").is_none());
+        assert!(l.rect_of("connect").is_some() && l.rect_of("cancel").is_none());
+        assert_eq!(join_action("recent_1"), Some(JoinAction::Recent(1)));
+        let busy = join_layout(1280, 720, &form, &["H3PQXR".to_string()], true, None);
+        assert!(busy.rect_of("cancel").is_some() && busy.rect_of("connect").is_none() && busy.rect_of("recent_0").is_none(), "while joining: CANCEL, no list");
+        assert_eq!(join_action("cancel"), Some(JoinAction::Cancel));
+    }
+
+    #[test]
+    fn a_double_click_on_join_or_rejoin_never_lands_on_cancel() {
+        // A click acts on the press, and the layout is rebuilt for every click: the first press of a double-click starts the join, the second lands on
+        // whatever the busy screen has in the same place. CANCEL used to take JOIN's own rectangle, so a double-click walked away from the join it had
+        // just started and the player saw JOIN do nothing.
+        let overlap = |a: (i32, i32, i32, i32), b: (i32, i32, i32, i32)| a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3;
+        let recent = ["red-engine.duckdns.org:27015".to_string(), "H3PQXR".to_string(), "203.0.113.9:27015".to_string()];
+        for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
+            let idle = join_layout(w, h, &ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev"), &recent, false, None);
+            let mut form = ConnectForm::new("H3PQXR-K7Q2-MZ4P-WTXA", "", "Kev");
+            form.message = Some("Starting...".into());
+            let busy = join_layout(w, h, &form, &recent, true, None);
+            let cancel = busy.rect_of("cancel").unwrap_or_else(|| panic!("{w}x{h}: CANCEL while joining"));
+            for id in ["connect", "recent_0", "recent_1", "recent_2"] {
+                if let Some(start) = idle.rect_of(id) {
+                    assert!(!overlap(start, cancel), "{w}x{h}: CANCEL {cancel:?} sits under {id} {start:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rejoin_never_puts_a_saved_key_on_screen_and_join_still_uses_it() {
+        // REJOIN used to copy the saved code, key and all, into the code field, which draws the end of what it holds: the key was on screen at once, and
+        // stayed there when the join failed. The field gets the game's label instead, and JOIN reads that label back as the saved code.
+        let key = "K7Q2MZ4PWTXA";
+        let mut stats = Stats::default();
+        stats.remember_join(&format!("red-engine.duckdns.org:27015#sha256:{}#{key}", "ab".repeat(32)), "quarry.json");
+        stats.remember_join("H3PQXR-K7Q2-MZ4P-WTXA", "main.json");
+        let labels: Vec<String> = stats.recent_joins.iter().map(crate::stats::RecentJoin::label).collect();
+        // Any four characters of the key in a row count: a long field shows only its end.
+        let leaks = |t: &str| {
+            let t = t.to_uppercase().replace('-', "");
+            (0..=key.len() - 4).any(|i| t.contains(&key[i..i + 4]))
+        };
+        for r in &stats.recent_joins {
+            let mut form = ConnectForm::new("", "", "Kev");
+            form.address = r.field_text();
+            for &(w, h) in &red_engine2::ui::screens::CHECK_SIZES {
+                for (busy, message) in [(true, Some("Starting...")), (false, Some("The host did not answer.")), (false, None)] {
+                    form.message = message.map(str::to_string);
+                    let l = join_layout(w, h, &form, &labels, busy, None);
+                    for t in l.widgets.iter().filter_map(|x| x.text.as_deref()) {
+                        assert!(!leaks(t), "{w}x{h}: '{t}' shows the saved key of {}", r.label());
+                    }
+                }
+            }
+            assert_eq!(stats.code_to_join(&form.address), r.code, "JOIN joins the saved code, key included");
+        }
+        // The label typed by hand works the same (any case, spaces around it); anything else is joined as it was typed.
+        assert_eq!(stats.code_to_join("  h3pqxr "), "H3PQXR-K7Q2-MZ4P-WTXA");
+        assert_eq!(stats.code_to_join("BCDEFG-K7Q2"), "BCDEFG-K7Q2");
+        assert_eq!(stats.code_to_join(""), "");
     }
 
     #[test]
     fn the_home_menu_is_minimal_and_its_buttons_map_to_actions() {
-        let l = home_layout(1280, 720, None, "v1");
+        let l = home_layout(1280, 720, None, "release 4  protocol 17");
         let buttons: Vec<&str> = l.widgets.iter().filter(|w| w.kind == red_engine2::ui::Kind::Button).map(|w| w.id.as_str()).collect();
         assert_eq!(buttons, ["solo", "host", "join", "stats", "quit"]);
+        assert_eq!(
+            l.widgets.iter().find(|w| w.id == "version").and_then(|w| w.text.as_deref()),
+            Some("RELEASE 4  PROTOCOL 17"),
+            "the home screen says which release this is"
+        );
         assert_eq!(home_action("stats"), Some(HomeAction::Stats));
         assert_eq!(home_action("nope"), None);
         let (x, y) = {

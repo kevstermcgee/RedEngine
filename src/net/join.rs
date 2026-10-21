@@ -8,11 +8,30 @@
 //! `tests/net_join_flow.rs` drives both. No window, no GPU: the pure parts are unit-tested below, the sockets by that test.
 
 use super::client::{ClientConfig, ClientTransportConfig};
-use super::join_code::JoinCode;
+use super::join_code::{extract_code, JoinCode};
+use super::protocol::RejectReason;
 use super::quic::ServerTrust;
 use super::relay::ShortJoin;
 use super::relay_server::{resolve_code, ResolveError};
 use std::time::Duration;
+
+/// The words for a host's refusal, with what to do next. `mine` says what this client is, for a refusal that is about the two sides differing
+/// (`"protocol 17"`, or `"release 4, protocol 17"` when the game knows its release).
+///
+/// The wire carries no more than the reason, so a version refusal cannot say which side is the old one or what the host runs (that would need a
+/// protocol change): it says what *this* side is and that both must have the newest release, which is true whichever side is behind.
+pub fn refusal_text(reason: RejectReason, mine: &str) -> String {
+    match reason {
+        RejectReason::Version => format!(
+            "The host's protocol differs from yours ({mine}). Both of you need the newest release: update your game, and ask your friend to update theirs."
+        ),
+        RejectReason::WrongMap => {
+            "The host plays a map that this copy of the game does not have. You and the host need the same release: update, or ask them which one they run."
+                .to_string()
+        }
+        other => other.explain().to_string(),
+    }
+}
 
 /// What was typed, understood.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,7 +69,10 @@ impl std::fmt::Display for JoinError {
             JoinError::Relay(e) => e.fmt(f),
             JoinError::HostNotVerifiable => f.write_str("The relay could not vouch for that host. Not connecting: ask for a fresh code."),
             JoinError::NoIdentity => f.write_str("That code has no server identity, so it is not safe to use. Ask for the whole code."),
-            JoinError::AddressNotFound(a) => write!(f, "Cannot find '{a}'. Check the code and your internet connection."),
+            JoinError::AddressNotFound(a) => write!(
+                f,
+                "Cannot look up '{a}': the name was not found (or the lookup failed). Check the code for typos and that you are online, then try again."
+            ),
         }
     }
 }
@@ -58,12 +80,15 @@ impl std::fmt::Display for JoinError {
 impl std::error::Error for JoinError {}
 
 impl JoinTarget {
-    /// Understands what a person typed or pasted: a relay code if it is shaped like one, otherwise a direct code.
+    /// Understands what a person typed or pasted: a relay code if it is shaped like one, otherwise a direct code. A label in front of the code
+    /// (`from anywhere (needs UDP 27015 forwarded):  HOST:PORT#...`), white space around it and a trailing newline are ignored, and so is every
+    /// line but the one holding the code ([`extract_code`]): the owner pastes a whole line of the server's `join-code.txt`.
     pub fn parse(text: &str) -> Result<JoinTarget, JoinError> {
-        if let Some(short) = ShortJoin::parse(text) {
+        let code = extract_code(text);
+        if let Some(short) = ShortJoin::parse(&code) {
             return Ok(JoinTarget::Relay(short));
         }
-        JoinCode::parse(text).map(JoinTarget::Direct).map_err(JoinError::BadCode)
+        JoinCode::parse(&code).map(JoinTarget::Direct).map_err(JoinError::BadCode)
     }
 
     /// The join key this code carries, if any (for a screen that wants to say "this code has no key").
@@ -147,6 +172,28 @@ mod tests {
     }
 
     #[test]
+    fn a_whole_line_of_a_join_code_file_is_a_code() {
+        let key = generate_join_key().unwrap();
+        let line = format!("from anywhere (needs UDP 27015 forwarded):  red-engine.duckdns.org:27015#{FP}#{key}\n");
+        let JoinTarget::Direct(code) = JoinTarget::parse(&line).unwrap() else { panic!("a long code") };
+        assert_eq!((code.address.as_str(), code.fingerprint.as_deref(), code.key.as_deref()), ("red-engine.duckdns.org:27015", Some(FP), Some(key.as_str())));
+        // The same line with the identity in capitals (a copy typed from the lobby, which draws capitals) is the same code.
+        let shouted = format!("red-engine.duckdns.org:27015#SHA256:{}#{key}", FP.trim_start_matches("sha256:").to_ascii_uppercase());
+        assert_eq!(JoinTarget::parse(&shouted).unwrap(), JoinTarget::Direct(code));
+        // A relay code with a label in front is a relay code.
+        let short = ShortJoin { code: generate_code().unwrap(), key: Some(key) };
+        assert_eq!(JoinTarget::parse(&format!("Online code: {}\n", short.format())).unwrap(), JoinTarget::Relay(short));
+    }
+
+    #[test]
+    fn a_version_refusal_says_what_this_side_is_and_what_to_do() {
+        let text = refusal_text(RejectReason::Version, "release 4, protocol 17");
+        assert!(text.contains("protocol differs") && text.contains("release 4, protocol 17") && text.contains("newest release"), "{text}");
+        assert!(refusal_text(RejectReason::WrongMap, "protocol 17").contains("same release"));
+        assert_eq!(refusal_text(RejectReason::Full, "protocol 17"), RejectReason::Full.explain());
+    }
+
+    #[test]
     fn every_error_says_what_to_do() {
         for e in [
             JoinError::RelaysOff,
@@ -154,9 +201,11 @@ mod tests {
             JoinError::NoIdentity,
             JoinError::AddressNotFound("nowhere.invalid:1".into()),
             JoinError::Relay(ResolveError::CodeNotLive),
+            JoinError::Relay(ResolveError::NoAnswer("relay.example:28016".into())),
+            JoinError::Relay(ResolveError::RelayDown("relay.example:28016".into())),
         ] {
             let text = e.to_string().to_lowercase();
-            assert!(text.contains(':') || text.contains("check") || text.contains("ask"), "{e:?} -> {text}");
+            assert!(text.contains(':') || text.contains("check") || text.contains("ask") || text.contains("try"), "{e:?} -> {text}");
             assert!(!text.contains("None") && !text.contains("Err("), "{text}");
         }
     }
