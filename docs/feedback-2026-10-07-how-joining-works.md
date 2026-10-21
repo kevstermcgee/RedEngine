@@ -1,5 +1,17 @@
 # Feedback: how a Killchain join actually travels, and what is and is not proven (2026-10-07)
 
+> **Correction, 2026-10-20 (the text below is left as it was written).** Two statements in it are wrong.
+> 1. *"UPnP is not answered."* The router (a TP-Link Archer A7 at 192.168.0.1) does answer UPnP. `deploy/red-portmap.py` keeps UDP 28016 (relay) and 27015 (game) mapped to
+>    the box with **permanent** mappings. Its 2026-10-08 first version asked for one-hour leases, but this router ignores an identical re-add, so a lease was never extended
+>    and each mapping lapsed for about 40 s every hour (measured and fixed 2026-10-20; `docs/HOSTING.md`, "Operating the box").
+> 2. *"The relay answers on its public name from inside: No (no NAT loopback on the router)."* **The router does hairpin.** A Resolve sent to `red-engine.duckdns.org:28016`
+>    from the box itself reaches the relay and is answered, and a QUIC Version Negotiation probe to the same name on UDP 27015 is answered by the game server
+>    (`deploy/red-selfcheck.py`, checks `public` and `game`, run every five minutes since 2026-10-20). A missing hairpin therefore cannot explain the 2026-10-07 "never answered
+>    Register"; no UPnP mapping had been opened yet then (`red-portmap` dates from 2026-10-08). So a test from the box to its own public name does exercise DNS, the router mapping and
+>    the relay or the server. What it cannot show is a friend's own ISP path: that is what an outside probe is for (the one on branch `net-probe`, run from a GitHub runner).
+>
+> The cousin joins the official server with the code on line 2 of `~/.config/killchain/join-code.txt`.
+
 Filed for the review later tonight, beside `docs/feedback-2026-10-07-stabilization-brief.md` (read that first; this note is the evidence behind its multiplayer items).
 Written by the Killchain session after the user asked "how does all of this work technically?" and said they once served a game from a different engine off the same mini PC
 over UDP, flawlessly. It is observation, not instruction, and it separates what was tested from what was assumed.

@@ -35,6 +35,11 @@
 //! it on. With `--record`,
 //! each round of a match flow is written to `TRACE.roundN.json`.
 //!
+//! **Refused joins are visible.** The periodic `stats:` line ends with `| joins N | rejected v1 m0 k0 b0 f0 o0 | throttled N` (refused for a version, a map, a missing
+//! key, a wrong key, a full match, any other reason; Hellos dropped by the join budget), the stop line carries the same counters, and each reason writes one
+//! `join refused (<reason>): ...` line per minute naming the client's protocol version, its map hash and its address masked to two octets (never a key). `k` counts
+//! handshakes that stopped at the key challenge, which a client with no key does by itself (`net::refusals`, ADR 2026-10-20-refused-joins-are-counted-and-said).
+//!
 //! It loads the map, simulates every player and every physics prop at 60 Hz, and sends 30 Hz
 //! snapshots over UDP to whoever joins (`re2 --connect HOST:PORT`, or `red_bot`). No window, no GPU
 //! is used. The first output line is `LISTENING <addr>` so scripts can find the port (`--port 0`
@@ -392,6 +397,11 @@ pub fn run(game: &GameServer) {
         server.sim().props().props().len(),
         every.max(1)
     );
+    // The wire version this binary speaks, so an operator (and `deploy/red-selfcheck.py`) can compare it with the clients' without opening the source.
+    println!(
+        "protocol: wire v{} (a client must speak the same version to join; each refused join is logged with its reason, at most once a minute per reason)",
+        crate::net::protocol::PROTOCOL_VERSION
+    );
     match server.security() {
         crate::net::transport::Security::Quic => {
             println!("join with:  re2 --connect HOST:{} --server-fingerprint <the fingerprint above> {}", local.port(), map.display())
@@ -488,7 +498,21 @@ pub fn run(game: &GameServer) {
     let s = server.stats();
     let t = server.transport_stats();
     println!(
-        "stopped: {} ticks, {} snapshots, {} joins, {} resumes, {} leaves ({} timeouts), {} bad packets; transport: {} connections, {} refused, {} failed handshakes, {} queue drops, {} stream messages",
-        s.ticks, s.snapshots_sent, s.joins, s.resumes, s.leaves, s.timeouts, s.bad_packets, t.connections_accepted, t.connections_refused, t.handshakes_failed, t.queue_dropped, t.sent_on_stream
+        "stopped: {} ticks, {} snapshots, {} joins, {} resumes, {} leaves ({} timeouts), {} bad packets; transport: {} connections, {} refused, {} failed handshakes, {} queue drops, {} stream messages; {} ({} in all), {} hellos throttled",
+        s.ticks,
+        s.snapshots_sent,
+        s.joins,
+        s.resumes,
+        s.leaves,
+        s.timeouts,
+        s.bad_packets,
+        t.connections_accepted,
+        t.connections_refused,
+        t.handshakes_failed,
+        t.queue_dropped,
+        t.sent_on_stream,
+        s.rejected_summary(),
+        s.rejected_total(),
+        s.hellos_throttled
     );
 }

@@ -137,6 +137,8 @@ pub mod net {
     pub mod protocol;
     #[cfg(feature = "quic")]
     pub mod quic;
+    #[cfg(feature = "quic")]
+    pub mod refusals;
     pub mod relay;
     pub mod relay_server;
     #[cfg(feature = "quic")]

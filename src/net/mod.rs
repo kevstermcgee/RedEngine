@@ -39,6 +39,7 @@ pub mod predict;
 pub use red_core::net::portmap;
 pub use red_core::net::protocol;
 pub use red_core::net::quic;
+pub use red_core::net::refusals;
 pub use red_core::net::relay;
 pub use red_core::net::relay_server;
 pub use red_core::net::server;
