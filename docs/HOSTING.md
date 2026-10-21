@@ -137,7 +137,7 @@ join key) stays with `deploy/game-host.sh`.
 
 This section is for whoever runs the shared relay and the Killchain server at home (`red-relay`, `red-game@killchain`; the units and scripts are in `deploy/`). Written 2026-10-20 after
 two people could not play together for weeks: the network was fine, a chain of small software and operations faults was not, and the server had no way to say what it was refusing
-(ADR 2026-10-20-a-server-says-why-it-refused-a-join, `docs/feedback-2026-10-07-how-joining-works.md` for the road a join takes).
+(ADR 2026-10-20-refused-joins-are-counted-and-said, `docs/feedback-2026-10-07-how-joining-works.md` for the road a join takes).
 
 ### Why did a join fail? Read the journal
 
@@ -158,7 +158,9 @@ are the reasons, `v` version, `m` map, `k` needs a key, `b` bad key, `f` full, `
 | `join refused (full)` | the match is full | wait for a slot |
 
 A server built before 2026-10-20 has none of this: its `stats:` line stops at `bad tags N` and a refused client leaves no trace (the self-check says "predates the reject counters").
-`k` also counts a client that vanished for any other reason inside those 8 s; the others are exact.
+The counters count join attempts, not datagrams: the client resends its Hello every 250 ms until it hears back, and a copy the same client sends within 5 s of a refusal is
+answered again but not counted again. `k` is the loose one: it also counts a client that vanished for any other reason inside those 8 s, and anyone who completes a QUIC
+handshake can raise it (at most 2 per address per 8 s), so the self-check treats `k` alone as a warning; the others need a Hello the server actually refused.
 
 ### The self-check (every five minutes)
 
@@ -173,7 +175,7 @@ A server built before 2026-10-20 has none of this: its `stats:` line stops at `b
 | `public` | `red-engine.duckdns.org` resolves to the router's current public address, and a Resolve through it reaches the relay | a stale DuckDNS record (`duckdns-update.timer`), a lapsed mapping, or the relay |
 | `game` | a QUIC Version Negotiation probe (stateless: no connection, no join) answers on `127.0.0.1:27015` and through the public name | the server is not listening, or the 27015 mapping is gone |
 | `mappings` | the router maps UDP 28016 and 27015, ours (`red-engine <port>`), to this box's LAN address | the router rebooted or the box's address changed (the portmap timer fixes it within 10 minutes); another rule holds the port |
-| `server` | the `stats:` line is under 150 s old, and no `rejected` counter grew since the last run without a join in between | the server is silent or hung (`red-health` restarts after 240 s); joins are being refused, the last `join refused` line is quoted |
+| `server` | the `stats:` line is under 150 s old, and since the last run no `v` or `b` refusal (whoever else joined), no `m`, `f` or `o` refusal without a join, and no `k` (a warning); a server restart is noticed and its new counters are compared with zero | the server is silent or hung (`red-health` restarts after 240 s); somebody is being refused, even while another player got in; the last `join refused` line is quoted |
 | `drift` | `~/.local/share/killchain/bin/REVISION` and `~/.local/share/red-relay/bin/REVISION` exist, and the protocol at the server's revision equals the protocol at the engine revision of the newest `killchain-v<N>` release | the server and the players' release speak different protocols: **nobody can join** until one is redeployed |
 | `disk` | more than 15 GB free on `/` | `disk-guard --now` |
 
@@ -205,6 +207,8 @@ The server and the players' release must speak the same protocol (`crates/red_co
 4. Install the new ones next to them, **and write `REVISION`** in both bin directories: `git rev-parse HEAD > ~/.local/share/killchain/bin/REVISION` and `> ~/.local/share/red-relay/bin/REVISION` (the
    self-check's `drift` fails without them, and trusts them: write the revision the binaries were built from, nothing else).
 5. Restart only when nobody is playing (`killchain-mode` shows who is): `systemctl --user restart red-game@killchain` (and `red-relay` if it changed). Never touch `great-outdoors`.
+   Until then, if the protocol changed, `drift` fails with "the running binary speaks vN but REVISION's source ... is vM: restart onto the new binary": players of the new
+   release cannot join the old binary, so the restart is what it asks for.
 6. Verify: `journalctl --user -u red-game@killchain -n 20` shows `protocol: wire vN` and `LISTENING`; `red-selfcheck -v` is all `ok`; then join once for real from a client of the release
    (a bot works too; give it the key from your own shell, never into a log or a chat).
 7. Roll back by copying the `.prev-YYYYMMDD` files back and restoring the previous `REVISION`.

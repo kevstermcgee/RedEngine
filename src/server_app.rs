@@ -38,7 +38,7 @@
 //! **Refused joins are visible.** The periodic `stats:` line ends with `| joins N | rejected v1 m0 k0 b0 f0 o0 | throttled N` (refused for a version, a map, a missing
 //! key, a wrong key, a full match, any other reason; Hellos dropped by the join budget), the stop line carries the same counters, and each reason writes one
 //! `join refused (<reason>): ...` line per minute naming the client's protocol version, its map hash and its address masked to two octets (never a key). `k` counts
-//! handshakes that stopped at the key challenge, which a client with no key does by itself (`net::refusals`, ADR 2026-10-20-a-server-says-why-it-refused-a-join).
+//! handshakes that stopped at the key challenge, which a client with no key does by itself (`net::refusals`, ADR 2026-10-20-refused-joins-are-counted-and-said).
 //!
 //! It loads the map, simulates every player and every physics prop at 60 Hz, and sends 30 Hz
 //! snapshots over UDP to whoever joins (`re2 --connect HOST:PORT`, or `red_bot`). No window, no GPU
@@ -399,7 +399,7 @@ pub fn run(game: &GameServer) {
     );
     // The wire version this binary speaks, so an operator (and `deploy/red-selfcheck.py`) can compare it with the clients' without opening the source.
     println!(
-        "protocol: wire v{} (a client must speak the same version to join; a refused join is logged as `join refused (...)`)",
+        "protocol: wire v{} (a client must speak the same version to join; each refused join is logged with its reason, at most once a minute per reason)",
         crate::net::protocol::PROTOCOL_VERSION
     );
     match server.security() {

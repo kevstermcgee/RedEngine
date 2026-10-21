@@ -121,7 +121,7 @@
       "files": ["crates/red_core/src/net/server.rs", "crates/red_core/src/net/refusals.rs", "src/net/host.rs", "crates/red_core/src/net/sessions.rs", "crates/red_core/src/net/snapshots.rs", "src/bin/red_server.rs", "src/server_app.rs"],
       "tests": ["net_e2e", "net_flow", "net_abuse", "net_auth", "net_refusals", "net_budget", "net_interest", "net_interactions", "net_processes", "net_rule_state", "net_bots", "server_env", "net_join_flow"],
       "commands": ["red_engine2 net-test examples/test_lab.json --profile bad", "red_engine2 perf examples/test_lab.json"],
-      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md", "docs/adr/2026-10-20-a-server-says-why-it-refused-a-join.md"],
+      "docs": ["docs/adr/0016-authoritative-udp-multiplayer.md", "docs/adr/0022-authoritative-interactions-per-prop-acks-and-interest.md", "docs/HOSTING.md", "docs/LIFE_OF_A_SHOT.md", "docs/LIFE_OF_A_REMOTE_PLAYER.md", "docs/adr/2026-10-01-team-aware-rules-and-generic-team-assignment.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-09-relay-codes-carry-the-admission-key.md", "docs/adr/2026-10-20-refused-joins-are-counted-and-said.md"],
       "depends_on": ["net_protocol", "net_auth", "net_transport", "sim_core", "match_flow"]
     },
     "game_systems": {
@@ -162,7 +162,7 @@
       "files": ["crates/red_core/src/net/upnp.rs", "crates/red_core/src/net/portmap.rs", "src/tools/servers.rs", "src/cli/servers.rs", "tests/servers_cli.rs", "tests/publish_games.rs", "tests/red_deploy.rs", "scripts/test_red_deploy.py", "Dockerfile", "docker-compose.yml", "deploy/**", "docs/HOSTING.md"],
       "tests": ["lib:tools::servers", "server_env", "servers_cli", "publish_games", "red_deploy"],
       "commands": ["red_engine2 portmap status", "red_engine2 servers"],
-      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-20-a-server-says-why-it-refused-a-join.md"],
+      "docs": ["docs/adr/0031-home-hosting-with-upnp.md", "docs/adr/0027-runs-anywhere-doctor-env-config-container-lf.md", "docs/adr/2026-09-30-red-engine2-servers-manages-the-game-servers-on-this.md", "docs/adr/2026-09-30-publishing-to-redenginegames-never-deletes-what-it-does.md", "docs/GAMES_PUBLISHING.md", "docs/HOSTING.md", "docs/adr/2026-10-02-a-relay-for-players-behind-carrier-grade-nat-with-a.md", "docs/adr/2026-10-20-refused-joins-are-counted-and-said.md"],
       "depends_on": ["net_server"]
     },
     "release_packaging": {

@@ -30,6 +30,8 @@ fn everything_can_come_from_the_environment() {
         "the binary says which wire version it speaks: {text}"
     );
     assert!(text.contains("rejected v0 m0 k0 b0 f0 o0 (0 in all), 0 hellos throttled"), "the stop line carries the refusal counters: {text}");
+    // `grep 'join refused'` (docs/HOSTING.md, red-selfcheck) must find refusals only, never the startup banner of a server that refused nobody.
+    assert!(!text.contains("join refused"), "nothing was refused, so no line says `join refused`: {text}");
 }
 
 #[test]

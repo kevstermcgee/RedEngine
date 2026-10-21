@@ -6,7 +6,8 @@
 Each mapping is PERMANENT, described as 'red-engine <port>', and points at this machine's LAN address. `enable` is idempotent and meant to run from a
 timer (`red-portmap.timer`, every 10 minutes): it restores a mapping the router lost (a reboot), converts an old timed lease, follows a changed LAN
 address, and refuses to overwrite a mapping that is not ours. It never touches the router's firewall, DMZ or unrelated rules. `status` prints the router's
-view of each port and exits 0 either way (`deploy/red-selfcheck.py` reads that text, so keep its two line shapes).
+view of each port, mapped or not, and exits 1 when the router errs on a port (its error is that port's line); `deploy/red-selfcheck.py` reads the text, not
+the exit code, so keep its line shapes.
 
 Why permanent (2026-10-20). The first version asked for a one-hour lease and renewed it every 30 minutes. This router (a TP-Link Archer A7) IGNORES an
 AddPortMapping that is identical to the mapping it already holds: the lease is not extended (measured: 3373 s left before and after a renewal), so each

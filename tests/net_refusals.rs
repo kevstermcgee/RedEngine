@@ -1,4 +1,4 @@
-//! A refused join leaves a trace (ADR 2026-10-20-a-server-says-why-it-refused-a-join). On 2026-10-20 a protocol-15 server refused every v16 and v17
+//! A refused join leaves a trace (ADR 2026-10-20-refused-joins-are-counted-and-said). On 2026-10-20 a protocol-15 server refused every v16 and v17
 //! client for days and its journal read "0 joins, 0 bad packets": nothing counted a refused `Hello` and nothing said why. Each reason now bumps exactly
 //! its own counter, is written once a minute with the client's protocol version, map hash and a masked address (never a key), and shows in the periodic
 //! `stats:` line, which keeps every field it always had. The server's clock is under the test's control, as in `net_auth.rs`; nothing here changes the
@@ -7,7 +7,7 @@
 
 use red_engine2::net::map_hash;
 use red_engine2::net::protocol::*;
-use red_engine2::net::refusals::NEEDS_KEY_GRACE;
+use red_engine2::net::refusals::{MAX_PENDING_PER_ADDRESS, NEEDS_KEY_GRACE, REPEAT_WINDOW};
 use red_engine2::net::server::{Server, ServerConfig};
 use red_engine2::net::testkit::RawClient;
 use red_engine2::sim::match_sim::MatchSim;
@@ -186,6 +186,70 @@ fn a_client_that_gives_up_at_the_key_challenge_is_counted_as_needs_key_once_the_
     assert!(lines[0].contains("join refused (needs key)") && lines[0].contains("without the key part"), "{}", lines[0]);
     rig.advance(30.0);
     assert_eq!(rig.counts()[2], 1, "counted once, not every second");
+}
+
+#[test]
+fn a_late_copy_of_the_first_hello_after_an_honest_keyed_join_is_not_a_needs_key() {
+    // The real client resends its first Hello every 250 ms until the Challenge arrives, so on a slow or reordering path a copy can reach the server
+    // after the second Hello (and a replay can come at any time). It must not turn an honest join into "a code without the key part".
+    let mut rig = Rig::new(Some(KEY), None);
+    let mut c = rig.client(rig.hash, Some(KEY));
+    rig.handshake(&mut c).expect("an honest keyed join");
+    c.send_raw(&hello_of_version(PROTOCOL_VERSION, rig.hash, rig.nonce)); // the first Hello again: the same nonce, no cookie
+    rig.pump();
+    rig.advance(NEEDS_KEY_GRACE.as_secs_f64() + 2.0);
+    assert_eq!(rig.counts(), [0; 6], "the client joined: nothing was refused");
+    assert!(rig.refused_lines().is_empty(), "{:?}", rig.refused_lines());
+}
+
+#[test]
+fn a_handshake_finished_from_a_new_address_is_not_a_needs_key() {
+    // A NAT that gives the client a new port between its two Hellos: the challenge went to the old address, the join came from the new one.
+    let mut rig = Rig::new(Some(KEY), None);
+    rig.nonce += 1;
+    let before = RawClient::new(rig.addr, rig.hash, Some(KEY), rig.nonce).unwrap();
+    before.send_hello();
+    rig.pump();
+    let mut after = RawClient::new(rig.addr, rig.hash, Some(KEY), rig.nonce).unwrap();
+    rig.handshake(&mut after).expect("the same handshake finishes from the new address");
+    rig.advance(NEEDS_KEY_GRACE.as_secs_f64() + 2.0);
+    assert_eq!(rig.counts(), [0; 6], "the client joined: nothing was refused");
+}
+
+#[test]
+fn one_address_cannot_push_the_needs_key_count_up_by_the_whole_list() {
+    // Anyone who completes a QUIC handshake can send first Hellos with fresh nonces and never answer: one source may hold only a couple of entries.
+    let mut rig = Rig::new(Some(KEY), None);
+    let flooder = rig.client(rig.hash, None);
+    for n in 0..40u64 {
+        flooder.send_raw(&hello_of_version(PROTOCOL_VERSION, rig.hash, 10_000 + n));
+    }
+    rig.pump();
+    rig.advance(NEEDS_KEY_GRACE.as_secs_f64() + 2.0);
+    assert_eq!(rig.counts()[2], MAX_PENDING_PER_ADDRESS as u64, "at most {MAX_PENDING_PER_ADDRESS} from one address: {:?}", rig.counts());
+}
+
+#[test]
+fn a_hello_the_client_resends_is_one_refused_join_not_several() {
+    // The real client resends its Hello every 250 ms until a reply arrives, so a slow path or a lost Reject makes one attempt several Hellos.
+    let mut rig = Rig::new(Some(KEY), None);
+    let mut old = rig.client(rig.hash, None);
+    for _ in 0..3 {
+        old.send_raw(&hello_of_version(PROTOCOL_VERSION - 1, rig.hash, 77));
+    }
+    rig.pump();
+    assert_eq!(old.poll(), vec![ServerMsg::Reject(RejectReason::Version); 3], "every copy still gets its reply");
+    assert_eq!(rig.counts(), [1, 0, 0, 0, 0, 0], "one attempt, one refusal");
+    let mut wrong = rig.client(rig.hash, Some(WRONG_KEY));
+    assert_eq!(rig.handshake(&mut wrong).expect_err("a wrong key"), "rejected: BadKey");
+    wrong.send_hello(); // the second Hello again (the cookie and the wrong proof)
+    wrong.send_hello();
+    rig.pump();
+    assert_eq!(rig.counts(), [1, 0, 0, 1, 0, 0], "a resent second Hello is the same wrong-key attempt");
+    rig.advance(REPEAT_WINDOW.as_secs_f64() + 1.0);
+    old.send_raw(&hello_of_version(PROTOCOL_VERSION - 1, rig.hash, 77));
+    rig.pump();
+    assert_eq!(rig.counts()[0], 2, "a try after the window is a new attempt");
 }
 
 #[test]

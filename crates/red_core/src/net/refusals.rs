@@ -1,4 +1,4 @@
-//! Why the server turned a join away: counted, and said once a minute (ADR 2026-10-20-a-server-says-why-it-refused-a-join).
+//! Why the server turned a join away: counted, and said once a minute (ADR 2026-10-20-refused-joins-are-counted-and-said).
 //!
 //! Until this module the only trace of a refused `Hello` was the reply the client got. The server's journal read "0 joins, 0 bad packets" while a
 //! whole family could not get in (a v15 server silently refusing every v16 and v17 client, 2026-10-20). Now every refusal is counted per reason,
@@ -9,7 +9,12 @@
 //! **`NeedsKey` is inferred.** The server never sends that reply: a client that is challenged for a key it does not have gives up on its own
 //! ([`super::protocol::RejectReason::NeedsKey`] is "decided by the client"). What the server can see is a `Challenge` on a keyed server that no
 //! second `Hello` ever answered, so [`Refusals`] remembers the few most recent unanswered challenges and, after [`NEEDS_KEY_GRACE`], counts each as a
-//! `NeedsKey`: "a client came, was asked for a key and said nothing more".
+//! `NeedsKey`: "a client came, was asked for a key and said nothing more". A handshake is matched by its nonce alone (a NAT may change the client's port
+//! between its two Hellos), an answered nonce is remembered for a while (a late copy of the first Hello must not open a new entry), and one source address
+//! holds at most [`MAX_PENDING_PER_ADDRESS`] entries: anyone who completes a QUIC handshake can send first Hellos and never answer.
+//!
+//! **A counter is join attempts, not Hellos.** The client resends its Hello every 250 ms until a reply arrives; a refused Hello the same handshake sends again
+//! within [`REPEAT_WINDOW`] is replied to but not counted again ([`Refusals::repeat`]).
 
 use super::protocol::{RejectReason, PROTOCOL_VERSION};
 use super::server::ServerStats;
@@ -22,6 +27,17 @@ pub const LOG_EVERY: Duration = Duration::from_secs(60);
 pub const NEEDS_KEY_GRACE: Duration = Duration::from_secs(8);
 /// Unanswered challenges remembered at once (a join flood is cut off earlier, by the server-wide `Hello` budget).
 const MAX_PENDING: usize = 32;
+/// Unanswered challenges remembered for one source address: one machine cannot fill the list (and push `k` up by the whole list every grace period).
+pub const MAX_PENDING_PER_ADDRESS: usize = 2;
+/// A `Hello` the same handshake (address and nonce) sends again within this long of the last refused copy is the same attempt: replied to, not counted
+/// again. The real client resends every 250 ms until a reply arrives.
+pub const REPEAT_WINDOW: Duration = Duration::from_secs(5);
+/// How long an answered handshake's nonce is remembered, so a late copy of its first Hello is not taken for a new client that never answers.
+const ANSWERED_MEMORY: Duration = Duration::from_secs(30);
+/// Answered nonces remembered at once (the oldest goes first).
+const MAX_ANSWERED: usize = 64;
+/// Recently refused handshakes remembered at once for [`REPEAT_WINDOW`] (the oldest goes first).
+const MAX_RECENT: usize = 64;
 
 /// Why a join did not happen, as the server counts it. The first four are the ones the README and the clients name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,12 +140,16 @@ struct Pending {
     at: Instant,
 }
 
-/// The rate limit of the refusal log, and the unanswered challenges that become `NeedsKey`.
+/// The rate limit of the refusal log, the unanswered challenges that become `NeedsKey`, and the handshakes refused a moment ago.
 #[derive(Default)]
 pub struct Refusals {
     last_said: [Option<Instant>; 6],
     held_back: [u32; 6],
     pending: Vec<Pending>,
+    /// Nonces of handshakes whose second Hello arrived, and when.
+    answered: Vec<(u64, Instant)>,
+    /// `(peer, nonce, last refused copy)` of handshakes refused within [`REPEAT_WINDOW`].
+    recent: Vec<(SocketAddr, u64, Instant)>,
 }
 
 impl Refusals {
@@ -174,16 +194,43 @@ impl Refusals {
         Some(format!("join refused ({}): {why}; peer {}{more}", which.word(), mask(peer.ip())))
     }
 
-    /// A challenge went out on a keyed server: remember it until the second `Hello` arrives (one entry per handshake, however often its first Hello repeats).
+    /// A challenge went out on a keyed server: remember it until the second `Hello` arrives. One entry per handshake however often its first Hello repeats,
+    /// none for a handshake that was already answered (a late or replayed copy of its first Hello), and at most [`MAX_PENDING_PER_ADDRESS`] per source address.
     pub fn challenged(&mut self, peer: SocketAddr, nonce: u64, facts: HelloFacts, now: Instant) {
-        if self.pending.len() < MAX_PENDING && !self.pending.iter().any(|p| p.peer == peer && p.nonce == nonce) {
+        self.answered.retain(|(_, at)| now.saturating_duration_since(*at) < ANSWERED_MEMORY);
+        let known = self.pending.iter().any(|p| p.nonce == nonce) || self.answered.iter().any(|(n, _)| *n == nonce);
+        let from_peer = self.pending.iter().filter(|p| p.peer.ip() == peer.ip()).count();
+        if !known && from_peer < MAX_PENDING_PER_ADDRESS && self.pending.len() < MAX_PENDING {
             self.pending.push(Pending { peer, nonce, facts, at: now });
         }
     }
 
-    /// The second `Hello` of a handshake arrived: that challenge was answered.
-    pub fn answered(&mut self, peer: SocketAddr, nonce: u64) {
-        self.pending.retain(|p| !(p.peer == peer && p.nonce == nonce));
+    /// The second `Hello` of a handshake arrived: that challenge was answered (matched by the nonce alone: the address may have changed since the first).
+    pub fn answered(&mut self, nonce: u64, now: Instant) {
+        self.pending.retain(|p| p.nonce != nonce);
+        if let Some(seen) = self.answered.iter_mut().find(|(n, _)| *n == nonce) {
+            seen.1 = now;
+            return;
+        }
+        if self.answered.len() >= MAX_ANSWERED {
+            self.answered.remove(0);
+        }
+        self.answered.push((nonce, now));
+    }
+
+    /// Whether a refusal is a copy of one this handshake (address and nonce) was given within [`REPEAT_WINDOW`]: the client resends until a reply arrives, so
+    /// that copy is the same attempt and is not counted again. Not a repeat: it is remembered, and the next copy within the window is one.
+    pub fn repeat(&mut self, peer: SocketAddr, nonce: u64, now: Instant) -> bool {
+        self.recent.retain(|(_, _, at)| now.saturating_duration_since(*at) < REPEAT_WINDOW);
+        if let Some(seen) = self.recent.iter_mut().find(|(p, n, _)| *p == peer && *n == nonce) {
+            seen.2 = now;
+            return true;
+        }
+        if self.recent.len() >= MAX_RECENT {
+            self.recent.remove(0);
+        }
+        self.recent.push((peer, nonce, now));
+        false
     }
 
     /// The challenges nobody answered within [`NEEDS_KEY_GRACE`], removed from the list: each is a `NeedsKey`.
@@ -275,7 +322,7 @@ mod tests {
         r.challenged(peer(1), 11, HERE, t0 + Duration::from_millis(250)); // the first Hello repeats until the Challenge arrives
         r.challenged(peer(2), 22, HERE, t0);
         assert_eq!(r.pending_count(), 2, "one entry per handshake");
-        r.answered(peer(2), 22);
+        r.answered(22, t0);
         assert!(r.unanswered(t0 + NEEDS_KEY_GRACE - Duration::from_millis(1)).is_empty(), "still within the grace");
         let gone = r.unanswered(t0 + NEEDS_KEY_GRACE);
         assert_eq!(gone, vec![(peer(1), HERE)], "only the handshake nobody answered");
@@ -289,6 +336,50 @@ mod tests {
             r.challenged(peer((n % 200) as u8), n, HERE, t0);
         }
         assert_eq!(r.pending_count(), MAX_PENDING);
+    }
+
+    #[test]
+    fn one_address_cannot_fill_the_unanswered_list() {
+        let (mut r, t0) = (Refusals::new(), Instant::now());
+        // One machine, many ports and nonces.
+        for n in 0..40u64 {
+            r.challenged(SocketAddr::new(IpAddr::from([73, 157, 20, 1]), 5000 + n as u16), n, HERE, t0);
+        }
+        assert_eq!(r.pending_count(), MAX_PENDING_PER_ADDRESS);
+        r.challenged(peer(2), 1000, HERE, t0);
+        assert_eq!(r.pending_count(), MAX_PENDING_PER_ADDRESS + 1, "another address still gets its entry");
+    }
+
+    #[test]
+    fn an_answered_handshake_is_matched_by_its_nonce_and_a_late_first_hello_opens_nothing() {
+        let (mut r, t0) = (Refusals::new(), Instant::now());
+        r.challenged(peer(1), 11, HERE, t0);
+        r.answered(11, t0 + Duration::from_millis(100)); // the second Hello came from another port of the same client (a NAT rebinding)
+        assert_eq!(r.pending_count(), 0);
+        r.challenged(peer(1), 11, HERE, t0 + Duration::from_millis(300)); // a late copy of the first Hello
+        assert_eq!(r.pending_count(), 0, "an answered handshake is not opened again");
+        assert!(r.unanswered(t0 + NEEDS_KEY_GRACE * 2).is_empty());
+        r.challenged(peer(1), 11, HERE, t0 + ANSWERED_MEMORY + Duration::from_secs(1));
+        assert_eq!(r.pending_count(), 1, "the memory is bounded in time");
+        for n in 0..(MAX_ANSWERED as u64 * 2) {
+            r.answered(1000 + n, t0);
+        }
+        assert_eq!(r.answered.len(), MAX_ANSWERED, "and in size");
+    }
+
+    #[test]
+    fn a_refusal_the_same_handshake_repeats_within_the_window_is_one_attempt() {
+        let (mut r, t0) = (Refusals::new(), Instant::now());
+        assert!(!r.repeat(peer(1), 5, t0), "the first refusal counts");
+        assert!(r.repeat(peer(1), 5, t0 + Duration::from_millis(250)), "the resent Hello is the same attempt");
+        assert!(!r.repeat(peer(1), 6, t0 + Duration::from_millis(250)), "another handshake");
+        assert!(!r.repeat(peer(2), 5, t0 + Duration::from_millis(250)), "another address");
+        assert!(r.repeat(peer(1), 5, t0 + Duration::from_millis(250) + REPEAT_WINDOW - Duration::from_millis(1)), "measured from the last copy");
+        assert!(!r.repeat(peer(1), 5, t0 + Duration::from_secs(1) + REPEAT_WINDOW * 2), "a try after the window is a new attempt");
+        for n in 0..(MAX_RECENT as u64 * 2) {
+            r.repeat(peer(3), 100 + n, t0 + REPEAT_WINDOW * 3);
+        }
+        assert_eq!(r.recent.len(), MAX_RECENT, "bounded");
     }
 
     #[test]

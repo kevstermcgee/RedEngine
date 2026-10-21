@@ -687,9 +687,12 @@ impl Server {
         Some(self.parked.remove(oldest).slot)
     }
 
-    /// Turns a join away: counts the reason, writes it to the log (once a minute per reason, `super::refusals`) and sends the client the `Reject`.
+    /// Turns a join away: counts the reason, writes it to the log (once a minute per reason, `super::refusals`) and sends the client the `Reject`. A copy
+    /// of a Hello this handshake was refused for a moment ago (the client resends until a reply arrives) gets the reply again but is not counted again.
     fn refuse(&mut self, addr: SocketAddr, h: &Hello, reason: RejectReason, now: Instant) {
-        self.note_refusal(Refusal::of(reason), addr, HelloFacts::of(h), now);
+        if !self.refusals.repeat(addr, h.client_nonce, now) {
+            self.note_refusal(Refusal::of(reason), addr, HelloFacts::of(h), now);
+        }
         self.send_plain(addr, &ServerMsg::Reject(reason));
     }
 
@@ -728,7 +731,9 @@ impl Server {
             }
             return self.send_plain(addr, &ServerMsg::Challenge { cookie, requires_key: self.cfg.join_key.is_some() });
         }
-        self.refusals.answered(addr, h.client_nonce);
+        if self.cfg.join_key.is_some() {
+            self.refusals.answered(h.client_nonce, now);
+        }
         // 2. Prove the join key (never sent, only its HMAC).
         let key_bytes = self.cfg.join_key.clone().unwrap_or_default();
         let binding = self.transport.channel_binding(addr);

@@ -52,6 +52,7 @@ class FakeRouter:
         self.mappings = {}  # port -> {'client', 'internal', 'desc', 'lease'}
         self.calls = []
         self.external = external
+        self.broken = set()  # ports whose lookup the router answers with an error other than "no such entry"
         router = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -87,6 +88,8 @@ class FakeRouter:
         if action == 'GetExternalIPAddress':
             return 200, {'NewExternalIPAddress': self.external}
         if action == 'GetSpecificPortMappingEntry':
+            if port in self.broken:
+                return 500, {'errorCode': 501, 'errorDescription': 'Action Failed'}
             m = self.mappings.get(port)
             if not m:
                 return 500, {'errorCode': 714, 'errorDescription': 'NoSuchEntryInArray'}
@@ -211,6 +214,16 @@ class PortmapTests(unittest.TestCase):
         self.assertEqual({k: (v['mapped'], v['ours'], v['to'], v['lease']) for k, v in info['ports'].items()},
                          {28016: (True, True, LAN, 0), 27015: (True, True, '192.168.0.9', 100), 27999: (False, False, None, None)})
 
+    def test_status_exits_1_when_the_router_errs_on_a_port_as_its_docstring_says(self):
+        self.router.put(28016)
+        self.router.broken.add(27015)
+        code, text = run_portmap(self.router, 'status', '--port', '28016', '--port', '27015')
+        self.assertEqual(code, 1, text)
+        self.assertIn('UDP 27015: UPnP 501: Action Failed', text)
+        self.assertEqual(selfcheck.parse_portmap(text)['ports'][27015]['error'], 'UPnP 501: Action Failed', 'the self-check still reads the line')
+        self.assertNotIn('exits 0 either way', portmap.__doc__)
+        self.assertIn('exits 1 when the router errs on a port', ' '.join(portmap.__doc__.split()))
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 # a relay, a game server, a machine
@@ -331,6 +344,11 @@ class FakeHost(selfcheck.Host):
         self.startup = ''
         self.gh_calls = 0
         self.reads = []
+        self.boot = self.t - 100  # when the server started: its log lines carry the seconds since then, as `[  100.00s]`
+
+    def server_came_back(self, ago=60):
+        """The server restarted `ago` seconds before now: its counters and its uptime start over."""
+        self.boot = self.t - ago
 
     def now(self):
         return self.t
@@ -368,8 +386,8 @@ class FakeHost(selfcheck.Host):
         return self.release
 
     def stats(self, age=30, joins=0, rejected=(0, 0, 0, 0, 0, 0), counters=True, players=0):
-        line = ('%.3f box red_server[1]: [100.00s] stats: players %d | phase waiting | tick avg 4 us worst 181 us | promoted props 0 | in 0.0 KB/s out 0.0 KB/s | snapshots 9 | '
-                'bad packets 0 bad tags 0' % (self.t - age, players))
+        line = ('%.3f box red_server[1]: [%8.2fs] stats: players %d | phase waiting | tick avg 4 us worst 181 us | promoted props 0 | in 0.0 KB/s out 0.0 KB/s | snapshots 9 | '
+                'bad packets 0 bad tags 0' % (self.t - age, self.t - age - self.boot, players))
         if counters:
             line += ' | joins %d | rejected v%d m%d k%d b%d f%d o%d | throttled 0' % ((joins,) + tuple(rejected))
         self.journal_lines = [l for l in self.journal_lines if 'stats: players' not in l] + [line]
@@ -512,14 +530,15 @@ class SelfcheckTests(unittest.TestCase):
         self.assertEqual(code, 0, 'no new refusals since the last check: it recovers on its own')
         self.assertIn('FAIL server', self.report()['last_failure']['summary'], 'and the last failure is remembered for box-status')
 
-    def test_refusals_beside_a_join_a_restart_and_an_older_build_are_not_failures(self):
+    def test_map_and_full_refusals_beside_a_join_a_restart_and_an_older_build_are_not_failures(self):
         skip = ('--skip', 'relay,public,game')
         self.host.stats(joins=3, rejected=(2, 0, 0, 0, 0, 0))
         self.run_check(*skip)
         self.host.t += 300
-        self.host.stats(joins=4, rejected=(5, 1, 0, 0, 0, 0))
-        self.assertEqual(self.run_check(*skip)[0], 0, 'somebody joined in the same interval')
+        self.host.stats(joins=4, rejected=(2, 3, 0, 0, 1, 0))
+        self.assertEqual(self.run_check(*skip)[0], 0, 'a client tries its maps in turn until one matches, and somebody joined in the same interval')
         self.host.t += 300
+        self.host.server_came_back(ago=100)
         self.host.stats(joins=0, rejected=(0, 0, 0, 0, 0, 0))
         self.assertEqual(self.run_check(*skip)[0], 0, 'the counters started over: the server restarted')
         self.host.t += 300
@@ -527,6 +546,73 @@ class SelfcheckTests(unittest.TestCase):
         code, out = self.run_check(*skip)
         self.assertEqual(code, 0, out)
         self.assertIn('predates the reject counters', self.report()['checks']['server']['detail'])
+
+    def test_a_version_or_key_refusal_fails_even_when_somebody_else_joined(self):
+        # The owner-and-cousin case: one player gets in, the other's old client (or wrong code) is refused in the same five minutes.
+        skip = ('--skip', 'relay,public,game')
+        self.host.stats(joins=0, rejected=(0, 0, 0, 0, 0, 0))
+        self.assertEqual(self.run_check(*skip)[0], 0)
+        self.host.t += 300
+        self.host.stats(joins=1, rejected=(3, 0, 0, 0, 0, 0), players=1)
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 1, out)
+        detail = self.report()['checks']['server']['detail']
+        self.assertIn('version +3', detail)
+        self.assertIn('although 1 join went through', detail)
+        self.host.t += 300
+        self.host.stats(joins=2, rejected=(3, 0, 0, 1, 0, 0), players=2)
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 1, 'a wrong key beside a join fails too')
+        self.assertIn('bad-key +1', self.report()['checks']['server']['detail'])
+
+    def test_needs_key_growth_alone_is_a_warning_because_anyone_can_cause_it(self):
+        skip = ('--skip', 'relay,public,game')
+        self.host.stats(joins=0, rejected=(0, 0, 0, 0, 0, 0))
+        self.run_check(*skip)
+        self.host.t += 300
+        self.host.stats(joins=0, rejected=(0, 0, 2, 0, 0, 0))
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 0, out)
+        result = self.report()['checks']['server']
+        self.assertEqual(result['status'], 'warn', result)
+        self.assertIn('needs-key +2', result['detail'])
+        self.assertIn('warning', out)
+        self.host.t += 300
+        self.host.stats(joins=0, rejected=(1, 0, 3, 0, 0, 0))
+        self.assertEqual(self.run_check(*skip)[0], 1, 'beside a version refusal it is still a failure')
+
+    def test_a_restart_is_noticed_so_a_join_after_it_counts(self):
+        skip = ('--skip', 'relay,public,game')
+        self.host.stats(joins=5, rejected=(0, 0, 0, 0, 0, 0))
+        self.run_check(*skip)
+        self.host.t += 300
+        self.host.server_came_back(ago=200)
+        self.host.stats(joins=1, rejected=(0, 1, 0, 0, 0, 0), players=1)  # redeployed; a client tried another map first, then joined
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 0, out)
+
+    def test_a_restart_is_noticed_so_refusals_after_it_are_not_hidden_by_the_old_counts(self):
+        skip = ('--skip', 'relay,public,game')
+        self.host.stats(joins=5, rejected=(0, 5, 0, 0, 0, 0))
+        self.run_check(*skip)
+        self.host.t += 300
+        self.host.server_came_back(ago=100)
+        self.host.stats(joins=0, rejected=(0, 1, 0, 0, 0, 0))
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 1, 'refused after the restart and nobody joined: %s' % out)
+        detail = self.report()['checks']['server']['detail']
+        self.assertIn('map +1', detail)
+        self.assertIn('restarted', detail)
+        # The counters climb back to exactly where they were: only the uptime shows the restart.
+        self.host.t += 300
+        self.host.stats(joins=0, rejected=(2, 1, 0, 0, 0, 0))
+        self.run_check(*skip)
+        self.host.t += 300
+        self.host.server_came_back(ago=60)
+        self.host.stats(joins=0, rejected=(2, 1, 0, 0, 0, 0))
+        code, out = self.run_check(*skip)
+        self.assertEqual(code, 1, out)
+        self.assertIn('version +2', self.report()['checks']['server']['detail'])
 
     def test_protocol_drift_between_server_and_the_latest_release_fails_and_names_both(self):
         self.host.protocols[RELEASE_REV] = 18
@@ -564,11 +650,16 @@ class SelfcheckTests(unittest.TestCase):
         self.assertEqual(self.report()['checks']['drift']['status'], 'warn')
         self.assertIn('warning', out)
 
-    def test_a_revision_file_that_disagrees_with_the_running_binary_fails(self):
-        self.host.startup = 'protocol: wire v18 (a client must speak the same version to join)\n'
+    def test_a_revision_file_that_disagrees_with_the_running_binary_fails_and_says_to_restart(self):
+        # Deploy step 4 writes REVISION; step 5 restarts only when nobody plays, which can be hours later. Until then the binary is the old side.
+        self.host.startup = 'protocol: wire v16 (a client must speak the same version to join)\n'
         code, out = self.run_check('--skip', 'relay,public,game')
         self.assertEqual(code, 1, out)
-        self.assertIn('REVISION is stale', self.report()['checks']['drift']['detail'])
+        detail = self.report()['checks']['drift']['detail']
+        self.assertIn('the running binary speaks v16', detail)
+        self.assertIn('protocol v17', detail)
+        self.assertIn('restart onto the new binary', detail)
+        self.assertNotIn('REVISION is stale', detail)
 
     def test_a_relay_built_from_different_wire_code_than_the_release_is_a_warning(self):
         for f in selfcheck.RELAY_FILES:

@@ -19,8 +19,10 @@ that lapsed 40 s an hour. Each check below is one of those things.
              so this box can test the path a friend takes from outside, apart from their own ISP; `scripts/net_probe.py` from a GitHub runner is the outside-in test.
   game       a QUIC Version Negotiation probe (stateless: no connection, no join) answers on 127.0.0.1:27015 and through the public name.
   mappings   `red-portmap.py status`: UDP 28016 and 27015 are mapped on the router, by us, to this box's LAN address.
-  server     the server's `stats:` journal line is fresh (< 150 s) and no `rejected` counter grew since the last run without a join (the counters of ADR
-             2026-10-20-a-server-says-why-it-refused-a-join; an older build without them is tolerated).
+  server     the server's `stats:` journal line is fresh (< 150 s) and its `rejected` counters (ADR 2026-10-20-refused-joins-are-counted-and-said; an
+             older build without them is tolerated) did not grow since the last run in a way that means somebody cannot get in: a version or key
+             refusal fails whoever else joined, a map, full or other refusal fails when nobody joined, a needs-key alone is a warning. A server restart
+             (a counter went down, or the uptime on its lines fell behind) is noticed, and the new process's counters are compared with zero.
   drift      the REVISION files of the game server and the relay exist, and the wire protocol at the server's revision equals the protocol at the engine
              revision of the newest `killchain-v<N>` release (`gh release view`; read from the cached answer when GitHub is unreachable). Different protocol
              versions cannot play together: this is the check that would have named the v15 server in minutes.
@@ -418,7 +420,13 @@ def check_mappings(cfg, status):
 STATS_RE = re.compile(r'stats: players (\d+) \| phase (\S+)')
 REJECTED_RE = re.compile(r'\| rejected v(\d+) m(\d+) k(\d+) b(\d+) f(\d+) o(\d+)')
 JOINS_RE = re.compile(r'\| joins (\d+)')
+UPTIME_RE = re.compile(r'\[\s*(\d+(?:\.\d+)?)s\] stats: ')  # the server prefixes every line with its seconds since start
 REASONS = ('version', 'map', 'needs-key', 'bad-key', 'full', 'other')
+# How each counter's growth since the last run is judged:
+ALWAYS_FAIL = ('version', 'bad-key')  # that client cannot get in, whoever else did (one player joins while the other's old client is refused)
+FAIL_UNLESS_JOINED = ('map', 'full', 'other')  # normal on the way to a join: a client tries its maps in turn until one matches
+WARN_ONLY = ('needs-key',)  # inferred, and anyone who completes a QUIC handshake can raise it (ADR 2026-10-20-refused-joins-are-counted-and-said)
+RESTART_SLACK_SECS = 30  # a stats line whose uptime is this much behind the previous one's plus the time between them comes from a new server process
 
 
 def last_stats(journal):
@@ -446,24 +454,52 @@ def check_server(cfg, host, prev):
     players = int(m.group(1)) if m else None
     if age >= STATS_FRESH_SECS:
         return res('fail', 'the server\'s last stats line is %d s old (limit %d s)' % (age, STATS_FRESH_SECS)), None
-    rej, joins = REJECTED_RE.search(line), JOINS_RE.search(line)
+    rej, joins, up = REJECTED_RE.search(line), JOINS_RE.search(line), UPTIME_RE.search(line)
     if not rej:
         return res('ok', 'stats line %d s old, %s player(s); this build predates the reject counters, so refusals are not visible' % (age, players), players=players), None
     counts = [int(x) for x in rej.groups()]
-    state = {'stats_ts': ts, 'joins': int(joins.group(1)) if joins else None, 'rejected': dict(zip(REASONS, counts))}
+    state = {'stats_ts': ts, 'uptime': float(up.group(1)) if up else None, 'joins': int(joins.group(1)) if joins else None, 'rejected': dict(zip(REASONS, counts))}
     detail = 'stats line %d s old, %s player(s), refused so far: %s' % (age, players, ' '.join('%s %d' % (k, v) for k, v in state['rejected'].items() if v) or 'none')
-    if prev and isinstance(prev.get('rejected'), dict) and prev.get('stats_ts') != ts:
-        before = [int(prev['rejected'].get(k, 0)) for k in REASONS]
-        if sum(counts) >= sum(before) and all(c >= b for c, b in zip(counts, before)):
-            grew = [(k, c - b) for k, c, b in zip(REASONS, counts, before) if c > b]
-            joined = state['joins'] is not None and prev.get('joins') is not None and state['joins'] > prev['joins']
-            if grew and not joined:
-                lines = [l for l in host.journal(unit, 15, 'join refused').splitlines() if 'join refused' in l]
-                last = lines[-1].split(': ', 1)[-1][:240] if lines else None
-                reason = 'joins were refused since the last check (%s) and nobody joined' % ', '.join('%s +%d' % g for g in grew)
-                return res('fail', reason + ('; last: ' + last if last else ''), players=players, last_refusal=last), state
-        # else: the server restarted (the counters started over) or somebody joined: nothing to say
-    return res('ok', detail, players=players), state
+    if not (prev and isinstance(prev.get('rejected'), dict) and prev.get('stats_ts') != ts):
+        return res('ok', detail, players=players), state
+    before = [int(prev['rejected'].get(k, 0)) for k in REASONS]
+    joins_before = prev.get('joins')
+    restarted = restarted_since(prev, state, counts, before)
+    if restarted:  # a new server process counts from zero: everything it counted happened since the last check
+        before, joins_before = [0] * len(REASONS), 0
+    grew = [(k, c - b) for k, c, b in zip(REASONS, counts, before) if c > b]
+    joined = state['joins'] - joins_before if state['joins'] is not None and joins_before is not None else 0
+    failing = [g for g in grew if g[0] in ALWAYS_FAIL or (g[0] in FAIL_UNLESS_JOINED and joined <= 0)]
+    warning = [g for g in grew if g[0] in WARN_ONLY and joined <= 0]
+    if not failing and not warning:
+        return res('ok', detail, players=players), state
+    said = ', '.join('%s +%d' % g for g in grew)
+    if failing and joined > 0:
+        reason = 'a client was refused since the last check (%s) although %d join%s went through: one player gets in and another cannot' % (said, joined, '' if joined == 1 else 's')
+    elif failing:
+        reason = 'joins were refused since the last check (%s) and nobody joined' % said
+    else:
+        reason = ('a keyed handshake stopped at the key challenge since the last check (%s) and nobody joined: usually a code without the key part, but anyone '
+                  'who completes a QUIC handshake can cause it, so it is a warning' % said)
+    if restarted:
+        reason += ' (the server restarted since the last check, so its counters started from zero)'
+    lines = [l for l in host.journal(unit, 15, 'join refused').splitlines() if 'join refused' in l]
+    last = lines[-1].split(': ', 1)[-1][:240] if lines else None
+    return res('fail' if failing else 'warn', reason + ('; last: ' + last if last else ''), players=players, last_refusal=last), state
+
+
+def restarted_since(prev, state, counts, before):
+    """Whether the server process changed between the previous run's stats line and this one: a counter went down, or the uptime its lines carry is
+    behind where the previous line's uptime plus the time between the two lines puts it (a restart whose counters climbed back is caught by that)."""
+    if any(c < b for c, b in zip(counts, before)):
+        return True
+    if state['joins'] is not None and prev.get('joins') is not None and state['joins'] < prev['joins']:
+        return True
+    try:
+        expected = float(prev['uptime']) + (state['stats_ts'] - float(prev['stats_ts']))
+    except (KeyError, TypeError, ValueError):
+        return False  # a state written before the uptime was kept, or a line without it
+    return state['uptime'] is not None and state['uptime'] + RESTART_SLACK_SECS < expected
 
 
 def read_revision(host, path):
@@ -496,8 +532,9 @@ def check_drift(cfg, host, release_cache):
     started = host.unit_started(unit)
     said = re.findall(r'protocol: wire v(\d+)', host.journal_since(unit, started, 'protocol: wire v')) if started else []
     if said and srv_proto is not None and int(said[-1]) != srv_proto:
-        return res('fail', 'REVISION says the server is revision %s (protocol v%d) but the running binary reports protocol v%s: REVISION is stale, write it at every deploy'
-                   % (srv[:10], srv_proto, said[-1]), **facts), cache
+        # Deploying writes REVISION first and restarts when nobody is playing, so in between the binary is the old side, not REVISION.
+        return res('fail', 'the running binary speaks v%s but REVISION\'s source (revision %s) is protocol v%d: restart onto the new binary (when nobody is playing), or fix '
+                   'REVISION if it names the wrong build' % (said[-1], srv[:10], srv_proto), running_protocol=int(said[-1]), **facts), cache
     if srv_proto is None:
         return res('warn', 'cannot read PROTOCOL_VERSION at the server\'s revision %s (no local clone has it and GitHub is unreachable)' % srv[:10], **facts), cache
     if not release:
