@@ -7,33 +7,54 @@ itself once its hosted CI passes. Both maintainers see every change as a pull re
 ```text
 python3 scripts/daily_improve.py prompt        the brief tonight's session would get (the inbox and the rules), read it first
 python3 scripts/daily_improve.py run --dry-run the same, from the run's own path; changes nothing
-python3 scripts/daily_improve.py settle        merge earlier daily pull requests whose checks passed, close failed ones after 3 days
+python3 scripts/daily_improve.py settle        merge green daily pull requests, retry failed checks and update branches behind main
 python3 scripts/daily_improve.py install       point this machine's redengine-nightly at this script on origin/main
 ```
 
 ## A day
 
-1. **Settle** the earlier days' pull requests (`daily/<date>` branches in both repositories). A pull request is merged when every hosted
-   check passed. It is left open, with the reason, when its checks failed, it conflicts with main, or it is a draft; after three days such a
-   pull request is closed (the branch stays in its history). One that touches a refused path is left for a maintainer and never closed.
-2. **Read the inbox**: `scripts/feedback.py digest` since the last run ([`docs/feedback/README.md`](feedback/README.md) says what it
+1. **Settle** earlier daily pull requests in both repositories. Merge only the inspected head when hosted checks have finished with at
+   least one success and no failures, and GitHub reports it mergeable. Missing checks and unknown mergeability never count as green.
+   A branch behind main is updated with an expected-head guard and must pass CI again. Failed workflow jobs get one retry per head,
+   remembered across restarts. Failed work is preserved for repair instead of being closed after three days.
+   Only the repository owner's daily branches targeting main qualify; forks and other authors do not. Every changed file page and renamed
+   source is checked. A missing ownership manifest or incomplete file list stops the operation.
+   RedEngineGames filters its PR workflows by path. If no check appears after five minutes (for example a docs-only change), dispatch
+   its existing read-only `checks.yml` workflow on the daily branch, once per head. Dispatching is never a green result: wait for its
+   actual completed checks. Release/deployment workflows are never dispatched or retried by this fallback.
+2. **Repair** at most one failed or conflicting PR per night in a separate temporary worktree. The session gets a $5 cap and 30-minute
+   deadline by default, can read failed workflow logs, merges main, and commits a minimal fix. It cannot change CI, dependencies, its own
+   rules or maintained games. Both histories must survive, refused paths are checked again, and a lease prevents overwriting another
+   writer. Hosted CI must pass on the repair before it merges. There are at most two repair sessions per PR; exhausted attempts remain
+   open with their logs for a maintainer. Deliberately drafted PRs and refused paths remain under maintainer control.
+3. **Read the inbox**: `scripts/feedback.py digest` since the last run ([`docs/feedback/README.md`](feedback/README.md) says what it
    reads and how much each source is trusted). The run is skipped only when nothing is new and nothing is open.
-3. **One session** (`claude -p` with `scripts/daily_improve.md` as its brief, bypass permissions, a dollar cap, a deadline enforced from
-   outside, and no tools that push, merge or write to GitHub) works on `daily/<date>` in two checkouts: this engine and a RedEngineGames
+4. **One session** (`claude -p` with `scripts/daily_improve.md` as its brief, bypass permissions, a dollar cap, a deadline enforced from
+   outside, and no tools that push, merge or write to GitHub) works on a unique `daily/<date>-<time>` branch in two checkouts: this engine and a RedEngineGames
    worktree beside it. It first checks the two oldest open keys against main and records any that are already fixed in
    `docs/analysis/idea-forge/fixes.json`, so the inbox stays honest. Then it fixes at most three items, one commit each, each with tests and
    with its key's `fixes.json` entry (or `Fixes owner/repo#N`), and writes the report. Uncommitted work is thrown away.
-4. **Land** each repository that has commits:
+5. **Land** each repository that has commits:
    - Refused paths: CI, the improver's own rules, versions and dependencies, the player reviews data, a maintained game (one whose playable
      names a `"maintainer"`), and in RedEngineGames the app's version, the release lists and the games' folders.
    - Local checks: `scripts/dev affected` in the engine; in RedEngineGames, the site and distribution tests and the app's core tests, for
      what changed.
    - Push, then open a pull request whose body is the session's report.
-   - When merging is on (`NIGHTLY_PUSH_MAIN=1`), nothing was refused and the local checks passed, the improver waits (`NIGHTLY_WAIT_MIN`,
-     default 90) for hosted CI and merges once every check passed. Otherwise the pull request stays open: a **draft** when it needs a
-     maintainer.
-5. **The report** is `~/nightly-reports/<date>.md` (and `latest.md`) on the machine, the body of each pull request, and its transcript
+   - When merging is on (`NIGHTLY_PUSH_MAIN=1`) and nothing was refused, open a ready PR even if local checks failed. Record that failure
+     in the body; hosted CI is authoritative. After handing off both repositories, the improver waits up to `NIGHTLY_WAIT_MIN` (default 90,
+     one shared budget) and the separate settle timer checks
+     every 15 minutes after that. Refused changes stay drafts. Older runner-created drafts whose body records a local failure are promoted
+     only when hosted CI is green. Closing a PR while it waits cancels the merge.
+   - Merges specify `--match-head-commit`, so checks on an earlier head cannot authorize a newer commit. New daily branches are pushed
+     without force; rerunning a day cannot replace its previous branch.
+6. **The report** is `~/nightly-reports/<date>.md` (and `latest.md`) on the machine, the body of each pull request, and its transcript
    `<date>.claude.jsonl`.
+
+The shim and direct commands share one nonblocking lock. The shim acquires it before fetching or resetting a checkout, so a settle tick
+cannot erase an active session's changes. Bootstrap failures stop the command with a failing status. Local checks use the process-tree
+supervisor and one overall deadline, so timing out also stops build descendants. The inbox cursor advances only after a completed session
+has handed off its changes. `run --dry-run` reads the brief without changing reports or state; invoke it directly, since the shim refreshes
+its managed checkout before every command.
 
 The old nightly pushed straight to main. When main had moved, or its local CI failed, it left a `nightly/<date>` branch that nobody picked
 up: 4 of its last 10 runs ended that way. A pull request merges whenever main moves underneath it, shows its CI and its report to both
@@ -61,12 +82,17 @@ A finding about one game goes to that game's maintainer in the report. The impro
 | `NIGHTLY_CI_TIMEOUT` | 100m | the local checks' deadline |
 | `NIGHTLY_MIN_FREE_GB` | 20 | below this much free disk the day is skipped |
 | `NIGHTLY_PUSH_MAIN` | 1 | 1: merge a daily pull request once every check passed; 0: leave every one for a maintainer |
-| `NIGHTLY_WAIT_MIN` | 90 | how long to wait for hosted CI before leaving the pull request to tomorrow's settle |
+| `NIGHTLY_WAIT_MIN` | 90 | shared wait for hosted CI before handing off to the 15-minute settle timer |
 | `NIGHTLY_MODEL` | (default) | the session's model |
+| `NIGHTLY_REPAIR_MAX_USD` | 5 | dollar cap for the night's one repair session, separate from the improvement session |
+| `NIGHTLY_REPAIR_TIMEOUT` | 30m | repair session's process-tree deadline |
 
 Build output goes to the USB drive (`/data/build/nightly`, `/data/build/nightly-launcher`). The timer's unit skips the day when the drive is
-missing. Stop the improver with `systemctl --user disable --now redengine-nightly.timer`; `daily_improve.py install` kept the previous script
-beside the new one as `redengine-nightly.bak-<date>`.
+missing. The persistent nightly timer catches a missed run after downtime; its service deadline is nine hours to accommodate the capped
+session, repair, two local checks and hosted wait. `install` also enables `redengine-nightly-settle.timer` (every 15 minutes, no model or
+builds). Its output is in `journalctl --user -u redengine-nightly-settle.service`. To stop both jobs:
+`systemctl --user disable --now redengine-nightly.timer redengine-nightly-settle.timer`.
+`daily_improve.py install` keeps the previous shim as `redengine-nightly.bak-<date>`.
 
 The session runs with bypass permissions on the machine, as the old nightly did. Its disallowed tools stop mistakes, not a determined
 program. The protection is the wrapper's: it alone pushes, it refuses paths, it merges only on green hosted CI, and every change is a
