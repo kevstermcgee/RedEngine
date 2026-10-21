@@ -25,6 +25,9 @@ fn alias(key: &str, allowed: &[&str]) -> Option<String> {
     if let Some(d) = direct.filter(|d| allowed.contains(d)) {
         return Some(format!("did you mean `{d}`?"));
     }
+    if key == "show" && !allowed.contains(&"show") {
+        return Some("`show` goes beside the widget, not inside it: { \"panel\": { ... }, \"show\": \"expression\" }".to_string());
+    }
     if ["color", "colour", "roughness", "metallic", "emissive"].contains(&key) && allowed.contains(&"material") {
         let name = if key == "colour" { "color" } else { key };
         return Some(format!("material properties go inside `material`: \"material\": {{ \"{name}\": ... }}"));

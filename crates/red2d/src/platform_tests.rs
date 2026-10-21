@@ -149,3 +149,12 @@ fn reserved_keys_and_names_are_refused() {
     let e = parse(&text("", "", r##"{"when":{"start":true},"do":[{"window":"maximise"}]}"##, "")).unwrap_err().join("\n");
     assert!(e.contains("fullscreen") && e.contains("close"), "{e}");
 }
+
+#[test]
+fn a_bare_trigger_string_and_a_show_inside_a_widget_say_the_fix() {
+    let e = parse(&text("", "", r##"{"when":"start","do":[{"set":["picks",1]}]}"##, "")).unwrap_err().join("\n");
+    assert!(e.contains(r#"{ "start": true }"#), "{e}");
+    let panel = r##"{"panel":{"at":[0,0],"size":[10,10],"show":"picks > 0"}}"##;
+    let e = parse(&text("", "", "", panel)).unwrap_err().join("\n");
+    assert!(e.contains("beside the widget"), "{e}");
+}

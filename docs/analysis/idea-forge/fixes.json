@@ -63,5 +63,10 @@
   "partial": true,
   "summary": "the daily improver checks the two oldest open keys against main every run and records fixes.json entries for what is already fixed",
   "remaining": "the 132 keys open on 2026-10-20 close two a night unless someone triages them sooner; nothing yet checks that a fix commit records its key"
+ },
+ {
+  "key": "authoring-errors-dont-name-the-fix",
+  "date": "2026-10-20",
+  "summary": "a `show` inside a panel/bar/button now says it goes beside the widget, and a bare trigger string like \"start\" in `when` shows the object form `{ \"start\": true }`."
  }
 ]
