@@ -1,0 +1,529 @@
+{
+  "name": "forty-piece showcase",
+  "seed": 41,
+  "max_seconds": 60,
+  "script": [
+    {
+      "button": "marathon"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "right"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "action"
+    },
+    {
+      "press": "up"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "left"
+    },
+    {
+      "press": "action"
+    }
+  ],
+  "expect": [
+    {
+      "var": "phase",
+      "eq": 1
+    },
+    {
+      "var": "pieces",
+      "eq": 40
+    },
+    {
+      "var": "lines",
+      "gte": 5
+    },
+    {
+      "var": "score",
+      "gt": 1000
+    }
+  ]
+}

@@ -13,7 +13,8 @@
       {"source": "examples/2d/honeybound.game2d.json", "destination": "honeybound"},
       {"source": "games/redcraft/content", "destination": "redcraft"},
       {"source": "examples/chrono-clash", "destination": "chrono-clash"},
-      {"source": "examples/2d/snake.game2d.json", "destination": "snake"}
+      {"source": "examples/2d/snake.game2d.json", "destination": "snake"},
+      {"source": "examples/2d/prism-fall.game2d.json", "destination": "prism-fall"}
     ],
     "prototypes": [
       {"source": "recipes", "destination": "recipes"}
@@ -29,6 +30,16 @@
     ]
   },
   "playables": [
+    {
+      "slug": "prism-fall",
+      "name": "Prism Fall",
+      "kind": "2d",
+      "entry": "games/prism-fall/prism-fall.game2d.json",
+      "files": ["games/prism-fall"],
+      "arguments": ["content/games/prism-fall/prism-fall.game2d.json"],
+      "page": "pages/prism-fall",
+      "maintainer": "kevstermcgee"
+    },
     {
       "slug": "prop-hunt-yard",
       "name": "Prop Hunt Yard",
