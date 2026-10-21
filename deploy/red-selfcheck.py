@@ -475,7 +475,8 @@ def check_server(cfg, host, prev):
         return res('ok', detail, players=players), state
     said = ', '.join('%s +%d' % g for g in grew)
     if failing and joined > 0:
-        reason = 'a client was refused since the last check (%s) although %d join%s went through: one player gets in and another cannot' % (said, joined, '' if joined == 1 else 's')
+        reason = ('a client was refused since the last check (%s) although %d join%s went through: unless that was the refused player getting in after updating '
+                  'or fixing the code, one player gets in and another cannot' % (said, joined, '' if joined == 1 else 's'))
     elif failing:
         reason = 'joins were refused since the last check (%s) and nobody joined' % said
     else:
