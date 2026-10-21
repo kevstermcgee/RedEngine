@@ -360,6 +360,15 @@ jobs:
       - run: bash scripts/ci.sh pytools
         env:
           RED_GAMES_REPO: _games_repo
+      # The reachability probe's QUIC handshake (scripts/net_probe.py quic_handshake_once) is the code that talks to the live server, and its tests need aioquic,
+      # which this interpreter does not have: without this they are skipped and a regression shows up only as a red hourly watch. Installed as the watch
+      # installs it (a venv, the same pin, wheels only); RED_NET_PROBE_REQUIRE_AIOQUIC=1 makes a skip a failure.
+      - name: The reachability probe's real QUIC handshake (aioquic)
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aioquic"
+          "$RUNNER_TEMP/aioquic/bin/pip" install --quiet --only-binary :all: aioquic==1.2.0
+          RED_NET_PROBE_REQUIRE_AIOQUIC=1 "$RUNNER_TEMP/aioquic/bin/python" scripts/test_net_probe.py RealHandshake AioquicInCi
 
   # The dedicated server on a bare Linux box: no window, GPU, audio or ffmpeg libraries installed, and none may
   # be compiled or linked either. This is the job that keeps `red_server` deployable on a small VPS. On a pull request it runs the suites that run the

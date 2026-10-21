@@ -15,7 +15,9 @@ network and answers, per link, "did an outside packet get an answer, and if not,
 Targets (each one is a separate JSON entry, none needs a secret):
 
   dns     the host name resolves, and to what kind of address (public, private, carrier-grade NAT). The address itself is hidden: this output
-          ends up in public CI logs and issues, and the name is public while the home address is not.
+          ends up in public CI logs and issues, and the name is public while the home address is not. When this machine's own resolver fails,
+          the public resolvers below are asked directly: if one finds the address, only this machine's DNS is broken, the other targets are
+          probed at that address, and the failure is not a verdict about the server.
   udp     a control: a DNS query over UDP to public resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9). An answer means this machine can send UDP out and
           receive the answer, so a silent relay or game port is the server side's doing and not this machine's network. It is not a
           required target; it exists to tell "your network blocks UDP" apart from "the server is unreachable".
@@ -39,8 +41,9 @@ Output: one JSON object on stdout (`--no-json` leaves it out), progress and then
 (`x.x.x.x`) in everything printed, the public resolvers of the UDP control excepted; `--no-mask` shows them for a run against your own
 machine, and `--markdown` hides them whatever it is given. Exit codes: 0 every required target is ok, 1 one is not, 2 bad arguments, 3 incomplete
 (everything that could be tested passed but the QUIC handshake needs aioquic, which is not installed), 4 inconclusive (a required target
-failed while this machine could not use UDP at all, so the failure says nothing about the server), 70 the probe itself crashed (a bug in
-the probe, not a verdict about the server). Only 1 is a verdict that the server is unreachable.
+failed while this machine could not use UDP at all, or the only failure is this machine's own resolver while a public one found the name,
+so the failure says nothing about the server), 70 the probe itself crashed (a bug in the probe, not a verdict about the server; its
+traceback is hidden like every other line). Only 1 is a verdict that the server is unreachable.
 Python standard library only; the QUIC handshake additionally needs `python3 -m pip install aioquic==1.2.0` (the workflow does that), and
 without it the `game` target says so and still does its Version Negotiation step.
 
@@ -144,8 +147,8 @@ def log(msg):
 
 
 def mask_ip(ip, octets_kept, enabled=True):
-    """`203.0.113.45` -> `x.x.x.x` (keep 0: the host's address) or `203.0.x.x` (keep 2: the runner's egress, a cloud address that is not
-    anybody's home); anything that is not a dotted IPv4 is returned as is."""
+    """`203.0.113.45` -> `x.x.x.x` (keep 0: the host's address) or `203.0.x.x` (keep 2: a GitHub-hosted runner's egress, a cloud address
+    that is not anybody's home); anything that is not a dotted IPv4 is returned as is."""
     parts = ip.split(".")
     if not enabled or len(parts) != 4:
         return ip
@@ -251,12 +254,22 @@ def udp_exchange(ip, port, payload, timeout, accept=None):
 # targets
 
 
-def probe_dns(host, mask):
+def probe_dns(host, mask, timeout=2.0):
+    """The name through this machine's own resolver (what the game does). When that fails, the public resolvers of the UDP control are asked
+    directly: if one of them finds an address, the name is fine and only this machine's resolver failed (`local_resolver_failed`), so the
+    other targets are still probed at that address and the failure is not a verdict about the server (exit 4 when it is the only one)."""
     t0 = time.monotonic()
     try:
         infos = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_DGRAM)
     except OSError as e:
-        return result(False, f"{host} did not resolve to an IPv4 address: {e}"), None
+        ips, resolver, notes = public_dns_lookup(host, timeout)
+        if ips:
+            shown = [mask_ip(i, 0, mask) for i in ips]
+            kind = address_kind(ips[0])
+            return result(False, f"this machine's resolver could not look up {host} ({e}), but the public resolver {resolver} found it: {', '.join(shown)} ({kind})",
+                          None, addresses=shown, address_kind=kind, local_resolver_failed=True, public_resolver=resolver), ips[0]
+        public = f"; the public resolvers found no address either ({'; '.join(notes)})" if notes else ""
+        return result(False, f"{host} did not resolve to an IPv4 address: {e}{public}", public_lookup=notes), None
     took = time.monotonic() - t0
     ips = sorted({i[4][0] for i in infos})
     shown = [mask_ip(i, 0, mask) for i in ips]
@@ -265,9 +278,70 @@ def probe_dns(host, mask):
 
 
 def dns_query(name, qid):
-    """A standard recursive A query for `name`."""
-    question = b"".join(bytes([len(label)]) + label.encode("ascii") for label in name.split(".")) + b"\0" + struct.pack(">HH", 1, 1)
+    """A standard recursive A query for `name` (ValueError for a name a query cannot carry)."""
+    labels = name.rstrip(".").split(".")
+    if not all(0 < len(label) < 64 for label in labels):
+        raise ValueError(f"not a DNS name: {name!r}")
+    question = b"".join(bytes([len(label)]) + label.encode("ascii") for label in labels) + b"\0" + struct.pack(">HH", 1, 1)
     return struct.pack(">HHHHHH", qid, 0x0100, 1, 0, 0, 0) + question
+
+
+DNS_RCODES = {0: "no address", 1: "FORMERR", 2: "SERVFAIL", 3: "NXDOMAIN (no such name)", 5: "REFUSED"}
+
+
+def parse_a_records(data, qid):
+    """(rcode, [IPv4, ...]) from a DNS response to query `qid` (the A records of its answer section), or None when `data` is not one."""
+    if len(data) < 12:
+        return None
+    rid, flags, qdcount, ancount, _ns, _ar = struct.unpack(">HHHHHH", data[:12])
+    if rid != qid or not flags & 0x8000:
+        return None
+    pos, ips = 12, []
+
+    def skip_name(pos):
+        while True:
+            n = data[pos]  # IndexError on a truncated name
+            if n & 0xC0 == 0xC0:
+                return pos + 2  # a compression pointer ends the name
+            if n == 0:
+                return pos + 1
+            pos += 1 + n
+
+    try:
+        for _ in range(qdcount):
+            pos = skip_name(pos) + 4
+        for _ in range(ancount):
+            pos = skip_name(pos)
+            rtype, rclass, _ttl, rdlen = struct.unpack(">HHIH", data[pos:pos + 10])
+            rdata = data[pos + 10:pos + 10 + rdlen]
+            pos += 10 + rdlen
+            if rtype == 1 and rclass == 1 and len(rdata) == 4:
+                ips.append(socket.inet_ntoa(rdata))
+    except (IndexError, struct.error):
+        pass  # a truncated answer: keep what was read
+    return flags & 0xF, ips
+
+
+def public_dns_lookup(host, timeout):
+    """Asks the public resolvers of the UDP control for `host`'s A record directly, past this machine's own resolver. Returns (addresses, the
+    resolver that gave them, notes): the first resolver with an address wins; otherwise the notes say what each one answered."""
+    try:
+        dns_query(host, 0)
+    except (ValueError, UnicodeError):
+        return [], None, []
+    notes = []
+    for ip, port in UDP_CONTROL_RESOLVERS:
+        qid = struct.unpack(">H", os.urandom(2))[0]
+        outcome, data, _took = udp_exchange(ip, port, dns_query(host, qid), timeout, accept=lambda d, q=qid: parse_a_records(d, q) is not None)
+        if outcome != "reply":
+            notes.append(f"{ip}: {outcome}")
+            continue
+        rcode, ips = parse_a_records(data, qid)
+        if ips:
+            log(f"  public resolver {ip}: {len(ips)} address(es) for {host}")
+            return ips, ip, notes
+        notes.append(f"{ip}: {DNS_RCODES.get(rcode, f'rcode {rcode}')}")
+    return [], None, notes
 
 
 def probe_udp_control(timeout):
@@ -517,15 +591,21 @@ def probe_silent(ip, port, timeout, tries=2):
     return result(True, detail, None, port=port, attempts=attempts)
 
 
+def github_hosted():
+    """True on a runner GitHub provides (a cloud machine). A self-hosted runner, the box or a player's machine is somebody's network."""
+    return os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
+
+
 def runner_egress_ip(mask):
-    """Best effort: the address this machine's traffic leaves from, masked to two octets (so a host's firewall log can be matched by
-    network and time without publishing the runner's address). Opt-in (`--egress`): it asks two third-party services. Never fails the probe."""
+    """Best effort: the address this machine's traffic leaves from. On a GitHub-hosted runner it keeps two octets (a cloud network, so a host's
+    firewall log can be matched by network and time); anywhere else it is hidden whole, because run from home the first octets are the home
+    address's. Opt-in (`--egress`): it asks two third-party services. Never fails the probe."""
     for url in ("https://api.ipify.org", "https://ifconfig.me/ip"):
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
                 ip = r.read(64).decode().strip()
             if ip.count(".") == 3:
-                return mask_ip(ip, 2, mask)
+                return mask_ip(ip, 2 if github_hosted() else 0, mask)
         except Exception:
             continue
     return None
@@ -549,7 +629,18 @@ def udp_blocked(targets):
     return None if control is None else not control["ok"]
 
 
+def local_resolver_failed(targets):
+    """True when the name lookup failed only on this machine: its resolver did not answer but a public resolver found the address."""
+    dns = targets.get("dns") or {}
+    return not dns.get("ok", True) and bool(dns.get("local_resolver_failed"))
+
+
 def words_dns(t, host):
+    if t.get("local_resolver_failed"):
+        shown = ", ".join(t.get("addresses") or ["an address"])
+        return (f"this machine's own DNS resolver could not look up {host}, but a public DNS server found it ({shown}, a {t.get('address_kind') or 'known'} "
+                f"address): the name is fine and this machine's DNS is the problem (its settings, a VPN, a filter or the router). The game looks the name up the "
+                f"same way, so it fails here too until that is fixed or another network is used.")
     if t["ok"]:
         kind = t.get("address_kind") or "known"
         shown = ", ".join(t.get("addresses") or ["resolved"])
@@ -628,7 +719,11 @@ def verdict_words(report):
     if udp_blocked(targets):
         return ("INCONCLUSIVE: no outgoing UDP works from this machine, so nothing can reach the server from here whatever state it is in. The cause is "
                 "this machine's own network; the results below say nothing about the server.")
-    if not ok("dns"):
+    local_dns = local_resolver_failed(targets)
+    if report.get("inconclusive") and local_dns:
+        return (f"INCONCLUSIVE: this machine's own DNS resolver could not look up {report['host']}, but a public DNS server found its address and every other "
+                f"check passed there: the server is reachable from the internet. The cause is this machine's DNS (its settings, a VPN, a filter or the router).")
+    if not ok("dns") and not local_dns:
         return "FAILED at the first step: this machine cannot find the server's address."
     kind = wrong_record(report, targets.get("dns"))
     if not ok("relay") and not ok("game") and kind:
@@ -704,8 +799,9 @@ def mentions(logins):
 
 def render_markdown(report, style="summary", run_url=None, mention=None):
     """`summary`: the job summary. `issue`: the body of the issue opened when the targets stay unreachable (`mention`: the logins to notify).
-    `comment`: a follow-up comment on it. Every string goes through `redact_text` once more, always (whatever --no-mask said), so a result file
-    edited or produced elsewhere cannot put an address in a public page."""
+    `comment`: a follow-up comment on it. `reopen`: the comment on the watch's issue when an outage comes back within a day of its close.
+    Every string goes through `redact_text` once more, always (whatever --no-mask said), so a result file edited or produced elsewhere cannot
+    put an address in a public page."""
     host = report.get("host", "?")
     if report.get("ok"):
         status = "ok"
@@ -724,6 +820,10 @@ def render_markdown(report, style="summary", run_url=None, mention=None):
             out += ["cc " + " ".join(tagged), ""]
     elif style == "comment":
         out += [f"Still unreachable at {report.get('started_utc', '?')}.", ""]
+    elif style == "reopen":
+        out += [f"Unreachable again at {report.get('started_utc', '?')}, on two probes a few minutes apart"
+                + (f" (failed: {', '.join(failed)})" if failed else "")
+                + ". This issue was closed less than a day ago, so the watch reopens it instead of opening a new one.", ""]
     else:
         out += [f"### Reachability of {host}: {status}", ""]
     if run_url:
@@ -743,7 +843,8 @@ def render_markdown(report, style="summary", run_url=None, mention=None):
     if style == "issue":
         out += ["", "To check by hand from another network (no key is needed): `python3 scripts/net_probe.py --no-json`; see `docs/HOSTING.md`, \"Reachability watch\".",
                 "This issue is opened by `.github/workflows/reachability.yml` and closed by it on the next clean pass; while it stays open, the watch adds a comment "
-                "at most every six hours."]
+                "at most every six hours, and an outage that comes back within a day of the close reopens it. To silence the watch during a known outage: "
+                "`gh workflow disable reachability.yml` (and `gh workflow enable reachability.yml` afterwards)."]
     out += ["", "<details><summary>The probe's JSON</summary>", "", "```json", json.dumps(report, indent=2), "```", "", "</details>"]
     return redact_text("\n".join(out) + "\n", enabled=True)
 
@@ -767,9 +868,11 @@ def build_parser():
     ap.add_argument("--skip", default="", help="comma list of targets not to run")
     ap.add_argument("--no-mask", action="store_true", help="print addresses in full (for a run against your own machine; --markdown hides them regardless)")
     ap.add_argument("--no-json", action="store_true", help="print only the progress and the plain-words result, not the JSON")
-    ap.add_argument("--egress", action="store_true", help="also look up this machine's public address (two third-party web services) and record it masked to two octets")
+    ap.add_argument("--egress", action="store_true", help="also look up this machine's public address (two third-party web services) and record it masked: "
+                    "two octets kept on a GitHub-hosted runner, none anywhere else")
     ap.add_argument("--markdown", metavar="RESULT.json", help="do not probe: print Markdown for a saved JSON result")
-    ap.add_argument("--style", choices=("summary", "issue", "comment"), default="summary", help="with --markdown: the job summary, an issue body or a follow-up comment")
+    ap.add_argument("--style", choices=("summary", "issue", "comment", "reopen"), default="summary",
+                    help="with --markdown: the job summary, an issue body, a follow-up comment, or the comment on a reopened issue")
     ap.add_argument("--run-url", default=None, help="with --markdown: the workflow run's link")
     ap.add_argument("--mention", default="", help="with --markdown --style issue: comma list of GitHub logins to notify (the workflow passes the maintainers "
                     "in .github/contributors.json); a name that is not a login is left out")
@@ -819,7 +922,7 @@ def main(argv=None):
         log(f"note: aioquic is not installed, so the game server's encrypted handshake cannot be tested. To test it too: {AIOQUIC_INSTALL}")
 
     log(f"dns {args.host}")
-    dns, ip = probe_dns(args.host, mask)
+    dns, ip = probe_dns(args.host, mask, min(args.timeout, 2.0))
     if "dns" not in skip:
         report["targets"]["dns"] = dns
     if "udp" not in skip:
@@ -843,8 +946,10 @@ def main(argv=None):
 
     failed = [t for t in required if t in report["targets"] and not report["targets"][t]["ok"]]
     # A failure while this machine cannot use UDP at all says nothing about the server: the watch must not open an issue for its own runner's network.
-    inconclusive = bool(failed) and bool(udp_blocked(report["targets"]))
-    incomplete = bool(failed) and not inconclusive and all(report["targets"][t].get("needs_aioquic") for t in failed)
+    # Nor does a name lookup that failed only in this machine's resolver (a public resolver found the address, and the other targets were probed there).
+    about_server = [t for t in failed if not (t == "dns" and local_resolver_failed(report["targets"]))]
+    inconclusive = bool(failed) and (bool(udp_blocked(report["targets"])) or not about_server)
+    incomplete = bool(about_server) and not inconclusive and all(report["targets"][t].get("needs_aioquic") for t in about_server)
     report["required"] = required
     report["failed_required"] = failed
     report["ok"] = not failed
@@ -875,7 +980,7 @@ def run(argv=None):
     except KeyboardInterrupt:
         return 130
     except Exception:
-        traceback.print_exc()
+        log(traceback.format_exc().rstrip())  # through log: an exception's text can carry the probed address, and stderr is a public CI log
         return EXIT_INTERNAL
 
 

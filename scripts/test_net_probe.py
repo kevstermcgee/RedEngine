@@ -5,17 +5,19 @@ Run by `scripts/ci.sh pytools` (every scripts/test_*.py, on Linux and on Windows
 
 Offline: nothing here touches the internet or the owner's server, and `ProbeCase` fails any test that tries (a connect, a sendto or a name lookup that is
 not loopback, or a web request). The relay, the QUIC listener and the DNS resolver are small UDP servers on 127.0.0.1 in a thread; the QUIC handshake is a
-canned answer (one class runs the real handshake against an aioquic server on loopback when aioquic is installed); the public resolvers of the "can this
-machine use UDP" control are replaced by the fake. The workflow's own step scripts run under bash with a fake `gh` and a fake probe (Linux and macOS).
+canned answer (one class runs the real handshake against an aioquic server on loopback when aioquic is installed, and CI's Linux python job makes sure it
+is); the public resolvers of the "can this machine use UDP" control are replaced by the fake. The workflow's own step scripts run under bash with a fake
+probe and a fake `gh` whose `--jq` is the real jq (Linux), and the steps' `if:` conditions are evaluated for every status, watch flag and event.
 
 What is pinned, per the links a player cannot see:
   * the relay datagram (layout, the reply that counts, a late reply, silence, an ICMP refusal, no route) and that the constants match crates/red_core/src/net,
   * the UDP control, the QUIC Version Negotiation step, the handshake wording (an idle timeout is not "the server closed the connection"),
   * the plain-words line for each link and the verdict that combines them (DNS and the kind of address, the player's own UDP, the relay, the game port),
-  * hiding: no address and no part of one in the JSON, the log, the plain words, or the Markdown a public issue is made of,
-  * exit codes 0 / 1 / 2 / 3 / 4 / 70, and that only 1 means "unreachable" (a crash, a runner without UDP or a missing aioquic never does),
-  * the workflow: hourly at an odd minute, dispatch, no push/pull_request trigger, least privilege, pinned actions; a failure confirmed by a second probe
-    minutes later; one issue opened, commented at most every six hours, closed by a clean pass; an experiment never touches it.
+  * hiding: no address and no part of one in the JSON, the log, a crash's traceback, the plain words, or the Markdown a public issue is made of,
+  * exit codes 0 / 1 / 2 / 3 / 4 / 70, and that only 1 means "unreachable" (a crash, a runner without UDP or with a broken resolver, or a missing aioquic never does),
+  * the workflow: hourly at an odd minute, dispatch, no push/pull_request trigger, least privilege, pinned actions, no token left in .git/config; exit 1 on
+    both probes, minutes apart, is the only outage; one issue (the watch's own: its bot, its title) opened, commented at most every six hours, closed by a clean
+    pass, reopened when the outage is back within a day; a person's labelled issue and an experiment never touch it.
 """
 import contextlib
 import io
@@ -122,6 +124,25 @@ def dns_answers(data, addr):
     return data[:2] + bytes([data[2] | 0x80]) + data[3:] if len(data) >= 12 else None
 
 
+def dns_finds(address, cname=False):
+    """A resolver that knows every name: answers one A record `address` (the name a compression pointer to the question), after a CNAME when `cname`."""
+    def handler(data, addr):
+        if len(data) < 12:
+            return None
+        records = []
+        if cname:
+            target = b"\x05alias\xc0\x0c"
+            records.append(b"\xc0\x0c" + struct.pack(">HHIH", 5, 1, 60, len(target)) + target)
+        records.append(b"\xc0\x0c" + struct.pack(">HHIH", 1, 1, 60, 4) + socket.inet_aton(address))
+        return data[:2] + b"\x81\x80" + data[4:6] + struct.pack(">HHH", len(records), 0, 0) + data[12:] + b"".join(records)
+    return handler
+
+
+def dns_no_such_name(data, addr):
+    """A resolver that answers NXDOMAIN for every name."""
+    return data[:2] + b"\x81\x83" + data[4:6] + b"\0" * 6 + data[12:] if len(data) >= 12 else None
+
+
 def closed_udp_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind(("127.0.0.1", 0))
@@ -184,8 +205,9 @@ class ProbeCase(unittest.TestCase):
                 rc = e.code
         return rc, out.getvalue(), err.getvalue()
 
-    def world(self, *, relay=b"\x05", quic=True, dns=True, handshake=None, silent=None, aioquic=True):
-        """Fake relay, QUIC listener, resolver and a control port on loopback, entered into an ExitStack. Returns (argv, servers)."""
+    def world(self, *, relay=b"\x05", quic=True, dns=True, handshake=None, silent=None, aioquic=True, resolver=None):
+        """Fake relay, QUIC listener, resolver and a control port on loopback, entered into an ExitStack. Returns (argv, servers).
+        The resolver stands in for the public resolvers (the UDP control and the lookup past this machine's own resolver); `resolver` replaces its handler."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         if handshake is None:  # a dead listener cannot complete a handshake either
@@ -193,7 +215,7 @@ class ProbeCase(unittest.TestCase):
         servers = {
             "relay": stack.enter_context(FakeUdp(relay_says(relay) if relay is not None else None)),
             "game": stack.enter_context(FakeUdp(quic_listener if quic else None)),
-            "dns": stack.enter_context(FakeUdp(dns_answers if dns else None)),
+            "dns": stack.enter_context(FakeUdp(resolver or (dns_answers if dns else None))),
             "silent": stack.enter_context(FakeUdp(silent)),
         }
         for patch in (mock.patch.object(np, "UDP_CONTROL_RESOLVERS", (("127.0.0.1", servers["dns"].port),)), mock.patch.object(np, "aioquic_installed", return_value=aioquic),
@@ -523,6 +545,60 @@ class Main(ProbeCase):
         self.assertEqual(words["relay"], "not tried: the name lookup failed first.")
         self.assertTrue(report["targets"]["udp"]["ok"], "the UDP control does not need the name")
 
+    def runner_resolver_fails(self, argv):
+        """main() with this machine's own resolver broken (what a GitHub runner's systemd-resolved or Azure DNS failing looks like) and hiding on."""
+        argv = [a for a in argv if a != "--no-mask"]
+        argv[1] = "game-host.example.invalid"
+        with mock.patch.object(np.socket, "getaddrinfo", side_effect=socket.gaierror(-3, "Temporary failure in name resolution")):
+            rc, out, err = self.run_main(argv)
+        return rc, json.loads(out), out + err
+
+    def test_the_runners_own_resolver_failing_is_inconclusive_when_a_public_resolver_finds_the_name(self):
+        # Review of PR #217: the runner's resolver failing used to be exit 1, "this machine cannot find the server's address", and opened the outage issue.
+        argv, servers = self.world(resolver=dns_finds("127.0.0.1"))
+        rc, report, printed = self.runner_resolver_fails(argv)
+        self.assertEqual(rc, np.EXIT_INCONCLUSIVE, report["verdict"])
+        self.assertTrue(report["inconclusive"] and not report["ok"])
+        dns = report["targets"]["dns"]
+        self.assertFalse(dns["ok"])
+        self.assertTrue(dns["local_resolver_failed"])
+        self.assertEqual((dns["addresses"], dns["address_kind"]), (["x.x.x.x"], "loopback"))
+        self.assertTrue(report["targets"]["relay"]["ok"] and report["targets"]["game"]["ok"], "probed at the address the public resolver gave")
+        self.assertIn(b"\x09game-host\x07example\x07invalid\x00", servers["dns"].received[0], "the lookup asked the public resolver for the host name itself")
+        self.assertTrue(report["verdict"].startswith("INCONCLUSIVE: this machine's own DNS resolver could not look up"), report["verdict"])
+        self.assertIn("the server is reachable from the internet", report["verdict"])
+        words = {d["link"]: d["words"] for d in report["diagnosis"]}
+        self.assertIn("this machine's DNS is the problem", words["dns"])
+        self.assertNotIn("127.0.0", printed, "the address the public resolver gave is hidden like any other")
+
+    def test_a_server_that_is_down_is_still_reported_when_only_the_runners_resolver_also_failed(self):
+        argv, _ = self.world(relay=None, resolver=dns_finds("127.0.0.1", cname=True))
+        rc, report, _ = self.runner_resolver_fails(argv)
+        self.assertEqual(rc, np.EXIT_FAILED, "the relay was probed at the public address and did not answer: that is a verdict about the server")
+        self.assertEqual(report["failed_required"], ["dns", "relay"])
+        self.assertTrue(report["verdict"].startswith("FAILED: the game server answers but the relay does not"), report["verdict"])
+
+    def test_a_name_the_public_resolvers_do_not_know_either_is_a_real_dns_failure(self):
+        argv, _ = self.world(resolver=dns_no_such_name)
+        rc, report, _ = self.runner_resolver_fails(argv)
+        self.assertEqual(rc, np.EXIT_FAILED)
+        self.assertTrue(report["verdict"].startswith("FAILED at the first step"), report["verdict"])
+        self.assertIn("NXDOMAIN", report["targets"]["dns"]["detail"])
+        self.assertFalse(report["targets"]["dns"].get("local_resolver_failed"))
+
+    def test_a_dns_answer_is_read_past_compressed_names_and_cnames_and_survives_truncation(self):
+        query = np.dns_query("red-engine.duckdns.org", 0x1234)
+        answer = dns_finds("203.0.113.45", cname=True)(query, None)
+        self.assertEqual(np.parse_a_records(answer, 0x1234), (0, ["203.0.113.45"]))
+        self.assertIsNone(np.parse_a_records(answer, 0x4321), "an answer to another query")
+        self.assertIsNone(np.parse_a_records(query, 0x1234), "a query is not an answer")
+        self.assertEqual(np.parse_a_records(answer[:-3], 0x1234), (0, []), "truncated: no address, no crash")
+        self.assertEqual(np.parse_a_records(dns_no_such_name(query, None), 0x1234), (3, []))
+        for bad in ("x" * 64 + ".example", "a..b", ""):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                np.dns_query(bad, 1)
+        self.assertEqual(np.public_dns_lookup("a..b", 0.1), ([], None, []), "a name no query can carry is not looked up")
+
     def test_a_missing_aioquic_is_exit_3_incomplete_with_the_install_command(self):
         argv, _ = self.world(aioquic=False)
         rc, report, err = self.parse(self.run_main(argv))
@@ -554,6 +630,21 @@ class Main(ProbeCase):
         self.assertEqual(rc, np.EXIT_INTERNAL)
         self.assertNotEqual(rc, np.EXIT_FAILED)
         self.assertIn("RuntimeError: bug", err.getvalue())
+
+    def test_a_crash_traceback_is_hidden_like_every_other_line(self):
+        # Review of PR #217: the traceback went to stderr (a public CI log) without the hiding every other line gets.
+        argv, _ = self.world()
+        argv.remove("--no-mask")
+
+        def boom(ip, *args, **kw):
+            raise RuntimeError(f"relay at {ip} misbehaved")
+
+        err = io.StringIO()
+        with mock.patch.object(np, "probe_relay", side_effect=boom), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            rc = np.run(argv)
+        self.assertEqual(rc, np.EXIT_INTERNAL)
+        self.assertIn("RuntimeError: relay at x.x.x.x misbehaved", err.getvalue(), "the traceback is still there to debug from")
+        self.assertNotIn("127.0.0", err.getvalue())
 
     def test_only_the_required_targets_decide_the_exit_code(self):
         argv, _ = self.world(silent=lambda data, addr: b"who goes there")
@@ -646,16 +737,37 @@ class Hiding(ProbeCase):
         report = json.loads(out)
         self.assertNotIn("203.0.113", np.render_markdown(report, "issue", "https://example.invalid/run/1"))
 
-    def test_markdown_hides_a_result_file_that_was_not_hidden_even_after_a_no_mask_run(self):
+    def test_markdown_hides_a_result_file_that_was_not_hidden_even_after_a_no_mask_run_and_in_every_style(self):
         report = {"host": "h", "ok": False, "started_utc": "2026-10-20T10:17:00Z", "ports": {}, "runner": {"egress_ip_masked": "198.51.100.77"},
                   "targets": {"relay": {"ok": False, "rtt_ms": None, "detail": "answer from 203.0.113.45 was wrong"}}}
         np.MASKING = False  # what a --no-mask run in the same process leaves behind; the cleanup turns it back on
-        for style in ("summary", "issue", "comment"):
+        for style in ("summary", "issue", "comment", "reopen"):
             with self.subTest(style=style):
                 text = np.render_markdown(report, style)
                 self.assertNotIn("203.0.113", text)
                 self.assertNotIn("198.51.100", text)
                 self.assertIn("x.x.x.x", text)
+
+
+class Egress(unittest.TestCase):
+    """--egress: the first two octets only where they are a cloud network (review of PR #217: run from the box, they were the home address's)."""
+
+    def egress(self, environment):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"203.0.113.45\n"
+        env = {k: v for k, v in os.environ.items() if k != "RUNNER_ENVIRONMENT"}
+        if environment is not None:
+            env["RUNNER_ENVIRONMENT"] = environment
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(np.urllib.request, "urlopen", return_value=response):
+            return np.runner_egress_ip(True), np.runner_egress_ip(False)
+
+    def test_two_octets_only_on_a_github_hosted_runner(self):
+        self.assertEqual(self.egress("github-hosted"), ("203.0.x.x", "203.0.113.45"))
+        for environment in (None, "self-hosted", ""):
+            with self.subTest(environment=environment):
+                masked, unmasked = self.egress(environment)
+                self.assertEqual(masked, "x.x.x.x", "the box, a player's machine or a self-hosted runner: nothing of the address")
+                self.assertEqual(unmasked, "203.0.113.45", "--no-mask is the owner's own choice on their own machine")
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
@@ -682,6 +794,7 @@ class MarkdownText(ProbeCase):
         self.assertIn("| Game server | yes |", body)
         self.assertIn("docs/HOSTING.md", body)
         self.assertIn("python3 scripts/net_probe.py --no-json", body)
+        self.assertIn("`gh workflow disable reachability.yml`", body, "how to silence it during a known outage, where the maintainers see it")
         embedded = re.search(r"```json\n(.*?)\n```", body, re.S).group(1)
         self.assertEqual(json.loads(embedded), report, "the JSON in the issue is the probe's result")
 
@@ -701,6 +814,11 @@ class MarkdownText(ProbeCase):
         self.assertTrue(comment.startswith("Still unreachable at "))
         self.assertIn("https://x.invalid/run/9", comment)
         self.assertNotIn("two probes", comment)
+        reopen = np.render_markdown(report, "reopen", "https://x.invalid/run/9", "kevstermcgee")
+        self.assertTrue(reopen.startswith("Unreachable again at "), reopen[:80])
+        self.assertIn("(failed: Relay (short codes))", reopen)
+        self.assertIn("reopens it instead of opening a new one", reopen)
+        self.assertNotIn("\ncc ", reopen, "a reopen notifies the issue's participants already; it does not mention everyone again")
         ok = np.render_markdown(dict(report, ok=True, failed_required=[]), "summary")
         self.assertTrue(ok.startswith("### Reachability of x.x.x.x: ok"))
 
@@ -727,7 +845,11 @@ class MarkdownText(ProbeCase):
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
-# a real handshake, when aioquic is installed (the CI runners do not have it: this runs on a developer machine)
+# a real handshake, when aioquic is installed. The python job's interpreter does not have it; its Linux leg runs this class again in a venv with the pinned
+# aioquic and RED_NET_PROBE_REQUIRE_AIOQUIC=1, which turns the skip into a failure (.github/workflows/ci.yml, python-tools).
+
+REQUIRE_AIOQUIC = os.environ.get("RED_NET_PROBE_REQUIRE_AIOQUIC") == "1"
+CI_WORKFLOW = os.path.join(ROOT, ".github", "workflows", "ci.yml")
 
 
 def aioquic_available():
@@ -739,7 +861,22 @@ def aioquic_available():
         return False
 
 
-@unittest.skipUnless(aioquic_available(), "aioquic is not installed (python3 -m pip install aioquic==1.2.0)")
+class AioquicInCi(unittest.TestCase):
+    def test_aioquic_is_installed_where_the_real_handshake_is_required(self):
+        if REQUIRE_AIOQUIC:
+            self.assertTrue(aioquic_available(), "RED_NET_PROBE_REQUIRE_AIOQUIC=1 but aioquic is not importable: the real handshake would be skipped")
+
+    def test_the_python_job_runs_the_real_handshake_with_the_probes_own_pin(self):
+        # Review of PR #217: quic_handshake_once talks to the live server, and its only tests were skipped everywhere.
+        if not os.path.exists(CI_WORKFLOW):
+            self.skipTest("the CI workflow is not beside this script")
+        ci = read(CI_WORKFLOW)
+        self.assertIn(f"--only-binary :all: {np.AIOQUIC_PIN}", ci)
+        self.assertIn(f"--only-binary :all: {np.AIOQUIC_PIN}", workflow_text(), "the watch installs the same pin")
+        self.assertRegex(ci, r"RED_NET_PROBE_REQUIRE_AIOQUIC=1 \S+ scripts/test_net_probe\.py RealHandshake")
+
+
+@unittest.skipUnless(aioquic_available() or REQUIRE_AIOQUIC, "aioquic is not installed (python3 -m pip install aioquic==1.2.0)")
 class RealHandshake(ProbeCase):
     def serve(self, alpn):
         """An aioquic server on loopback with a throwaway self-signed certificate. Returns (port, fingerprint)."""
@@ -895,6 +1032,82 @@ def job_env():
     return env
 
 
+_EXPR_TOKEN = re.compile(r"\s*(\|\||&&|==|!=|!|\(\)|\(|\)|'(?:[^']|'')*'|[A-Za-z_][\w.-]*)")
+_STATUS_FUNCTIONS = {"always": True, "success": True, "failure": False, "cancelled": False}  # the steps before ran: the probe step itself always exits 0
+
+
+def evaluate(expr, context):
+    """A GitHub Actions expression, the subset the workflow's step conditions use: property paths, 'strings', true/false/null, ==, !=, !, &&, ||,
+    parentheses and the status functions. As on GitHub, strings compare ignoring case, `!` binds tighter than `==`, which binds tighter than `&&`, then
+    `||`, and `&&` / `||` return an operand. A property that is not in `context` raises KeyError, so a misspelt output cannot quietly read as null."""
+    text = expr.strip()
+    if text.startswith("${{") and text.endswith("}}"):
+        text = text[3:-2]
+    text = text.strip()
+    tokens, pos = [], 0
+    while pos < len(text):
+        m = _EXPR_TOKEN.match(text, pos)
+        if not m:
+            raise ValueError(f"cannot read {text[pos:]!r} in {expr!r}")
+        tokens.append(m.group(1))
+        pos = m.end()
+    i = 0
+    truthy = lambda v: v not in (None, False, "", 0)
+    norm = lambda v: "" if v is None else (v.lower() if isinstance(v, str) else v)
+
+    def take(expected=None):
+        nonlocal i
+        if i >= len(tokens) or (expected and tokens[i] != expected):
+            raise ValueError(f"expected {expected or 'more'} in {expr!r}")
+        i += 1
+        return tokens[i - 1]
+
+    def primary():
+        tok = take()
+        if tok == "(":
+            value = either()
+            take(")")
+            return value
+        if tok == "!":
+            return not truthy(primary())
+        if tok.startswith("'"):
+            return tok[1:-1].replace("''", "'")
+        if i < len(tokens) and tokens[i] == "()":
+            take()
+            return _STATUS_FUNCTIONS[tok]
+        if tok in ("true", "false", "null"):
+            return {"true": True, "false": False, "null": None}[tok]
+        return context[tok]
+
+    def comparison():
+        left = primary()
+        while i < len(tokens) and tokens[i] in ("==", "!="):
+            op, right = take(), primary()
+            left = (norm(left) == norm(right)) == (op == "==")
+        return left
+
+    def both():
+        left = comparison()
+        while i < len(tokens) and tokens[i] == "&&":
+            take()
+            right = comparison()
+            left = right if truthy(left) else left
+        return left
+
+    def either():
+        left = both()
+        while i < len(tokens) and tokens[i] == "||":
+            take()
+            right = both()
+            left = left if truthy(left) else right
+        return left
+
+    value = either()
+    if i != len(tokens):
+        raise ValueError(f"unread {tokens[i:]} in {expr!r}")
+    return value
+
+
 class Workflow(unittest.TestCase):
     def test_it_runs_hourly_at_an_odd_minute_and_on_demand_and_on_nothing_else(self):
         on = "\n".join(top_level_block(workflow_text(), "on"))
@@ -939,6 +1152,52 @@ class Workflow(unittest.TestCase):
             self.assertNotIn("pull_request", cond)
         self.assertIn("steps.probe.outputs.status == 'unreachable'", condition(step_with("gh issue create")))
         self.assertIn("steps.probe.outputs.status == 'ok'", condition(step_with("gh issue close")), "only a clean first-attempt pass closes it")
+
+    def test_each_step_runs_for_exactly_the_statuses_watches_and_events_it_should(self):
+        # Review of PR #217: the conditions were only checked by substring, so letting a "recovered" run close the issue (the flapping the close step's comment
+        # forbids) passed the suite. Every combination is evaluated here as GitHub evaluates it.
+        opens, closes = condition(step_with("gh issue create")), condition(step_with("gh issue close"))
+        fails, summary = condition(steps(workflow_text())[-1]), condition(step_with("name: Summary"))
+        for status in ("ok", "recovered", "unreachable", "error", ""):
+            for watch in ("true", "false", ""):
+                for event in ("schedule", "workflow_dispatch", "push", "pull_request", "pull_request_target"):
+                    ctx = {"steps.probe.outputs.status": status, "steps.probe.outputs.watch": watch, "github.event_name": event,
+                           "github.repository": "kevstermcgee/RedEngine"}
+                    the_watch = watch == "true" and event in ("schedule", "workflow_dispatch")
+                    with self.subTest(status=status, watch=watch, event=event):
+                        self.assertEqual(bool(evaluate(opens, ctx)), status == "unreachable" and the_watch, "opens or comments on the issue")
+                        self.assertEqual(bool(evaluate(closes, ctx)), status == "ok" and the_watch, "closes the issue")
+                        self.assertEqual(bool(evaluate(fails, ctx)), status in ("unreachable", "error"), "turns the run red")
+                        self.assertTrue(evaluate(summary, ctx), "the summary is written whatever happened")
+
+    def test_the_condition_evaluator_reads_github_expressions_as_github_does(self):
+        ctx = {"a": "OK", "b": "", "steps.probe.outputs.status": "recovered", "steps.probe.outputs.watch": "true", "github.event_name": "schedule"}
+        self.assertIs(evaluate("${{ a == 'ok' }}", ctx), True, "strings compare ignoring case")
+        self.assertEqual(evaluate("b || 'not finished'", ctx), "not finished")
+        self.assertIs(evaluate("!b && a != 'no'", ctx), True)
+        self.assertIs(evaluate("a == 'x' || a == 'ok' && b == ''", ctx), True, "&& binds tighter than ||")
+        with self.assertRaises(KeyError):
+            evaluate("steps.probe.output.status == 'ok'", ctx)
+        mutated = condition(step_with("gh issue close")).replace("steps.probe.outputs.status == 'ok'",
+                                                                 "(steps.probe.outputs.status == 'ok' || steps.probe.outputs.status == 'recovered')")
+        self.assertTrue(evaluate(mutated, ctx), "the reviewer's mutation, a recovered run that closes the issue, is told apart")
+        self.assertFalse(evaluate(condition(step_with("gh issue close")), ctx))
+
+    def test_the_checkout_leaves_no_token_behind_and_aioquic_comes_as_wheels(self):
+        # Review of PR #217: the token (issues: write) stayed in .git/config while packages from PyPI were installed and imported.
+        checkout = step_with("actions/checkout")
+        self.assertRegex(checkout, r"\n\s+with:\n\s+persist-credentials: false\b")
+        self.assertIn("pip\" install --quiet --only-binary :all: aioquic==", run_script(step_with("name: Install aioquic")))
+
+    def test_the_issue_steps_find_the_watchs_own_issue_by_bot_author_and_title_never_by_label_alone(self):
+        self.assertEqual(job_env()["WATCH_ISSUES"], "map(select(.author.is_bot and .title == env.ISSUE_TITLE))")
+        for needle in ("gh issue create", "gh issue close"):
+            lists = re.findall(r"gh issue list [^\n]*", run_script(step_with(needle)).replace("\\\n", " "))
+            self.assertTrue(lists)
+            for call in lists:
+                with self.subTest(call=call):
+                    self.assertIn('"$WATCH_ISSUES |', call)
+                    self.assertIn("author", call)
 
     def test_the_token_reaches_only_the_steps_that_use_it(self):
         text = workflow_text()
@@ -989,6 +1248,8 @@ class Workflow(unittest.TestCase):
         inputs = on["workflow_dispatch"]["inputs"]
         self.assertEqual(sorted(inputs), ["game_port", "host", "relay_port", "silent_port"])
         self.assertTrue(all(v["default"] == "" for v in inputs.values()), "empty means the script's defaults: the host and ports are written once")
+        self.assertEqual(job["env"]["WATCH_ISSUES"], job_env()["WATCH_ISSUES"], "a plain YAML scalar, read the same by GitHub and by these tests")
+        self.assertEqual(job["steps"][0]["with"], {"persist-credentials": False})
         for step in job["steps"]:
             if "run" in step:
                 self.assertNotIn("${{", step["run"])
@@ -998,26 +1259,52 @@ class Workflow(unittest.TestCase):
 # the workflow's step scripts, run as GitHub runs them (bash -eo pipefail) with a fake probe and a fake `gh`
 
 
+# A `gh` that keeps the repository's labelled issues in a JSON file: each with its number, title, author ({login, is_bot}), state, createdAt, closedAt and
+# comments ([{createdAt}]), as `gh --json` reports them. `--jq` runs through the real jq (`jq -r`, which prints what gh prints; gh's own jq is gojq, and the
+# expressions the workflow uses mean the same in both), so the filters under test are the workflow's own.
 FAKE_GH = r'''
-import json, os, sys
+import json, os, subprocess, sys, time
 path = os.environ["FAKE_GH_STATE"]
 with open(path, encoding="utf-8") as f:
     state = json.load(f)
 args = sys.argv[1:]
 state["calls"].append(args)
 flag = lambda name: args[args.index(name) + 1] if name in args else None
+now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def issue(number):
+    return next(i for i in state["issues"] if str(i["number"]) == str(number))
+
+
+def emit(value):
+    text = json.dumps(value)
+    if flag("--jq") is None:
+        return text
+    p = subprocess.run(["jq", "-r", flag("--jq")], input=text, capture_output=True, text=True)
+    if p.returncode != 0:
+        sys.exit(f"fake gh: jq refused {flag('--jq')!r}: {p.stderr}")
+    return p.stdout.rstrip("\n")
+
+
+def fields(i):
+    return {k: i.get(k) for k in flag("--json").split(",")}
+
+
 out = ""
 if args[:2] == ["label", "create"]:
     state["labels"].append(args[2])
 elif args[:2] == ["issue", "list"]:
-    assert flag("--label") == "reachability" and flag("--state") == "open", args
-    numbers = state["open"][:1] if ".[0]" in flag("--jq") else state["open"]
-    out = "\n".join(str(n) for n in numbers)
+    assert flag("--label") == "reachability" and flag("--state") in ("open", "closed"), args
+    rows = sorted((i for i in state["issues"] if i["state"] == flag("--state")), key=lambda i: -i["number"])  # newest first, as gh lists them
+    out = emit([fields(i) for i in rows])
 elif args[:2] == ["issue", "view"]:
-    out = state["last_activity"]
+    out = emit(fields(issue(args[2])))
 elif args[:2] == ["issue", "create"]:
     with open(flag("--body-file"), encoding="utf-8") as f:
         state["created"].append({"title": flag("--title"), "label": flag("--label"), "body": f.read()})
+    state["issues"].append({"number": 99, "title": flag("--title"), "author": {"login": "app/github-actions", "is_bot": True}, "state": "open",
+                            "createdAt": now, "closedAt": None, "comments": []})
     out = "https://github.com/o/r/issues/99"
 elif args[:2] == ["issue", "comment"]:
     if "--body-file" in args:
@@ -1026,8 +1313,13 @@ elif args[:2] == ["issue", "comment"]:
     else:
         body = flag("--body")
     state["comments"].append({"issue": args[2], "body": body})
+    issue(args[2])["comments"].append({"createdAt": now})
 elif args[:2] == ["issue", "close"]:
     state["closed"].append(args[2])
+    issue(args[2]).update(state="closed", closedAt=now)
+elif args[:2] == ["issue", "reopen"]:
+    state["reopened"].append(args[2])
+    issue(args[2]).update(state="open", closedAt=None)
 else:
     sys.exit(f"fake gh: unexpected call {args}")
 with open(path, "w", encoding="utf-8") as f:
@@ -1035,6 +1327,8 @@ with open(path, "w", encoding="utf-8") as f:
 if out:
     print(out)
 '''
+BOT = {"login": "app/github-actions", "is_bot": True}
+PERSON = {"login": "a-player", "is_bot": False}
 
 # The probe as the Probe step calls it: records its arguments, prints a result, and exits with the next code from codes.txt.
 FAKE_PROBE = r'''#!/usr/bin/env bash
@@ -1046,7 +1340,7 @@ exit "${code:-0}"
 '''
 
 
-@unittest.skipUnless(shutil.which("bash") and sys.platform.startswith("linux"), "the steps run on ubuntu: needs bash and GNU date")
+@unittest.skipUnless(shutil.which("bash") and shutil.which("jq") and sys.platform.startswith("linux"), "the steps run on ubuntu: needs bash, jq and GNU date")
 class WorkflowSteps(ProbeCase):
     def setUp(self):
         super().setUp()
@@ -1065,10 +1359,12 @@ class WorkflowSteps(ProbeCase):
         os.chmod(path, 0o755)
 
     def run_step(self, needle, **env):
-        full = dict(os.environ, RUNNER_TEMP=self.tmp, GITHUB_OUTPUT=os.path.join(self.tmp, "output.txt"), GITHUB_STEP_SUMMARY=os.path.join(self.tmp, "summary.md"),
+        # The job's literal env as the workflow writes it (ISSUE_TITLE, ISSUE_LABEL, WATCH_ISSUES, ...); the expressions get stand-ins, and no wait between probes.
+        literal = {k: v for k, v in job_env().items() if "${{" not in v}
+        full = dict(os.environ, **literal)
+        full.update(RUNNER_TEMP=self.tmp, GITHUB_OUTPUT=os.path.join(self.tmp, "output.txt"), GITHUB_STEP_SUMMARY=os.path.join(self.tmp, "summary.md"),
                     PATH=self.bin + os.pathsep + os.environ.get("PATH", ""), FAKE_GH_STATE=self.state_path, CONFIRM_AFTER_SECONDS="0",
-                    ISSUE_TITLE=job_env()["ISSUE_TITLE"], ISSUE_LABEL=job_env()["ISSUE_LABEL"], RUN_URL="https://github.com/o/r/actions/runs/7",
-                    GH_REPO="o/r", PROBE_HOST="", PROBE_RELAY_PORT="", PROBE_GAME_PORT="", PROBE_SILENT_PORT="")
+                    RUN_URL="https://github.com/o/r/actions/runs/7", GH_REPO="o/r", PROBE_HOST="", PROBE_RELAY_PORT="", PROBE_GAME_PORT="", PROBE_SILENT_PORT="")
         full.update(env)
         p = subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", run_script(step_with(needle))], cwd=ROOT, env=full,
                            capture_output=True, text=True, timeout=120)
@@ -1107,10 +1403,19 @@ class WorkflowSteps(ProbeCase):
         self.assertEqual((outputs["status"], len(calls)), ("unreachable", 2))
 
     def test_any_exit_but_1_on_the_second_probe_is_an_error_never_an_outage(self):
-        for codes in ([4, 4], [1, 4], [70, 70], [1, 70], [3, 3], [2, 2]):
+        for codes in ([1, 4], [1, 70], [1, 3], [1, 2]):
             with self.subTest(codes=codes):
-                outputs, _, _ = self.probe(codes)
-                self.assertEqual(outputs["status"], "error")
+                outputs, calls, _ = self.probe(codes)
+                self.assertEqual((outputs["status"], len(calls)), ("error", 2))
+
+    def test_a_first_probe_without_a_verdict_is_an_error_and_is_not_probed_again(self):
+        # Review of PR #217: [4, 1] (and 70, 3 or 2 first) was "unreachable" and opened the issue on the second probe's verdict alone.
+        for first in (4, 70, 3, 2):
+            with self.subTest(first=first):
+                outputs, calls, stdout = self.probe([first, 1])
+                self.assertEqual(outputs["status"], "error", "only exit 1 on BOTH probes is an outage")
+                self.assertEqual(len(calls), 1, "a crash, a missing aioquic or a runner without UDP is the same three minutes later")
+                self.assertNotIn("probing again", stdout)
 
     def test_a_run_against_another_target_is_not_the_watch(self):
         for name, value, flag in (("PROBE_HOST", "example.org", "--host example.org"), ("PROBE_RELAY_PORT", "29100", "--relay-port 29100"),
@@ -1122,9 +1427,14 @@ class WorkflowSteps(ProbeCase):
 
     # -- the issue steps
 
-    def gh(self, open_issues=(), last_activity="2026-10-20T00:00:00Z"):
+    def issue(self, number, *, author=BOT, title=ISSUE_TITLE, created_ago=30 * 3600, closed_ago=None, comments_ago=()):
+        """An issue as gh reports it; the watch's own by default (its bot, its title), open unless `closed_ago` (seconds) is given."""
+        return {"number": number, "title": title, "author": author, "state": "open" if closed_ago is None else "closed", "createdAt": self.ago(created_ago),
+                "closedAt": None if closed_ago is None else self.ago(closed_ago), "comments": [{"createdAt": self.ago(s)} for s in comments_ago]}
+
+    def gh(self, issues=()):
         with open(self.state_path, "w", encoding="utf-8") as f:
-            json.dump({"open": list(open_issues), "last_activity": last_activity, "calls": [], "labels": [], "created": [], "comments": [], "closed": []}, f)
+            json.dump({"issues": list(issues), "calls": [], "labels": [], "created": [], "comments": [], "closed": [], "reopened": []}, f)
         self.write_exe(os.path.join(self.venv, "python"), f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n')
         # what the probe left: a real failed result from the fakes
         argv, _ = self.world(relay=None)
@@ -1155,41 +1465,86 @@ class WorkflowSteps(ProbeCase):
         self.assertIn("Run: https://github.com/o/r/actions/runs/7", issue["body"])
         self.assertIn("FAILED: the game server answers but the relay does not", issue["body"])
         self.assertNotIn("127.0.0", issue["body"], "the address is hidden in the issue")
-        self.assertEqual(state["comments"], [])
+        self.assertEqual((state["comments"], state["reopened"]), ([], []))
 
     def test_an_open_issue_gets_a_comment_at_most_every_six_hours_from_the_schedule(self):
-        self.gh(open_issues=[12], last_activity=self.ago(3600))
-        p, _ = self.run_step("gh issue create", EVENT="schedule")
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        state = self.gh_state()
-        self.assertEqual((state["created"], state["comments"], state["labels"]), ([], [], []), "an hour after the last word: nothing, and never a second issue")
-        self.gh(open_issues=[12], last_activity=self.ago(7 * 3600))
-        p, _ = self.run_step("gh issue create", EVENT="schedule")
-        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        state = self.gh_state()
-        self.assertEqual(state["created"], [])
-        self.assertEqual([c["issue"] for c in state["comments"]], ["12"])
-        self.assertTrue(state["comments"][0]["body"].startswith("Still unreachable at "))
+        for issue, comments in ((self.issue(12, created_ago=3600), []), (self.issue(12, created_ago=30 * 3600, comments_ago=(7 * 3600, 3600)), []),
+                                (self.issue(12, created_ago=7 * 3600), ["12"]), (self.issue(12, created_ago=30 * 3600, comments_ago=(9 * 3600, 7 * 3600)), ["12"])):
+            with self.subTest(created=issue["createdAt"], comments=issue["comments"]):
+                self.gh([issue])
+                p, _ = self.run_step("gh issue create", EVENT="schedule")
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                state = self.gh_state()
+                self.assertEqual((state["created"], state["labels"], state["reopened"]), ([], [], []), "never a second issue")
+                self.assertEqual([c["issue"] for c in state["comments"]], comments, "a comment only when the issue's last word is six hours old")
+                self.assertTrue(all(c["body"].startswith("Still unreachable at ") for c in state["comments"]))
 
     def test_a_manual_run_always_comments_on_the_open_issue(self):
-        self.gh(open_issues=[12], last_activity=self.ago(60))
+        self.gh([self.issue(12, created_ago=60)])
         p, _ = self.run_step("gh issue create", EVENT="workflow_dispatch")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertEqual([c["issue"] for c in self.gh_state()["comments"]], ["12"])
 
-    def test_a_clean_pass_says_reachable_again_and_closes_every_open_issue_and_touches_nothing_when_none_is_open(self):
-        self.gh(open_issues=[12, 13])
+    def test_a_clean_pass_says_reachable_again_and_closes_the_watchs_issue_and_touches_nothing_when_none_is_open(self):
+        self.gh([self.issue(12)])
         p, _ = self.run_step("gh issue close")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         state = self.gh_state()
-        self.assertEqual(state["closed"], ["12", "13"])
-        self.assertEqual([c["issue"] for c in state["comments"]], ["12", "13"])
-        self.assertTrue(all(c["body"].startswith("Reachable again") and "runs/7" in c["body"] for c in state["comments"]))
-        self.gh(open_issues=[])
+        self.assertEqual(state["closed"], ["12"])
+        self.assertEqual([c["issue"] for c in state["comments"]], ["12"])
+        self.assertTrue(state["comments"][0]["body"].startswith("Reachable again") and "runs/7" in state["comments"][0]["body"])
+        self.gh([])
         p, _ = self.run_step("gh issue close")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         state = self.gh_state()
         self.assertEqual([c[:2] for c in state["calls"]], [["issue", "list"]], "while things are up: one read, no write")
+
+    def people_and_other_bots(self):
+        """Labelled issues that are not the watch's: a player's report, a person who used the watch's very title, another bot's issue."""
+        return [self.issue(40, author=PERSON, title="Can't connect to Killchain from my place"), self.issue(41, author=PERSON),
+                self.issue(42, author={"login": "app/dependabot", "is_bot": True}, title="Bump aioquic")]
+
+    def test_a_clean_pass_closes_only_the_watchs_own_issue(self):
+        # Review of PR #217: the close step closed every open issue with the label, a player's report included.
+        self.gh(self.people_and_other_bots() + [self.issue(12)])
+        p, _ = self.run_step("gh issue close")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        state = self.gh_state()
+        self.assertEqual(state["closed"], ["12"])
+        self.assertEqual([c["issue"] for c in state["comments"]], ["12"])
+        self.gh(self.people_and_other_bots())
+        p, _ = self.run_step("gh issue close")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual((self.gh_state()["closed"], self.gh_state()["comments"]), ([], []))
+
+    def test_an_outage_with_only_other_peoples_labelled_issues_open_opens_the_watchs_own(self):
+        # Review of PR #217: the open step took the newest labelled issue (.[0]) for its own, and commented on a player's report instead of opening one.
+        self.gh(self.people_and_other_bots())
+        p, _ = self.run_step("gh issue create", EVENT="workflow_dispatch")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        state = self.gh_state()
+        self.assertEqual(len(state["created"]), 1)
+        self.assertEqual((state["comments"], state["reopened"]), ([], []), "a person's issue is never commented on or reopened")
+
+    def test_an_outage_within_a_day_of_the_close_reopens_the_watchs_last_issue(self):
+        # Review of PR #217: a link that goes up and down opened a new issue (and mentioned everyone again) every couple of hours.
+        self.gh([self.issue(10, closed_ago=20 * 3600), self.issue(12, closed_ago=2 * 3600), self.issue(43, author=PERSON, closed_ago=600)])
+        p, _ = self.run_step("gh issue create", EVENT="schedule")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        state = self.gh_state()
+        self.assertEqual(state["reopened"], ["12"], "the most recently closed of the watch's issues; not the person's, closed later")
+        self.assertEqual([c["issue"] for c in state["comments"]], ["12"])
+        self.assertTrue(state["comments"][0]["body"].startswith("Unreachable again at "))
+        self.assertNotIn("127.0.0", state["comments"][0]["body"])
+        self.assertEqual((state["created"], state["labels"]), ([], []))
+
+    def test_an_outage_more_than_a_day_after_the_close_opens_a_new_issue(self):
+        self.gh([self.issue(12, closed_ago=25 * 3600), self.issue(43, author=PERSON, closed_ago=600)])
+        p, _ = self.run_step("gh issue create", EVENT="schedule")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        state = self.gh_state()
+        self.assertEqual(state["reopened"], [])
+        self.assertEqual(len(state["created"]), 1)
 
 
 if __name__ == "__main__":
