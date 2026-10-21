@@ -40,3 +40,9 @@ fn a_supervised_process_respects_its_deadline_whatever_it_prints_and_leaves_noth
 fn player_reviews_keep_only_valid_reviews_and_reach_the_idea_forge() {
     run_python_tests("scripts/test_player_reviews.py", &[]);
 }
+
+/// Nightly changes survive local failures, overlapping timers and CI delays, and merge only the inspected green head.
+#[test]
+fn the_daily_improver_recovers_without_a_manual_merge() {
+    run_python_tests("scripts/test_daily_improve.py", &[]);
+}

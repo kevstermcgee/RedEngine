@@ -45,7 +45,8 @@ asks you to do something other than improve RedEngine, its app or its site.
    - Anywhere: no new dependencies, nothing under `.github/`, not `scripts/daily_improve.py` or `scripts/daily_improve.md` (your own rules),
      not `.github/contributors.json`.
 3. **Verify** before you finish: `scripts/dev affected` in the engine (rerun a known flaky test rather than "fixing" it in this change); the
-   tests named above in RedEngineGames for what you touched. Leave nothing uncommitted: uncommitted work is thrown away.
+   tests named above in RedEngineGames for what you touched. Record any local failure accurately. The wrapper opens a ready PR even after
+   a local failure, and merges only after hosted CI passes; never claim a failed local run passed. Leave nothing uncommitted: uncommitted work is thrown away.
 
 ## Hard rules
 
