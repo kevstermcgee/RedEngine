@@ -13,6 +13,8 @@ use red_engine2::capture::Capture;
 use red_engine2::net::bot::ClientWorld;
 use red_engine2::net::client::ClientConfig;
 use red_engine2::net::host::{HostOptions, LocalHost, PublicOptions};
+use red_engine2::net::join::JoinTarget;
+use red_engine2::net::join_task::{JoinPlan, JoinTask, MapChoice};
 use red_engine2::schema::Scene;
 use red_engine2::sfx::{KitSounds, SoundBank};
 use red_engine2::sim::spawns::parse_spawns;
@@ -94,6 +96,10 @@ pub struct Kc {
     painted: Option<u64>,
     game: Option<Game>,
     host: Option<LocalHost>,
+    /// When the lobby last asked the host what its codes and notice are (the relay and the router answer on their own threads).
+    host_synced: Instant,
+    /// A JOIN under way on a worker thread, with the code it is joining (normalised, as it is remembered if it works).
+    joining: Option<(JoinTask, String)>,
     controls: Controls,
     started: Instant,
     last_frame: Instant,
@@ -116,6 +122,20 @@ fn layout_hash(l: &Layout, extra: u64) -> u64 {
         (&w.id, w.rect, &w.text, w.scale, w.color, w.fill, w.frame.map(|f| (f.0, f.1))).hash(&mut h);
     }
     h.finish()
+}
+
+/// The longest code the JOIN field takes (a long code is about 150 characters; a name server's own name and a long key can make it more).
+const CODE_FIELD_MAX: usize = 320;
+
+/// What goes in the code field when `text` is pasted: the code alone, without a label in front (`from anywhere (needs UDP 27015 forwarded):`), without
+/// the lines around it, white space or a trailing newline (`net::join_code::extract_code`).
+fn pasted_code(text: &str) -> String {
+    red_engine2::net::join_code::extract_code(text).chars().filter(|c| !c.is_control()).take(CODE_FIELD_MAX).collect()
+}
+
+/// The codes a hosting lobby lists, best first, each with what it is for.
+fn lobby_codes(host: &LocalHost) -> Vec<ui::LobbyCode> {
+    host.share_entries().into_iter().map(|e| ui::LobbyCode { label: e.label.to_string(), code: e.code }).collect()
 }
 
 /// Composites `src` over `dst` (both the same size).
@@ -218,6 +238,8 @@ impl Kc {
             painted: None,
             game: None,
             host: None,
+            host_synced: Instant::now(),
+            joining: None,
             controls: Controls::default(),
             started: Instant::now(),
             last_frame: Instant::now(),
@@ -272,7 +294,7 @@ impl Kc {
         let hover = self.hover.as_deref();
         Some(match self.screen {
             Screen::Home => {
-                let mut l = ui::home_layout(w, h, hover, env!("CARGO_PKG_VERSION"));
+                let mut l = ui::home_layout(w, h, hover, &crate::version::label());
                 if let Some(n) = &self.home_note {
                     let s = (h as i32 / 240).max(1);
                     let x1 = l.rect_of("panel").map_or(w as i32 / 3, |r| r.2);
@@ -281,7 +303,10 @@ impl Kc {
                 l
             }
             Screen::Setup { hosting } => ui::setup_layout(w, h, if hosting { "host a game" } else { "solo" }, &self.setup, self.note.as_deref(), hover),
-            Screen::Join => ui::join_layout(w, h, &self.join_form, hover),
+            Screen::Join => {
+                let recent: Vec<String> = self.stats.recent_joins.iter().map(stats::RecentJoin::label).collect();
+                ui::join_layout(w, h, &self.join_form, &recent, self.joining.is_some(), hover)
+            }
             Screen::Stats => ui::stats_layout(w, h, &self.stats, hover),
             Screen::InGame => {
                 let g = self.game.as_ref()?;
@@ -358,6 +383,7 @@ impl Kc {
             g.leave();
         }
         self.host = None;
+        self.joining = None;
         self.screen = Screen::Home;
         self.home_note = note;
         self.painted = None;
@@ -450,10 +476,10 @@ impl Kc {
         let name = self.clean_name();
         match Game::start(gpu, &self.opts.scene, Connection { cfg, team: 0 }, true, &name) {
             Ok(mut game) => {
-                // `share_codes().first()` is what the lobby screen displays (`FRIENDS JOIN AT ...`): the relay's short code with the join key
-                // when there is one (nothing to read an address or a fingerprint aloud), else the direct code.
-                game.join_codes = host.share_codes();
-                game.notice = host.relay_note().map(str::to_string).or_else(|| host.upnp_note().map(str::to_string));
+                // Every code the host has, each with what it is for; the relay and the router answer on their own threads (a dead relay must not freeze
+                // the screen), so `frame` keeps the lobby's codes and notice up to date from here on.
+                game.join_codes = lobby_codes(&host);
+                game.notice = host.lobby_notice();
                 self.game = Some(game);
                 self.host = Some(host);
                 self.screen = Screen::InGame;
@@ -465,55 +491,83 @@ impl Kc {
         }
     }
 
-    /// JOIN: understands the code (`net::join::JoinTarget`: a relay code with its join key, or a long direct code) and connects. The relay
-    /// resolves a short code to the host's identity, which is pinned like a pasted fingerprint (ADR 0044); the key part of the code never
-    /// goes to the relay, only into the encrypted handshake with the host.
+    /// JOIN: understands the code (`net::join::JoinTarget`: a relay code with its join key, or a long direct code) and starts connecting on a worker
+    /// thread ([`JoinTask`]): the window keeps drawing, says what is happening and can cancel. The relay resolves a short code to the host's identity,
+    /// which is pinned like a pasted fingerprint (ADR 0044); the key part of the code never goes to the relay, only into the encrypted handshake.
     fn try_join(&mut self) {
-        let Some(gpu) = self.gpu.as_ref() else { return };
-        let target = match red_engine2::net::join::JoinTarget::parse(&self.join_form.address) {
+        if self.joining.is_some() {
+            return;
+        }
+        let target = match JoinTarget::parse(&self.stats.code_to_join(&self.join_form.address)) {
             Ok(t) => t,
             Err(e) => {
                 self.join_form.message = Some(e.to_string());
                 return;
             }
         };
-        if matches!(target, red_engine2::net::join::JoinTarget::Relay(_)) {
-            self.join_form.message = Some("CONNECTING...".to_string());
-        }
-        let relay = red_engine2::net::relay::relay_from_env();
-        let cfg = match target.client_config(relay.as_deref(), std::time::Duration::from_secs(5)) {
-            Ok(c) => c,
-            Err(e) => {
-                self.join_form.message = Some(e.to_string());
-                return;
-            }
+        let code = match &target {
+            JoinTarget::Relay(short) => short.format(),
+            JoinTarget::Direct(direct) => direct.format(),
         };
         self.setup.name = self.join_form.name.clone();
         let name = self.clean_name();
-        self.join_form.message = Some("CONNECTING...".to_string());
-        // The server plays one map and a joiner must hold the same file, so try the installed maps (the chosen one first) until it accepts us.
-        let wrong_map = red_engine2::net::protocol::RejectReason::WrongMap.explain();
-        let mut candidates: Vec<PathBuf> = vec![self.opts.scene.clone()];
-        candidates.extend(self.maps.iter().map(|m| m.1.clone()).filter(|p| *p != self.opts.scene));
-        let mut attempt = Err("no map to try".to_string());
-        for (n, map) in candidates.iter().enumerate() {
-            attempt = Game::start(gpu, map, Connection { cfg: cfg.clone(), team: 0 }, false, &name);
-            match &attempt {
-                Err(e) if e.contains(wrong_map) && n + 1 < candidates.len() => continue,
-                Ok(_) => self.opts.scene = map.clone(),
-                _ => {}
-            }
-            break;
+        // The host plays one map and a joiner must hold the same file, so the installed maps are tried in turn (each a fresh attempt). The one that worked
+        // with this code last time goes first, then the one chosen on the setup screen.
+        let remembered = self.stats.recent_joins.iter().find(|r| r.code == code).map(|r| r.map.clone());
+        let file = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let mut maps: Vec<MapChoice> = self.maps.iter().map(|(label, path)| MapChoice { label: label.clone(), path: path.clone() }).collect();
+        if !maps.iter().any(|m| m.path == self.opts.scene) {
+            maps.insert(0, MapChoice { label: "MAP".to_string(), path: self.opts.scene.clone() });
         }
-        match attempt {
-            Ok(game) => {
-                self.game = Some(game);
+        maps.sort_by_key(|m| (Some(file(&m.path)) != remembered, m.path != self.opts.scene));
+        let mut plan = JoinPlan::new(target, red_engine2::net::relay::relay_from_env(), &name, maps);
+        plan.prepare = Some(crate::game::prepare_session);
+        self.joining = Some((JoinTask::start(plan, &crate::version::describe()), code));
+        self.join_form.message = Some("Starting...".to_string());
+        self.painted = None;
+    }
+
+    /// Stops a JOIN under way (CANCEL, BACK, Escape).
+    fn cancel_join(&mut self) {
+        if self.joining.take().is_some() {
+            self.join_form.message = None;
+            self.painted = None;
+        }
+    }
+
+    /// Once a frame: shows what a JOIN under way is doing and, when it has finished, enters the match or says why not.
+    fn poll_join(&mut self) {
+        let Some((task, _)) = self.joining.as_mut() else { return };
+        match task.poll() {
+            None => {
+                let status = task.status();
+                if self.join_form.message.as_deref() != Some(status.as_str()) {
+                    self.join_form.message = Some(status);
+                    self.painted = None;
+                }
+            }
+            Some(Err(failure)) => {
+                self.joining = None;
+                self.join_form.message = Some(failure.text);
+                self.painted = None;
+            }
+            Some(Ok(joined)) => {
+                let Some((_, code)) = self.joining.take() else { return };
+                let Some(gpu) = self.gpu.as_ref() else {
+                    self.join_form.message = Some("There is no window to play in yet: try again.".to_string());
+                    return;
+                };
+                self.opts.scene = joined.map.clone();
+                let map_file = joined.map.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                self.game = Some(Game::from_joined(gpu, joined));
+                // A join that worked is offered again next time (one click for a server whose code is 150 characters), with the map it turned out to play.
+                self.stats.remember_join(&code, &map_file);
+                self.save_stats();
                 self.screen = Screen::InGame;
                 self.painted = None;
                 self.hover = None;
                 self.join_form.message = None;
             }
-            Err(e) => self.join_form.message = Some(e),
         }
     }
 
@@ -576,14 +630,26 @@ impl Kc {
                 Some(ui::JoinAction::Name) => self.join_form.focus = Field::Name,
                 Some(ui::JoinAction::Paste) => {
                     if let Some(t) = red_engine2::clipboard::get_text() {
-                        self.join_form.address = t.chars().filter(|c| !c.is_control()).take(200).collect();
+                        self.join_form.address = pasted_code(&t);
                         self.join_form.message = None;
                     } else {
                         self.join_form.message = Some("Nothing to paste. Copy the code first, or type it.".to_string());
                     }
                 }
                 Some(ui::JoinAction::Connect) => self.try_join(),
-                Some(ui::JoinAction::Back) => self.screen = Screen::Home,
+                Some(ui::JoinAction::Cancel) => self.cancel_join(),
+                Some(ui::JoinAction::Recent(i)) => {
+                    if let Some(recent) = self.stats.recent_joins.get(i) {
+                        // The game's label goes in the field, never its code: the code carries the key. JOIN reads the label back as the saved code,
+                        // so a failed REJOIN is tried again with JOIN like any other code.
+                        self.join_form.address = recent.field_text();
+                        self.try_join();
+                    }
+                }
+                Some(ui::JoinAction::Back) => {
+                    self.cancel_join();
+                    self.screen = Screen::Home;
+                }
                 None => {}
             },
             Screen::Stats => {
@@ -616,6 +682,12 @@ impl Kc {
                     let want = !game.net.client.is_ready();
                     game.net.client.set_ready(want, now);
                 }
+                Some(ui::LobbyAction::Copy(i)) => match game.join_codes.get(i) {
+                    // The exact text, never what the screen shows of it: a code is case-sensitive.
+                    Some(entry) if red_engine2::clipboard::set_text(&entry.code) => game.copied = Some((i, now)),
+                    Some(_) => game.flash("COULD NOT COPY. THE CODE IS ABOVE: TYPE IT, OR TRY AGAIN"),
+                    None => {}
+                },
                 Some(ui::LobbyAction::Leave) => self.go_home(None),
                 None => {}
             },
@@ -673,6 +745,11 @@ impl Kc {
             self.fullscreen_request = true;
             return;
         }
+        // Escape while a join is under way walks away from it.
+        if code == KeyCode::Escape && self.joining.is_some() {
+            self.cancel_join();
+            return;
+        }
         // Typing.
         if self.typing_target().is_some() {
             match code {
@@ -694,16 +771,24 @@ impl Kc {
                 }
                 KeyCode::KeyV if ctrl => {
                     if let Some(clip) = red_engine2::clipboard::get_text() {
-                        let max =
-                            if self.screen == Screen::Join && self.join_form.focus == Field::Address { 200 } else { red_engine2::net::protocol::MAX_NAME };
-                        if let Some(t) = self.typing_target() {
+                        let on_code = self.screen == Screen::Join && self.join_form.focus == Field::Address;
+                        if on_code {
+                            // A pasted code replaces what was there (a code glued to another is no code), with its label and extra lines left off.
+                            self.join_form.address = pasted_code(&clip);
+                            self.join_form.message = None;
+                        } else if let Some(t) = self.typing_target() {
+                            let max = red_engine2::net::protocol::MAX_NAME;
                             t.extend(clip.chars().filter(|c| !c.is_control()).take(max));
                             t.truncate(max);
                         }
                     }
                 }
                 _ => {
-                    let max = if self.screen == Screen::Join && self.join_form.focus == Field::Address { 200 } else { red_engine2::net::protocol::MAX_NAME };
+                    let max = if self.screen == Screen::Join && self.join_form.focus == Field::Address {
+                        CODE_FIELD_MAX
+                    } else {
+                        red_engine2::net::protocol::MAX_NAME
+                    };
                     if let (Some(text), false) = (text, ctrl) {
                         if let Some(t) = self.typing_target() {
                             for c in text.chars().filter(|c| !c.is_control()) {
@@ -823,10 +908,30 @@ impl Kc {
         }
     }
 
+    /// Keeps the hosting lobby's codes and notice true. The relay and the router answer on their own threads (a dead relay must not freeze the screen),
+    /// a relay that was started late gives the game a code then, and one that restarted hands out a new code: the lobby follows what the host says.
+    fn sync_host(&mut self) {
+        if self.host_synced.elapsed() < std::time::Duration::from_millis(250) {
+            return;
+        }
+        self.host_synced = Instant::now();
+        let (Some(host), Some(game)) = (self.host.as_ref(), self.game.as_mut()) else { return };
+        let (codes, notice) = (lobby_codes(host), host.lobby_notice());
+        if game.join_codes != codes {
+            game.join_codes = codes;
+            game.copied = None;
+        }
+        if game.notice != notice {
+            game.notice = notice;
+        }
+    }
+
     /// Advances everything by `dt` and draws into `target` (a swapchain frame or the capture target).
     fn frame(&mut self, dt: f32, target: Option<&wgpu::TextureView>) {
         self.stats.time_in_game_secs += dt as f64;
         self.sim_secs += dt;
+        self.poll_join();
+        self.sync_host();
         self.start_ambience();
         if self.last_save.elapsed().as_secs() > 30 {
             self.save_stats();

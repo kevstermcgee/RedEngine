@@ -8,7 +8,8 @@
 //! - [`game`]: one match from the client's side: input, prediction, camera, viewmodel, feedback, killcam, HUD.
 //! - [`input`]: what the keyboard, the mouse and the gamepad mean.
 //! - [`ui`] and [`objective_hud`]: the 2-D screens and what the HUD says about the objective modes, as pure functions of a window size and a small view struct.
-//! - [`stats`]: the player's lifetime statistics, kept on their own machine.
+//! - [`stats`]: the player's lifetime statistics (and the games they joined before), kept on their own machine.
+//! - [`version`]: which release and protocol this copy is, shown on the home screen and in the lobby.
 
 pub mod app;
 pub mod game;
@@ -16,3 +17,4 @@ pub mod input;
 pub mod objective_hud;
 pub mod stats;
 pub mod ui;
+pub mod version;

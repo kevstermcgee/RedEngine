@@ -20,6 +20,7 @@ use red_engine2::net::arena_wire::{self, ArenaSnap, FxSnap, OwnKit};
 use red_engine2::net::bot::ClientWorld;
 use red_engine2::net::client::{ClientConfig, ConnState};
 use red_engine2::net::interp::View;
+use red_engine2::net::join_task::Joined;
 use red_engine2::net::protocol::{RosterEntry, FLAG_PROTECTED, ROSTER_BOT, ROSTER_IN_ROUND};
 use red_engine2::net::session::NetSession;
 use red_engine2::scene_pool::HIDDEN_SCALE;
@@ -168,14 +169,30 @@ pub struct Game {
     pub painted: Option<u64>,
     /// Whether this machine hosts the match (the lobby button says START).
     pub hosting: bool,
-    /// Join codes to show in the lobby when hosting.
-    pub join_codes: Vec<String>,
+    /// The codes to show in the lobby when hosting, each with what it is for (see `LocalHost::share_entries`).
+    pub join_codes: Vec<ui::LobbyCode>,
+    /// The code whose COPY button was pressed last, and when (the lobby says COPIED for [`COPIED_SECS`]).
+    pub copied: Option<(usize, Instant)>,
     /// A line to show in the lobby (connection trouble, UPnP news).
     pub notice: Option<String>,
+    /// A line that takes the notice's place for a few seconds ([`FLASH_SECS`]): the answer to something the player just did (COPY failed).
+    flash: Option<(String, Instant)>,
     /// `Esc` menu open.
     pub paused: bool,
     scoped_now: bool,
     debug_frames: u64,
+}
+
+/// How long a lobby code's COPY button says COPIED.
+pub const COPIED_SECS: f32 = 1.5;
+/// How long a line from [`Game::flash`] stays up.
+pub const FLASH_SECS: f32 = 4.0;
+
+/// What Killchain does to a new session before the first packet is read: its own part of a snapshot is decoded with [`arena_wire`], and the last seconds
+/// are kept for the killcam. A JOIN worker thread calls it through `JoinPlan::prepare`, since it polls the session before the window has it.
+pub fn prepare_session(net: &mut NetSession) {
+    net.client.set_game_decoder(arena_wire::decode);
+    net.client.keep_history(killcam::KEEP_SECS);
 }
 
 /// A connection request.
@@ -187,18 +204,28 @@ pub struct Connection {
 }
 
 impl Game {
-    /// Loads the map, joins the server and builds the renderer.
+    /// Loads the map, joins the server (waiting for it, on this thread: the server is this very process) and builds the renderer.
     pub fn start(gpu: &GpuCtx, map: &Path, conn: Connection, hosting: bool, name: &str) -> Result<Game, String> {
-        let (mut scene, world) = ClientWorld::load(map)?;
+        let (scene, world) = ClientWorld::load(map)?;
         let mut cfg = conn.cfg;
         cfg.map_hash = world.map_hash;
         cfg.name = name.to_string();
-        let base = scene.objects.len();
-        let loose: HashSet<usize> = world.prop_objects.iter().copied().collect();
         let mut net = NetSession::connect_with(cfg, world).map_err(|e| format!("cannot open a network socket: {e}"))?;
-        net.client.set_game_decoder(arena_wire::decode);
-        net.client.keep_history(killcam::KEEP_SECS);
+        prepare_session(&mut net);
         let spawn = net.wait_connected(6.0)?;
+        Ok(Game::assemble(gpu, scene, net, spawn, conn.team, hosting))
+    }
+
+    /// Builds the match around a connection the host already welcomed (what a JOIN worker thread hands over): the window never waited for it.
+    pub fn from_joined(gpu: &GpuCtx, joined: Joined) -> Game {
+        let Joined { session, scene, spawn, .. } = joined;
+        Game::assemble(gpu, scene, session, spawn, 0, false)
+    }
+
+    /// The renderer, the avatars and the camera, around a session that has been welcomed.
+    fn assemble(gpu: &GpuCtx, mut scene: Scene, mut net: NetSession, spawn: Option<PlayerState>, team: u8, hosting: bool) -> Game {
+        let base = scene.objects.len();
+        let loose: HashSet<usize> = net.world.prop_objects.iter().copied().collect();
         net.add_avatar_pool(&mut scene);
         let shooter = ShooterWorld::add_to_scene(&mut scene);
         let streaks = Streaks::new(red_engine2::streaks::add_pool(&mut scene));
@@ -267,15 +294,22 @@ impl Game {
             painted: None,
             hosting,
             join_codes: Vec::new(),
+            copied: None,
             notice: None,
+            flash: None,
             paused: false,
             scoped_now: false,
             debug_frames: 0,
         };
-        if conn.team != 0 {
-            game.net.client.set_team(conn.team, Instant::now());
+        if team != 0 {
+            game.net.client.set_team(team, Instant::now());
         }
-        Ok(game)
+        game
+    }
+
+    /// Shows `text` in the lobby in place of the notice for [`FLASH_SECS`] (the answer to something the player just did).
+    pub fn flash(&mut self, text: &str) {
+        self.flash = Some((text.to_string(), Instant::now()));
     }
 
     /// The renderer (the overlay is painted into it).
@@ -328,7 +362,7 @@ impl Game {
     /// Why the connection ended, in words.
     pub fn lost_reason(&self) -> String {
         match self.net.client.state() {
-            ConnState::Rejected(r) => r.explain().to_string(),
+            ConnState::Rejected(r) => red_engine2::net::join::refusal_text(r, &crate::version::describe()),
             ConnState::Reconnecting => "CONNECTION LOST - TRYING TO RECONNECT".to_string(),
             _ => "DISCONNECTED".to_string(),
         }
@@ -355,8 +389,10 @@ impl Game {
             kill_limit: st.map_or(0, |s| s.kill_limit),
             time_limit_secs: st.map_or(0, |s| s.time_limit_secs),
             countdown: secs,
-            join_address: self.join_codes.first().cloned(),
-            message: self.notice.clone(),
+            codes: self.join_codes.clone(),
+            copied: self.copied.filter(|(_, at)| at.elapsed().as_secs_f32() < COPIED_SECS).map(|(i, _)| i),
+            version: crate::version::label(),
+            message: self.flash.as_ref().filter(|(_, at)| at.elapsed().as_secs_f32() < FLASH_SECS).map(|(t, _)| t.clone()).or_else(|| self.notice.clone()),
             hosting: self.hosting,
             map: String::new(),
             mode: st.map_or(0, |s| s.mode),

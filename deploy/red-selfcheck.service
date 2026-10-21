@@ -1,0 +1,12 @@
+[Unit]
+Description=Check that the relay, the game server, the router mappings and the wire protocol agree (writes ~/.local/state/box/selfcheck.json)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+TimeoutStartSec=120
+# A failed check exits 1, so this unit shows as failed in `systemctl --user --failed` and `box-status` (which also prints the verdict). It only looks: it never
+# restarts or changes a unit, a mapping or a file other than its own report. red-selfcheck.py is installed as ~/.local/bin/red-selfcheck.
+ExecStart=%h/.local/bin/red-selfcheck

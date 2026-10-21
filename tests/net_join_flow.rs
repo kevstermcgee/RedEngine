@@ -9,11 +9,16 @@
 //! Covered: host -> short-code join; several joiners; wrong, mistyped and expired codes; a wrong, missing and a right key; direct joining;
 //! reconnect (a player coming back with their token, and a network outage the relay rides out); the host leaving and the session ending;
 //! transport failures (no relay, a relay that vouches for no identity, a wrong identity, a relay that dies mid-game).
+//!
+//! And the join that does not give up (ADR 2026-10-20-join-by-short-code-survives-a-wrong-map-and-a-slow-relay), through `JoinTask` as the window runs
+//! it: a host that plays another map than the first one tried, every cause of failure worded for the player, a lost `Resolve`, a lost `Claim`, a slow link
+//! that makes the repeated claims arrive after the pairing, and the bytes of a released client against the current relay.
 
 use red_engine2::net::client::{ClientConfig, ClientTransportConfig, ConnState, NetClient};
 use red_engine2::net::host::{HostOptions, LocalHost, PublicOptions};
 use red_engine2::net::join::{JoinError, JoinTarget};
-use red_engine2::net::netsim::{profile, LossyProxy};
+use red_engine2::net::join_task::{JoinCause, JoinFailure, JoinPlan, JoinTask, Joined, MapChoice};
+use red_engine2::net::netsim::{profile, LinkProfile, LossyProxy};
 use red_engine2::net::protocol::RejectReason;
 use red_engine2::net::quic::{ServerIdentity, ServerTrust};
 use red_engine2::net::relay::{code_to_string, ShortJoin};
@@ -113,6 +118,9 @@ fn lobby_with(options: RelayServerOptions, key: Key) -> Lobby {
     let map = dir.join("map.json");
     std::fs::write(&map, SCENE).unwrap();
     let host = LocalHost::start(&map, &host_options(&dir, &relay, key)).unwrap();
+    // HOST returns at once and the relay answers on a thread of its own (a down relay must not freeze the window): the lobby has its online code a
+    // moment later, which is when a friend can be given it.
+    wait_for("the relay to give the host its code", || host.relay_code());
     Lobby { relay, host: Some(host), map_hash: red_engine2::net::map_hash(SCENE), dir }
 }
 
@@ -207,7 +215,7 @@ fn what_host_shows_is_what_join_accepts() {
     let parsed = ShortJoin::parse(&shown).expect("the lobby's first code is a relay code");
     assert_eq!(code_to_string(&parsed.code), host.relay_code().unwrap());
     assert_eq!(parsed.key.as_deref(), Some(key.as_str()));
-    assert!(shown.starts_with(host.relay_code().unwrap()) && shown.len() > 6, "{shown}");
+    assert!(shown.starts_with(&host.relay_code().unwrap()) && shown.len() > 6, "{shown}");
     // The direct codes are still offered after it, and carry the same key.
     assert!(host.share_codes().iter().skip(1).all(|c| c.contains("#sha256:") && c.ends_with(&key)), "{:?}", host.share_codes());
     // The host is a real QUIC server with an identity, never development UDP.
@@ -455,6 +463,275 @@ fn a_relay_that_dies_mid_game_is_a_reconnect_not_a_crash_and_the_host_stays_host
     assert!(joined(&mut direct), "friends who can reach the host directly are unaffected by the relay");
     direct.disconnect();
     friend.disconnect();
+}
+
+// ---- the join that does not give up -----------------------------------------------------------------------------------------------
+
+/// The host's arena (`map.json` in the lobby's folder) and two copies of it that differ by a byte: a different hash each, so a host playing one
+/// refuses a client that loaded another with `WrongMap`.
+fn maps_in(lobby: &Lobby) -> (MapChoice, MapChoice, MapChoice) {
+    let right = MapChoice { label: "RIGHT".into(), path: lobby.dir.join("map.json") };
+    let write = |name: &str, scene: String| {
+        let path = lobby.dir.join(name);
+        std::fs::write(&path, scene).unwrap();
+        MapChoice { label: name.to_uppercase(), path }
+    };
+    (right, write("wrong_a.json", SCENE.replace("[20,10]", "[21,10]")), write("wrong_b.json", SCENE.replace("[20,10]", "[22,10]")))
+}
+
+fn plan(target: &str, relay: Option<&str>, maps: Vec<MapChoice>) -> JoinPlan {
+    JoinPlan::new(JoinTarget::parse(target).unwrap(), relay.map(str::to_string), "Friend", maps)
+}
+
+/// What the window does with a join: asks the task once a frame until it has an answer.
+fn run_join(mut task: JoinTask, secs: u64) -> Result<Joined, JoinFailure> {
+    let end = Instant::now() + Duration::from_secs(secs);
+    loop {
+        if let Some(r) = task.poll() {
+            return r;
+        }
+        assert!(Instant::now() < end, "the join did not finish in {secs} s (it said: {})", task.status());
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn start(plan: JoinPlan) -> JoinTask {
+    JoinTask::start(plan, "release 4, protocol 17")
+}
+
+#[test]
+fn a_relayed_join_where_the_first_maps_tried_are_wrong_still_gets_in_with_a_fresh_claim_for_each() {
+    // The host plays RIGHT. The joiner has selected another map, then another: the first two attempts are refused with WrongMap. Before, the claim of
+    // the first attempt was reused for the second (the relay accepts a claim once, from one socket), so the second never paired and the whole join ended
+    // "no answer from the server within 6 s". Now every attempt asks the relay again.
+    let lobby = lobby();
+    let (right, wrong_a, wrong_b) = maps_in(&lobby);
+    let code = lobby.advertised_code();
+    let joined = run_join(start(plan(&code, Some(&lobby.relay.address()), vec![wrong_a, wrong_b, right.clone()])), 30).expect("joined on the third map");
+    assert_eq!((joined.map_index, joined.map.as_path()), (2, right.path.as_path()));
+    assert_eq!(joined.session.client.state(), ConnState::Connected);
+    assert_eq!(joined.session.client.security(), Security::Quic);
+    assert_eq!(lobby.relay.server.paired_count(), 3, "three attempts, three claims, three pairings: none of them reused");
+}
+
+#[test]
+fn a_direct_join_tries_the_next_map_too_and_a_host_that_matches_none_is_told_so() {
+    let lobby = lobby();
+    let (right, wrong_a, wrong_b) = maps_in(&lobby);
+    let key = lobby.host().key().unwrap().to_string();
+    let direct = lobby.direct_code(Some(&key));
+    let joined = run_join(start(plan(&direct, None, vec![wrong_a.clone(), right])), 30).expect("joined on the second map");
+    assert_eq!(joined.map_index, 1);
+    drop(joined);
+    let failure = run_join(start(plan(&direct, None, vec![wrong_a, wrong_b])), 30).err().expect("no map matches");
+    assert_eq!(failure.cause, JoinCause::Refused(RejectReason::WrongMap));
+    assert!(failure.text.contains("map") && failure.text.contains("same release"), "{}", failure.text);
+}
+
+#[test]
+fn a_host_that_refuses_is_worded_for_what_it_refused_and_is_not_asked_again() {
+    let lobby = lobby();
+    let (right, wrong_a, _) = maps_in(&lobby);
+    let code = lobby.host().relay_code().unwrap().to_string();
+    let relay = lobby.relay.address();
+    let started = Instant::now();
+    // The right rendezvous code and a wrong key: refused on the first map, and the other maps are not tried (it was never about the map).
+    let wrong_key = run_join(start(plan(&format!("{code}-ABCD-EFGH-JKMN"), Some(&relay), vec![right.clone(), wrong_a.clone()])), 30).err().unwrap();
+    assert_eq!(wrong_key.cause, JoinCause::Refused(RejectReason::BadKey));
+    assert_eq!(wrong_key.text, RejectReason::BadKey.explain());
+    let no_key = run_join(start(plan(&code, Some(&relay), vec![right, wrong_a])), 30).err().unwrap();
+    assert_eq!(no_key.cause, JoinCause::Refused(RejectReason::NeedsKey));
+    assert!(no_key.text.contains("whole code"), "{}", no_key.text);
+    assert!(started.elapsed() < Duration::from_secs(15), "refusals are answers, not waits: {:?}", started.elapsed());
+}
+
+#[test]
+fn every_way_a_join_fails_before_the_host_answers_has_its_own_cause_and_words() {
+    let lobby = lobby();
+    let (right, ..) = maps_in(&lobby);
+    let maps = || vec![right.clone()];
+    let code = "H3PQXR-K7Q2-MZ4P-WTXA";
+    let fast = |mut p: JoinPlan| {
+        p.resolve_timeout = Duration::from_millis(600);
+        p.connect_timeout = Duration::from_millis(500);
+        p
+    };
+    let fail = |p: JoinPlan| run_join(start(fast(p)), 30).err().expect("a failure");
+
+    // The relay's name does not resolve.
+    let f = fail(plan(code, Some("relay.invalid:28016"), maps()));
+    assert_eq!(f.cause, JoinCause::NameLookup);
+    assert!(f.text.contains("relay.invalid") && f.text.contains("online"), "{}", f.text);
+    // The relay is switched off (the machine answers that nothing listens).
+    let closed = {
+        let s = std::net::UdpSocket::bind((IpAddr::from(LOOPBACK), 0)).unwrap();
+        s.local_addr().unwrap()
+    };
+    let f = fail(plan(code, Some(&closed.to_string()), maps()));
+    assert_eq!(f.cause, JoinCause::RelayDown);
+    assert!(f.text.contains("switched off") && f.text.contains("long join code"), "{}", f.text);
+    // The relay does not answer at all.
+    let silent = UdpSocketGuard::bind();
+    let f = fail(plan(code, Some(&silent.addr.to_string()), maps()));
+    assert_eq!(f.cause, JoinCause::RelayNoAnswer);
+    assert!(f.text.contains("did not answer") && f.text.contains("blocks UDP"), "{}", f.text);
+    // The relay is fine and nobody holds the code.
+    let f = fail(plan(code, Some(&lobby.relay.address()), maps()));
+    assert_eq!(f.cause, JoinCause::CodeNotLive);
+    assert!(f.text.contains("not live") && f.text.contains("lobby"), "{}", f.text);
+    // The host answers nothing (a direct code to a socket that never speaks): asked twice, then said.
+    let quiet = UdpSocketGuard::bind();
+    let identity = format!("sha256:{}", "ab".repeat(32));
+    let f = fail(plan(&format!("{}#{identity}#K7Q2MZ4P", quiet.addr), None, maps()));
+    assert_eq!(f.cause, JoinCause::HostNoAnswer);
+    assert!(f.text.contains(&quiet.addr.to_string()) && f.text.contains("asked twice") && f.text.contains("firewall"), "{}", f.text);
+    // Not a code, relays off, and a long code with no identity are said before anything is sent.
+    assert_eq!(fail(plan("203.0.113.9:27015", None, maps())).cause, JoinCause::NoIdentity);
+    assert_eq!(fail(plan(code, None, maps())).cause, JoinCause::RelaysOff);
+}
+
+#[test]
+fn joining_never_holds_up_the_window_and_can_be_walked_away_from() {
+    // A relay that never answers: the task is started and polled the way a frame does it, and none of that waits for the network.
+    let lobby = lobby();
+    let (right, ..) = maps_in(&lobby);
+    let silent = UdpSocketGuard::bind();
+    let code = lobby.advertised_code();
+    let started = Instant::now();
+    let mut task = start(plan(&code, Some(&silent.addr.to_string()), vec![right]));
+    for _ in 0..1000 {
+        assert!(task.poll().is_none(), "nothing yet, and asking is free");
+    }
+    assert!(started.elapsed() < Duration::from_millis(250), "start and a thousand polls took {:?}", started.elapsed());
+    let status = wait_for("the screen to be told what is happening", || Some(task.status()).filter(|s| s.contains("relay")));
+    assert!(status.contains("Asking the relay"), "{status}");
+    task.cancel();
+    let end = Instant::now() + Duration::from_secs(10);
+    let outcome = loop {
+        if let Some(r) = task.poll() {
+            break r;
+        }
+        assert!(Instant::now() < end, "a cancelled join must stop");
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(outcome.err().map(|f| f.cause), Some(JoinCause::Cancelled));
+}
+
+fn wait_for<T>(what: &str, mut f: impl FnMut() -> Option<T>) -> T {
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(v) = f() {
+            return v;
+        }
+        assert!(Instant::now() < end, "timed out waiting for {what}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_resolve_that_was_lost_is_asked_again_and_the_join_goes_on() {
+    // The link to the relay drops everything for the first half second (Wi-Fi taking a breath): the first question is lost, the second gets through.
+    let lobby = lobby();
+    let (right, ..) = maps_in(&lobby);
+    let proxy = LossyProxy::start(lobby.relay.addr, profile("lan").unwrap(), 5).unwrap();
+    proxy.set_blackhole(true);
+    let task = start(plan(&lobby.advertised_code(), Some(&proxy.addr.to_string()), vec![right]));
+    std::thread::sleep(Duration::from_millis(450));
+    proxy.set_blackhole(false);
+    let joined = run_join(task, 30).expect("joined after the first question was lost");
+    assert_eq!(joined.session.client.state(), ConnState::Connected);
+    let report = proxy.finish();
+    assert!(report.dropped[0] >= 1, "something was lost on the way to the relay: {report:?}");
+}
+
+#[test]
+fn a_claim_that_was_lost_is_repeated_and_the_handshake_completes() {
+    // The claim and the first handshake packets go into a dead link; it comes back before the claim's repeats stop. Without repeats the relay never
+    // pairs this client and the handshake can only time out.
+    let lobby = lobby();
+    let proxy = LossyProxy::start(lobby.relay.addr, profile("lan").unwrap(), 6).unwrap();
+    let mut cfg = lobby.join_config(&lobby.advertised_code()).unwrap();
+    cfg.server = proxy.addr;
+    proxy.set_blackhole(true);
+    let mut friend = NetClient::connect_with(cfg).unwrap();
+    std::thread::sleep(Duration::from_millis(450));
+    proxy.set_blackhole(false);
+    assert!(joined(&mut friend), "{:?}", friend.transport_error());
+    assert_eq!(lobby.relay.server.paired_count(), 1);
+    assert!(poll_until(&mut friend, 5.0, |c| c.stats().snapshots > 5), "the match streams to them");
+    friend.disconnect();
+    let report = proxy.finish();
+    assert!(report.dropped[0] >= 2, "the claim was sent more than once into the dead link: {report:?}");
+}
+
+#[test]
+fn claims_repeated_after_the_pairing_do_no_harm_on_a_slow_link() {
+    // 150 ms each way: the handshake takes several round trips, so the claim's repeats (at 250 ms, 600 ms, ...) reach the relay *after* it paired this
+    // client. They are forwarded to the host as nine meaningless bytes, which its game server drops; the handshake and the match carry on.
+    let lobby = lobby();
+    let slow = LinkProfile { name: "slow", loss: 0.0, burst: 1.0, delay_ms: 150.0, jitter_ms: 0.0, duplicate: 0.0 };
+    let proxy = LossyProxy::start(lobby.relay.addr, slow, 7).unwrap();
+    let mut cfg = lobby.join_config(&lobby.advertised_code()).unwrap();
+    cfg.server = proxy.addr;
+    let mut friend = NetClient::connect_with(cfg).unwrap();
+    assert!(joined(&mut friend), "{:?}", friend.transport_error());
+    assert!(poll_until(&mut friend, 8.0, |c| c.stats().snapshots > 20 && c.state() == ConnState::Connected));
+    friend.disconnect();
+    let report = proxy.finish();
+    assert!(report.received[0] >= 4, "claim copies and handshake packets went through the link: {report:?}");
+}
+
+#[test]
+fn the_bytes_a_released_client_speaks_still_work_against_the_current_relay() {
+    // A client of release 4 (protocol 17) written out by hand, byte for byte, with no help from this repository's message types: Register, Resolve and
+    // Claim as they have always been on the wire. The relay on the always-on machine is this code's cousin, so this is what keeps both working.
+    let relay = TestRelay::start(relay_options());
+    let host = std::net::UdpSocket::bind((IpAddr::from(LOOPBACK), 0)).unwrap();
+    let client = std::net::UdpSocket::bind((IpAddr::from(LOOPBACK), 0)).unwrap();
+    for s in [&host, &client] {
+        s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    }
+    let mut buf = [0u8; 256];
+
+    let fingerprint = format!("sha256:{}", "cd".repeat(32));
+    let register = [&[1u8, 71][..], fingerprint.as_bytes()].concat();
+    host.send_to(&register, relay.addr).unwrap();
+    let (n, _) = host.recv_from(&mut buf).unwrap();
+    assert_eq!((n, buf[0]), (7, 2), "Registered: tag 2 and the six characters");
+    let code = buf[1..7].to_vec();
+    assert!(code.iter().all(u8::is_ascii_alphanumeric));
+
+    client.send_to(&[&[3u8][..], &code].concat(), relay.addr).unwrap();
+    let (n, _) = client.recv_from(&mut buf).unwrap();
+    assert_eq!((n, buf[0], buf[1]), (81, 4, 71), "Resolved: tag 4, the 71-byte identity, then an 8-byte claim token");
+    assert_eq!(&buf[2..73], fingerprint.as_bytes());
+    let token = buf[73..81].to_vec();
+
+    // The claim, twice (a client of this release repeats it): the relay pairs once.
+    let claim = [&[6u8][..], &token].concat();
+    client.send_to(&claim, relay.addr).unwrap();
+    client.send_to(&claim, relay.addr).unwrap();
+    wait_for("the pairing", || (relay.server.paired_count() == 1).then_some(()));
+    client.send_to(b"hello", relay.addr).unwrap();
+    // The host gets id-framed datagrams (four bytes of pairing id, then what the client sent): the repeated claim, then the greeting.
+    let mut payloads = Vec::new();
+    loop {
+        let (n, from) = host.recv_from(&mut buf).unwrap();
+        assert_eq!(from, relay.addr);
+        payloads.push(buf[4..n].to_vec());
+        if &buf[4..n] == b"hello" {
+            break;
+        }
+    }
+    assert_eq!(payloads, vec![claim, b"hello".to_vec()]);
+    assert_eq!(relay.server.paired_count(), 1);
+
+    // A code nobody holds: tag 5.
+    let other = std::net::UdpSocket::bind((IpAddr::from(LOOPBACK), 0)).unwrap();
+    other.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    other.send_to(&[&[3u8][..], b"AAAAAA"].concat(), relay.addr).unwrap();
+    let (n, _) = other.recv_from(&mut buf).unwrap();
+    assert_eq!(&buf[..n], &[5], "CodeNotFound");
 }
 
 /// A bound UDP socket that never answers: stands in for a relay that is down.

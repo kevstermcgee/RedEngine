@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep the router's UPnP mappings for the Red Engine relay and Killchain server alive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Ports: the shared relay (28016) and the Killchain dedicated server (27015). Mappings are permanent; this only restores lost ones. Edit with --port.
+ExecStart=%h/.local/share/red-relay/bin/red-portmap.py enable --port 28016 --port 27015

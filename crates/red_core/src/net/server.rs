@@ -22,6 +22,7 @@
 
 use super::auth::{proof_matches, CookieJar, Direction, SessionKey, TAG_LEN};
 use super::limits::{TokenBucket, HELLOS_PER_SEC, HELLO_BURST, MAX_PARKED};
+use super::refusals::{HelloFacts, Refusal, Refusals};
 use super::sessions::{Parked, Session, TokenSource};
 use super::snapshots::{feedback_of, player_snaps, props_to_send, room_of_player, visible_players};
 use super::transport::{Security, ServerTransport, TransportStats, UdpServer};
@@ -131,6 +132,16 @@ pub struct ServerStats {
     pub challenges: u64,
     /// Joins refused for a wrong join key.
     pub bad_keys: u64,
+    /// Joins refused because the client speaks another protocol version.
+    pub rejected_version: u64,
+    /// Joins refused because the client's map is not this server's (see [`super::refusals`]).
+    pub rejected_wrong_map: u64,
+    /// Handshakes that stopped at the key challenge: a keyed server's `Challenge` that no second `Hello` answered (inferred, the client gives up by itself).
+    pub rejected_needs_key: u64,
+    /// Joins refused because the match was full or no slot could be given.
+    pub rejected_full: u64,
+    /// Joins refused for any other reason a `Reject` carries.
+    pub rejected_other: u64,
     /// Players joined (fresh).
     pub joins: u64,
     /// Players who resumed with a token.
@@ -208,6 +219,8 @@ pub struct Server {
     tokens: TokenSource,
     cookies: CookieJar,
     hello_bucket: TokenBucket,
+    /// The refusal log's rate limit and the challenges nobody answered.
+    refusals: Refusals,
     started: Instant,
     log: Box<dyn FnMut(&str) + Send>,
     flow: Option<Flow>,
@@ -256,6 +269,7 @@ impl Server {
             tokens: TokenSource::new(),
             cookies,
             hello_bucket: TokenBucket::new(HELLOS_PER_SEC, HELLO_BURST, Instant::now()),
+            refusals: Refusals::new(),
             started: Instant::now(),
             log: Box::new(|s| println!("{s}")),
             flow: None,
@@ -673,6 +687,30 @@ impl Server {
         Some(self.parked.remove(oldest).slot)
     }
 
+    /// Turns a join away: counts the reason, writes it to the log (once a minute per reason, `super::refusals`) and sends the client the `Reject`. A copy
+    /// of a Hello this handshake was refused for a moment ago (the client resends until a reply arrives) gets the reply again but is not counted again.
+    fn refuse(&mut self, addr: SocketAddr, h: &Hello, reason: RejectReason, now: Instant) {
+        if !self.refusals.repeat(addr, h.client_nonce, now) {
+            self.note_refusal(Refusal::of(reason), addr, HelloFacts::of(h), now);
+        }
+        self.send_plain(addr, &ServerMsg::Reject(reason));
+    }
+
+    /// Counts a refusal and, unless this reason was just written, logs it.
+    fn note_refusal(&mut self, which: Refusal, peer: SocketAddr, facts: HelloFacts, now: Instant) {
+        self.stats.count_refusal(which);
+        if let Some(line) = self.refusals.line(which, peer, facts, self.cfg.map_hash, now) {
+            self.say(line);
+        }
+    }
+
+    /// Handshakes that stopped at the key challenge long enough ago are counted as `NeedsKey` (once a second is plenty).
+    fn sweep_unanswered_challenges(&mut self, now: Instant) {
+        for (peer, facts) in self.refusals.unanswered(now) {
+            self.note_refusal(Refusal::NeedsKey, peer, facts, now);
+        }
+    }
+
     fn on_hello(&mut self, addr: SocketAddr, h: Hello, now: Instant) {
         // A join flood (spoofed sources filling the match with ghosts) is cut off before it costs a reply.
         if !self.hello_bucket.allow(now) {
@@ -680,14 +718,21 @@ impl Server {
             return;
         }
         if h.version != PROTOCOL_VERSION {
-            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Version));
+            return self.refuse(addr, &h, RejectReason::Version, now);
         }
         // 1. Prove the source address can receive: no valid cookie, no state, just a small Challenge.
         let secs = now.duration_since(self.started).as_secs();
         if !self.cookies.valid(addr, h.client_nonce, h.cookie, secs) {
             self.stats.challenges += 1;
             let cookie = self.cookies.make(addr, h.client_nonce, secs);
+            if self.cfg.join_key.is_some() {
+                // A client with no key gives up here and never sends the second Hello: remember the challenge so that silence is counted (`Refusal::NeedsKey`).
+                self.refusals.challenged(addr, h.client_nonce, HelloFacts::of(&h), now);
+            }
             return self.send_plain(addr, &ServerMsg::Challenge { cookie, requires_key: self.cfg.join_key.is_some() });
+        }
+        if self.cfg.join_key.is_some() {
+            self.refusals.answered(h.client_nonce, now);
         }
         // 2. Prove the join key (never sent, only its HMAC).
         let key_bytes = self.cfg.join_key.clone().unwrap_or_default();
@@ -696,11 +741,10 @@ impl Server {
             return; // the connection is already gone
         }
         if self.cfg.join_key.is_some() && !proof_matches(key_bytes.as_bytes(), binding.as_ref(), h.client_nonce, h.cookie, h.map_hash, h.version, &h.proof) {
-            self.stats.bad_keys += 1;
-            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::BadKey));
+            return self.refuse(addr, &h, RejectReason::BadKey, now);
         }
         if h.map_hash != self.cfg.map_hash {
-            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::WrongMap));
+            return self.refuse(addr, &h, RejectReason::WrongMap, now);
         }
         // A retransmitted Hello from a client we already have (same nonce and cookie): answer again, change nothing.
         if let Some(i) = self.sessions.iter().position(|s| s.addr == addr) {
@@ -726,12 +770,12 @@ impl Server {
             .flatten()
             .map(|k| self.parked.remove(k));
         let Some(slot) = resumed.as_ref().map(|p| p.slot).filter(|s| !self.sessions.iter().any(|x| x.slot == *s)).or_else(|| self.free_slot()) else {
-            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
+            return self.refuse(addr, &h, RejectReason::Full, now);
         };
         let fresh = resumed.is_none();
         let Some(token) = resumed.as_ref().map(|p| p.token).or_else(|| self.tokens.next()) else {
             self.say("the operating system's random number generator failed: join refused".to_string());
-            return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
+            return self.refuse(addr, &h, RejectReason::Full, now);
         };
         let requested_character = resumed.as_ref().map_or(h.character.min(Driver::ALL.len() as u8 - 1), |p| p.character);
         let character = apply_character_policy(self.sim.forced_character(), requested_character, self.sim.race().is_some());
@@ -770,7 +814,7 @@ impl Server {
                 }
             };
             if !placed {
-                return self.send_plain(addr, &ServerMsg::Reject(RejectReason::Full));
+                return self.refuse(addr, &h, RejectReason::Full, now);
             }
             session.in_round = true;
         }
@@ -864,6 +908,7 @@ impl Server {
         }
         if self.stats.ticks.is_multiple_of(TICK_RATE_HZ as u64) {
             self.sync_bots();
+            self.sweep_unanswered_challenges(now);
         }
 
         if running {
@@ -892,7 +937,7 @@ impl Server {
             if self.stats.ticks.is_multiple_of(((every.as_secs_f64() * TICK_RATE_HZ as f64) as u64).max(1)) {
                 let s = &self.stats;
                 let line = format!(
-                    "stats: players {} | phase {} | tick avg {:.0} us worst {} us | promoted props {} | in {:.1} KB/s out {:.1} KB/s | snapshots {} | bad packets {} bad tags {}",
+                    "stats: players {} | phase {} | tick avg {:.0} us worst {} us | promoted props {} | in {:.1} KB/s out {:.1} KB/s | snapshots {} | bad packets {} bad tags {} | joins {} | {} | throttled {}",
                     self.sessions.len(),
                     self.phase().name(),
                     s.tick_us_total as f64 / s.ticks.max(1) as f64,
@@ -902,7 +947,10 @@ impl Server {
                     s.bytes_out as f64 / 1024.0 / secs,
                     s.snapshots_sent,
                     s.bad_packets,
-                    s.bad_tags
+                    s.bad_tags,
+                    s.joins,
+                    s.rejected_summary(),
+                    s.hellos_throttled
                 );
                 self.say(line);
             }
