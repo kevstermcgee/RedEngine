@@ -188,7 +188,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          for open in $(gh issue list --label "$ISSUE_LABEL" --state open --json number,title,author --jq "$WATCH_ISSUES | .[].number"); do
+          # Read first: a failing gh or jq inside `for ... in $(...)` would be ignored by bash -e and leave the issue open on a green run.
+          watch_open="$(gh issue list --label "$ISSUE_LABEL" --state open --json number,title,author --jq "$WATCH_ISSUES | .[].number")"
+          for open in $watch_open; do
             gh issue comment "$open" --body "Reachable again: the relay and the game server answered the probe's first attempt. Run: $RUN_URL"
             gh issue close "$open"
           done

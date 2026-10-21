@@ -1296,6 +1296,8 @@ if args[:2] == ["label", "create"]:
     state["labels"].append(args[2])
 elif args[:2] == ["issue", "list"]:
     assert flag("--label") == "reachability" and flag("--state") in ("open", "closed"), args
+    if state.get("list_fails"):
+        sys.exit("fake gh: HTTP 502 (the API is down)")
     rows = sorted((i for i in state["issues"] if i["state"] == flag("--state")), key=lambda i: -i["number"])  # newest first, as gh lists them
     out = emit([fields(i) for i in rows])
 elif args[:2] == ["issue", "view"]:
@@ -1432,9 +1434,9 @@ class WorkflowSteps(ProbeCase):
         return {"number": number, "title": title, "author": author, "state": "open" if closed_ago is None else "closed", "createdAt": self.ago(created_ago),
                 "closedAt": None if closed_ago is None else self.ago(closed_ago), "comments": [{"createdAt": self.ago(s)} for s in comments_ago]}
 
-    def gh(self, issues=()):
+    def gh(self, issues=(), list_fails=False):
         with open(self.state_path, "w", encoding="utf-8") as f:
-            json.dump({"issues": list(issues), "calls": [], "labels": [], "created": [], "comments": [], "closed": [], "reopened": []}, f)
+            json.dump({"issues": list(issues), "calls": [], "labels": [], "created": [], "comments": [], "closed": [], "reopened": [], "list_fails": list_fails}, f)
         self.write_exe(os.path.join(self.venv, "python"), f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n')
         # what the probe left: a real failed result from the fakes
         argv, _ = self.world(relay=None)
@@ -1537,6 +1539,16 @@ class WorkflowSteps(ProbeCase):
         self.assertTrue(state["comments"][0]["body"].startswith("Unreachable again at "))
         self.assertNotIn("127.0.0", state["comments"][0]["body"])
         self.assertEqual((state["created"], state["labels"]), ([], []))
+
+    def test_a_failing_issue_lookup_turns_either_step_red_instead_of_doing_nothing(self):
+        # A gh or jq error inside `for ... in $(...)` is ignored by bash -e: the close step stayed green and left the issue open.
+        for needle in ("gh issue close", "gh issue create"):
+            with self.subTest(step=needle):
+                self.gh([self.issue(12)], list_fails=True)
+                p, _ = self.run_step(needle, EVENT="schedule")
+                self.assertNotEqual(p.returncode, 0, "a lookup that failed must fail the step")
+                state = self.gh_state()
+                self.assertEqual((state["closed"], state["created"], state["comments"]), ([], [], []))
 
     def test_an_outage_more_than_a_day_after_the_close_opens_a_new_issue(self):
         self.gh([self.issue(12, closed_ago=25 * 3600), self.issue(43, author=PERSON, closed_ago=600)])
