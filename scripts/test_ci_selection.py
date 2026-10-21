@@ -132,6 +132,19 @@ class WhichJobs(unittest.TestCase):
     def test_changing_ci_itself_starts_everything(self):
         self.assertJobs([".github/workflows/ci.yml"], True, True, True)
 
+    def test_the_reachability_watch_is_tested_by_the_python_job_whatever_part_of_it_changes(self):
+        # scripts/test_net_probe.py runs the probe against fakes and runs the step scripts of .github/workflows/reachability.yml with a fake `gh`; `scripts/ci.sh pytools`
+        # runs every scripts/test_*.py, so the python job is what has to start for each file involved, and the suite needs no registration anywhere.
+        for changed in ("scripts/net_probe.py", "scripts/test_net_probe.py", ".github/workflows/reachability.yml"):
+            with self.subTest(changed):
+                self.fresh()
+                self.assertTrue(self.jobs(changed)["pytools"])
+        self.fresh()
+        self.assertJobs(["scripts/net_probe.py"], False, False, True)  # a Python tool: no Rust build, no image
+        with open(os.path.join(HERE, "ci.sh"), encoding="utf-8") as f:
+            self.assertIn("for t in scripts/test_*.py; do", f.read())
+        self.assertTrue(os.path.exists(os.path.join(HERE, "test_net_probe.py")))
+
     def test_no_usable_base_runs_everything(self):
         for bad in ("", "0000000000000000000000000000000000000000", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"):
             self.fresh()
