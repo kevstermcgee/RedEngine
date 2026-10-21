@@ -1,0 +1,43 @@
+{
+  "tagline": "Just the board. Two tiny previews. One more perfect fit.",
+  "overview": "Prism Fall is a focused Tetris-style game made with RedEngine's native 2D rules and renderer. The black-and-charcoal well fills the window edge to edge, without an outer frame, side gutters or cards. Only a slim header for score, hold and two tiny previews remains. Instructions live in the menus. Play Marathon for a high score, Sprint for a forty-line time, or Zen for steady-speed practice with a fresh well after a top-out. SRS wall kicks, a ghost piece, seven-bag randomization and responsive held movement make each placement deliberate.",
+  "story": "There is no campaign to hurry through and no enemy to chase. You are tending a small well of coloured glass: every piece is another chance to turn an awkward space into a clean line. Marathon builds the pressure, Sprint makes every motion count, and Zen lets you return to the rhythm whenever the stack reaches the ceiling.",
+  "goal": "Clear horizontal lines by filling all ten cells. Marathon ends when the well blocks a new piece or a piece locks above the visible board. Sprint ends successfully at forty lines. Zen refreshes the well after a top-out and keeps your score.",
+  "rules": [
+    "All seven tetrominoes appear once per shuffled bag; the next two pieces are shown beside the well.",
+    "A full row disappears and every row above it shifts down. Clearing several rows at once earns more points.",
+    "Hold exchanges your piece with the reserve once per placement. A hard drop places and locks immediately; soft drop and hard drop earn distance points.",
+    "Rotations try SRS wall and floor kicks. A grounded piece has half a second before locking, with at most fifteen movement resets.",
+    "Combos, back-to-back four-line clears or T-spins, and perfect clears earn bonuses. T-spins use the three-corner rule; mini classification is not included.",
+    "Every ten cleared lines increases the Marathon or Sprint speed. Zen keeps a steady speed. Records are saved locally."
+  ],
+  "controls": [
+    {"input": "Left / Right or A / D", "action": "Move; hold to repeat"},
+    {"input": "Down / S", "action": "Soft drop"},
+    {"input": "Up / W / E", "action": "Rotate clockwise"},
+    {"input": "Q", "action": "Rotate counter-clockwise"},
+    {"input": "Space / Z / J", "action": "Hard drop"},
+    {"input": "C / Shift / X / K", "action": "Hold"},
+    {"input": "Escape / P", "action": "Pause or resume"},
+    {"input": "Up / Down, Enter or 1 / 2 / 3", "action": "Choose a mode and start"},
+    {"input": "F / F11", "action": "Toggle fullscreen"},
+    {"input": "Gamepad", "action": "D-pad/stick moves; up rotates; A drops/selects; X/B/RT holds; Start pauses"}
+  ],
+  "characters": [
+    {"name": "The seven pieces", "role": "Your building blocks", "description": "I, O, T, S, Z, J and L each have their own colour. The hollow ghost shows where the active piece will land. A shuffled seven-bag gives you every shape before the next bag begins.", "image": "flow.png"}
+  ],
+  "tips": [
+    "Keep the surface level and avoid covering empty cells.",
+    "Use the small next previews before spending your hold.",
+    "Try Q to rotate the shorter way. Wall kicks can help a piece fit beside the edge or floor.",
+    "Pause whenever you need a moment. Zen is a forgiving place to practise."
+  ],
+  "gallery": [
+    {"image": "opening.png", "caption": "The opening placements: a large centred well, a ghost landing indicator and two small previews."},
+    {"image": "flow.png", "caption": "Nine lines cleared during the deterministic forty-piece showcase, using the same rules and renderer as the native game."},
+    {"image": "level-two.png", "caption": "Thirteen lines and level two after forty actual placements; the score rewards clean stacking and consecutive clears."}
+  ],
+  "why_made": "The request was for a high quality Tetris game using the latest RedEngine, followed by publication and development feedback. The design focuses on dependable falling-block mechanics, reproducible engine tests and a minimal interface. The user specifically asked for less surrounding UI, a centred board and only one or two small next-piece hints; those constraints shaped the final layout.",
+  "prompt": "Using the latest RedEngine, create a high quality Tetris game. Once complete, publish to RedEngineGames and add your development feedback to the engine for improvement",
+  "prompt_source": "User request on 2026-10-21, followed by requests for a simpler UI, an edge-to-edge centred board, only one or two tiny next-piece previews, D-pad support and black/charcoal rather than navy."
+}
