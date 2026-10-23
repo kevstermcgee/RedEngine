@@ -22,6 +22,6 @@ A platformer's reach depends on jumps, speed and moving enemies, so `checks.reac
 - Started by a player (`RE2_PLAYER=1`, which the game's `Play-<slug>.exe` and the RedEngine Games app set; `--fullscreen --intro` by hand), the window opens in borderless fullscreen and the "RedEngine Games" title card (`ui::title_card`) plays for about two and a half seconds before the first tick; any key or click skips it. F or F11 toggles fullscreen, as in every game (also while the card plays, without skipping it).
 - Progress is written atomically every two seconds while it changes and on exit, to `progress.json` under the per-game save directory (`RE2_SAVE_DIR`, else the user config directory keyed by the game id).
 
-## Not built yet
+## Publishing
 
-- Packaging a 2D game as its own Windows `.exe` for RedEngineGames.
+A 2D game reaches RedEngineGames as `"kind": "2d"` in `games-publish.json`, with its page in `pages/<slug>/`, in one pull request (`docs/GAMES_PUBLISHING.md`, `CONTRIBUTING.md`; the `make-game` skill walks it). There is no single `game publish2d` command yet, and the game's `Play-<slug>.exe` is built by RedEngineGames' own workflow.
