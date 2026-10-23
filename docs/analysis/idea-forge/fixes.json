@@ -68,5 +68,12 @@
   "key": "authoring-errors-dont-name-the-fix",
   "date": "2026-10-20",
   "summary": "a `show` inside a panel/bar/button now says it goes beside the widget, and a bare trigger string like \"start\" in `when` shows the object form `{ \"start\": true }`."
+ },
+ {
+  "key": "no-2d-publish-route",
+  "date": "2026-10-22",
+  "partial": true,
+  "summary": "docs/PLAY_2D.md no longer says packaging is not built: it names the documented route (kind \"2d\" in games-publish.json plus pages/<slug>/, one pull request).",
+  "remaining": "no single `game publish2d` command that validates, verifies, smoke-tests and adds the entry"
  }
 ]
