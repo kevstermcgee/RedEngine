@@ -40,6 +40,7 @@ _Rewritten from current facts on 2026-10-17 at main c4860ce (git, `gh pr list`, 
 - 2026-10-19: RedCraft (games/redcraft): a Minecraft-like block game on the game-mode and world-layer seams, with seven small engine seams (ADR 2026-10-19-a-block-game-rides-on-the-mode-and-layer-seams); publishing waits on RedEngineGames PR #7
 - 2026-10-20: Collaboration loop (owner brief 2026-10-20): two equal maintainers (contributors.json maintainers, docs/COLLABORATING.md, ADR 2026-10-20-redengine-has-two-equal-maintainers-and-one-loop), one feedback inbox (scripts/feedback.py, docs/feedback/; #207), forks with families (scripts/games.py; #208; RedEngineGames #21), the daily improver landing PRs that merge on green (scripts/daily_improve.py; #209), Claude Code skills make-game/update-game/fork-game/engine-feedback/inbox
 - 2026-10-21: Nightly improver now uses hosted CI for allowed changes, retries and repairs stuck PRs, and shares a lock before checkout reset; recovery regression tests pass.
+- 2026-10-23: weapons.tuning (PR #224): scenes retune loadout-shooter guns and melee (damage, full, max; nothing past max). Bots follow the scene's numbers (WeaponProfile::in_scene, pickup value). The classic single-weapon arena is deliberately left on Weapon::firearm; tuning without a shooter block is a validate error.
 
 ## Next
 - Phase 2 after the items in Now: (2) a fall-out height, (3) rules that change movement, gravity and scale, and a body swap, (4) 3D string tables, (5) 3D

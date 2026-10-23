@@ -61,6 +61,39 @@ fn bots_fight_the_other_team_pick_up_weapons_and_score() {
 }
 
 #[test]
+fn a_bot_never_fires_past_the_scenes_max_distance() {
+    let text = json!({
+        "camera": {"position":[0,1.7,0], "target":[0,1.7,-5]},
+        "shooter": {"start": ["pistol", "knife"]},
+        "weapons": {"tuning": {"pistol": {"max": 20}}},
+        "objects": [{"id":"floor","type":"plane","size":[120,120]}]
+    })
+    .to_string();
+    let scene = red_engine2::scene_blocks::parse_scene(&text).unwrap_or_else(|e| panic!("{e:?}"));
+    let spawns = vec![
+        Spawn { id: "a".into(), position: [-25.0, 0.0, 0.0], yaw_deg: 90.0, group: "team1".into() },
+        Spawn { id: "b".into(), position: [25.0, 0.0, 0.0], yaw_deg: 270.0, group: "team2".into() },
+    ];
+    let mut sim = MatchSim::new(&scene, spawns);
+    let cfg = BotsConfig { level: 1.0, ..Default::default() };
+    assert!(sim.add_bot_in_slot_team(0, &cfg.spec(0), 1) && sim.add_bot_in_slot_team(1, &cfg.spec(1), 2));
+    let (mut shots, mut close) = ([0u32; 2], false);
+    for _ in 0..(60 * 30) {
+        sim.tick_once();
+        let (a, b) = (sim.player(0).unwrap(), sim.player(1).unwrap());
+        let d = (a.state.pos - b.state.pos).length();
+        for (s, p) in [a, b].into_iter().enumerate() {
+            if p.combat.shots != shots[s] {
+                assert!(d <= 20.5, "bot {s} fired from {d:.1} m with a pistol that does nothing past 20 m");
+                shots[s] = p.combat.shots;
+                close = true;
+            }
+        }
+    }
+    assert!(close, "the bots closed in and fought (the check above was not vacuous)");
+}
+
+#[test]
 fn bots_never_shoot_their_own_team() {
     let mut sim = arena();
     let cfg = BotsConfig { level: 1.0, ..Default::default() };
