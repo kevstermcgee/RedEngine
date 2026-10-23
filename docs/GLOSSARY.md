@@ -123,6 +123,7 @@ without asking.
 - **firearm spec** — `weapons::FirearmSpec`: authoritative damage, tick cadence, range and prop impulse plus visual recoil. The library includes pistol, machine pistol, SMG, carbine, rifle, bullpup, marksman rifle, shotgun, LMG and scout rifle. (The silver revolver was removed: ADR 2026-09-28-remove-the-revolver.)
 - **ADS / aim down sights** — hold right mouse to smoothly align a firearm and narrow FOV; presentation only, so the authoritative shot still follows the player's replicated look direction.
 - **ammo** — `weapons.ammo`: `"infinite"` (the default) or `{loaded, capacity, reserve}` (`Ammo::Limited`, `R` reloads). One setting for every firearm; each player has one ammunition state shared by their guns.
+- **weapon tuning** — `weapons.tuning`: a scene's own damage, full-damage distance (`full`) and zero-damage distance (`max`) for up to 16 loadout-shooter guns or melee weapons (`WeaponConfig::kit`). Damage falls in a straight line from `full` to nothing at `max`, nothing is hit past `max`, and bots hold fire past it (`WeaponProfile::in_scene`).
 - **hitscan / muzzle flash** — a shot is an instant ray from the eye; the flash is an emissive held part shown
   for 0.06 s (`HeldPart::muzzle_flash`).
 

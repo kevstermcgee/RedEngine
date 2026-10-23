@@ -448,7 +448,7 @@ impl Brain {
             self.respawned(me, now);
         }
         let weapon = me.combat.weapon;
-        let profile = WeaponProfile::of(weapon);
+        let profile = WeaponProfile::in_scene(weapon, sim);
         let body = me.state.character.body();
         let eye = Vec3::new(me.state.pos.x, me.state.foot_y + if me.crouching { body.crouch_eye } else { body.stand_eye }, me.state.pos.y);
         let hurt = me.combat.hp < self.last_hp;

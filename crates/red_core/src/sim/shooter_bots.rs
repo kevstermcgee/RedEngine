@@ -71,7 +71,7 @@ impl BotMind for ShooterBot {
         let usable = |i: usize| kit.guns[i].filter(|g| g.loaded > 0 || g.reserve > 0 || kit.sel == crate::sim::kit::Slot::Gun(i as u8));
         let score = |i: usize| -> Option<f32> {
             let g = usable(i)?;
-            let p = WeaponProfile::of(g.weapon);
+            let p = WeaponProfile::in_scene(g.weapon, sim);
             let have_rounds = if g.loaded > 0 { 0.0 } else { 40.0 };
             let fit = match dist {
                 Some(d) => (p.ideal - d).abs().min(60.0),
