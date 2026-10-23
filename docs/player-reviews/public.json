@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated": "2026-10-20T05:55:15Z",
+ "updated": "2026-10-23T04:03:45Z",
  "games": {
   "killchain": {
    "name": "Killchain",
@@ -19,6 +19,24 @@
     }
    ],
    "average": 6.0
+  },
+  "prism-fall": {
+   "name": "Prism Fall",
+   "author": "human",
+   "count": 1,
+   "reviews": [
+    {
+     "id": "PwWfNrIVFjJx",
+     "version": 1,
+     "score": 7,
+     "liked": "simple mechanics,",
+     "disliked": "change a double press of the down key to automatically drop the current piece for 2x value.",
+     "name": "Deez Nuts",
+     "source": "app",
+     "date": "2026-10-23"
+    }
+   ],
+   "average": 7.0
   },
   "redcraft": {
    "name": "RedCraft",
@@ -68,7 +86,48 @@
   }
  },
  "engine": {
-  "count": 0,
-  "notes": []
+  "count": 5,
+  "notes": [
+   {
+    "id": "3tueZPUzWMXF",
+    "kind": "idea",
+    "text": "Arcade shooter feel, for TimeSplitters-style games: dual wield (two pistols, SMGs or shotguns), \"Got the [weapon]\" pickup messages, and an optional HUD layout with score and rank top-left, a round radar, ammo as \"magazine | reserve\", health shown only when hit, and no always-on scoreboard.",
+    "name": "",
+    "source": "app",
+    "date": "2026-10-23"
+   },
+   {
+    "id": "q79uwiPdux3s",
+    "kind": "idea",
+    "text": "Weapon range is fixed per gun (Weapon::firearm, pistol 70 m) and bots fire out to WeaponProfile.reach. On a 40 m outdoor map, bots kill you from across the map, and the only map-side fix is removing longer guns. Ask: a per-scene range multiplier or damage falloff with distance.",
+    "name": "",
+    "source": "app",
+    "date": "2026-10-23"
+   },
+   {
+    "id": "qUMbIqMizpPe",
+    "kind": "bug",
+    "text": "A scene using arsenal weapons (marshal, bulldog, coach, hatchet) loads and plays on the re2 bundled with installed games (copied from Wormhole v2), but no held gun is drawn, so you play with an invisible weapon. The 10 base firearms draw fine. Validation passes, so nothing warns. Suggest: an older re2 should warn when a scene names a weapon it has no model for.",
+    "name": "",
+    "source": "app",
+    "date": "2026-10-23"
+   },
+   {
+    "id": "hLG21GRFJ6i6",
+    "kind": "idea",
+    "text": "shooter.rs says the loadout shooter moves to games/killchain because only Killchain uses it. Chrono Clash now uses it too (both maps run on the shooter block, FFA, era weapon sets as start + pickups). By the engine's own two-games rule it should stay in the engine.",
+    "name": "",
+    "source": "app",
+    "date": "2026-10-23"
+   },
+   {
+    "id": "ExuobstV4TE4",
+    "kind": "tip",
+    "text": "The shooter block forces every player into Ridgeback/Nightfall soldier bodies (sim/shooter.rs, body()), so a bots roster with cowboy, wizard or alien characters is ignored. Chrono Clash (a TimeSplitters-style arena) needs the shooter's pickups and loadouts but also a goofy mixed cast. Ask: a shooter option to keep roster and player characters, at least in free for all.",
+    "name": "",
+    "source": "app",
+    "date": "2026-10-23"
+   }
+  ]
  }
 }
