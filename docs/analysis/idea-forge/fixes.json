@@ -75,5 +75,10 @@
   "partial": true,
   "summary": "docs/PLAY_2D.md no longer says packaging is not built: it names the documented route (kind \"2d\" in games-publish.json plus pages/<slug>/, one pull request).",
   "remaining": "no single `game publish2d` command that validates, verifies, smoke-tests and adds the entry"
+ },
+ {
+  "key": "headless-sim-time-worker-readiness",
+  "date": "2026-10-22",
+  "summary": "a pending expect/wait_for in a play script now yields 1 ms of wall time per look, so worker threads (RedCraft's world) progress while simulated seconds race by."
  }
 ]

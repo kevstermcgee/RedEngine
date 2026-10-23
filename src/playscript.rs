@@ -980,6 +980,8 @@ impl Runner {
                 Step::Expect(e) => {
                     let mut failed = check(&e, &d.state());
                     if failed.is_some() && self.elapsed + 1e-6 < e.within {
+                        // A game whose world is built by worker threads (RedCraft) gets no wall time while a headless run races through simulated seconds: give them a millisecond per look.
+                        std::thread::sleep(std::time::Duration::from_millis(1));
                         // It may still come true: wait, and ask again next frame (or, when the time is up, one last look).
                         let take = (e.within - self.elapsed).min(budget);
                         self.elapsed += take;
@@ -1378,6 +1380,17 @@ mod tests {
         let r = run(r#"{"steps":[{"wait_for":{"at":"/online/in_round","eq":true,"within":1}}]}"#, 120, 1.0 / 60.0, &mut d);
         assert!(r.finished());
         assert!(r.failures[0].contains("after waiting 1 s"), "{:?}", r.failures);
+    }
+
+    #[test]
+    fn a_pending_wait_gives_worker_threads_wall_time() {
+        let mut d = Fake { state: json!({"w": {"ready": false}}), ..Fake::default() };
+        let mut r = Runner::new(Script::parse(r#"{"steps":[{"wait_for":{"at":"/w/ready","eq":true,"within":1}}]}"#).unwrap());
+        let t = std::time::Instant::now();
+        for _ in 0..30 {
+            r.advance(1.0 / 60.0, &mut d);
+        }
+        assert!(t.elapsed() >= std::time::Duration::from_millis(30), "thirty pending looks took {:?} of wall time", t.elapsed());
     }
 
     #[test]
