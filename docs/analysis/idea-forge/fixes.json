@@ -80,5 +80,12 @@
   "key": "headless-sim-time-worker-readiness",
   "date": "2026-10-22",
   "summary": "a pending expect/wait_for in a play script now yields 1 ms of wall time per look, so worker threads (RedCraft's world) progress while simulated seconds race by."
+ },
+ {
+  "key": "cold-worktree-build-and-preflight-rebuild",
+  "date": "2026-10-23",
+  "partial": true,
+  "summary": "scripts/dev start now fetches a checksum-verified prebuilt release built from exactly this checkout (no compile; commit 6cd4c29), and preflight falls back to tree-only checks instead of cold-building when the binary is stale (commit c3b2f4b).",
+  "remaining": "scripts/dev worktree still cannot seed target/ from a never-built donor checkout, and a source build without a prebuilt release is still a 2-7 minute cold compile"
  }
 ]
