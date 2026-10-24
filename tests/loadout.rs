@@ -16,12 +16,18 @@ struct Rig {
 }
 
 fn scene(extra_objects: serde_json::Value, shooter: serde_json::Value) -> MatchSim {
+    scene_with(extra_objects, shooter, json!({}))
+}
+
+/// [`scene`] with a `weapons` block.
+fn scene_with(extra_objects: serde_json::Value, shooter: serde_json::Value, weapons: serde_json::Value) -> MatchSim {
     let mut objects = vec![json!({"id":"floor","type":"plane","size":[80,80]})];
     objects.extend(extra_objects.as_array().cloned().unwrap_or_default());
     let text = json!({
         "camera": {"position":[0,1.7,0], "target":[0,1.7,-5]},
         "combat": {"respawn_secs": 4},
         "shooter": shooter,
+        "weapons": weapons,
         "objects": objects,
     })
     .to_string();
@@ -149,6 +155,22 @@ fn a_headshot_hurts_more_than_a_body_shot_and_distance_weakens_a_pistol() {
     assert_eq!(rig.sim.player(0).unwrap().combat.headshots, 1);
     assert_eq!(rig.sim.player(1).unwrap().combat.killed_by, Some((0, Weapon::Rifle, true)));
     assert_eq!(rig.sim.team_kills(), [1, 0]);
+}
+
+#[test]
+fn a_tuned_pistol_does_nothing_past_its_max_and_full_damage_inside_full() {
+    let tuning = json!({"tuning": {"pistol": {"damage": 25, "full": 8, "max": 30}}});
+    let hurt = |dist: f32| {
+        let mut rig = Rig { sim: scene_with(json!([]), start(), tuning.clone()), seq: [0; 12] };
+        rig.join(0, 0.0, 0.0, 0.0, 1);
+        rig.join(1, 0.0, -dist, 0.0, 2);
+        fire_aimed(&mut rig, 0, (-0.5f32 / dist).atan()); // the chest
+        100 - rig.hp(1)
+    };
+    assert_eq!(hurt(5.0), 25, "full damage inside `full`");
+    let mid = hurt(19.0);
+    assert!((10..=15).contains(&mid), "about half way between full and max: {mid}");
+    assert_eq!(hurt(35.0), 0, "nothing past `max`");
 }
 
 #[test]

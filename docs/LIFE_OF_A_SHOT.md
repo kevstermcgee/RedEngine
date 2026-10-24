@@ -97,7 +97,7 @@ magazine is empty (a dry click starts `DRY_FIRE_COOLDOWN_TICKS`). Past the first
 and injects the `shot` rule event.
 
 - **Open**: `crates/red_core/src/net/server.rs::on_input`, `crates/red_core/src/sim/match_sim.rs::push_input` and `::tick_once`, `crates/red_core/src/sim/interact.rs::handle_actions` and `::attack`.
-- **Tuned by**: the `FirearmSpec` row in `crates/red_core/src/weapons.rs::firearm`; scene `weapons.starting`, `weapons.ladder`, `weapons.ammo`; `INPUT_QUEUE_CAP` (8), `INPUT_QUEUE_TARGET` (3); `SWITCH_TICKS`.
+- **Tuned by**: the `FirearmSpec` row in `crates/red_core/src/weapons.rs::firearm`; scene `weapons.starting`, `weapons.ladder`, `weapons.ammo`, `weapons.tuning` (loadout shooter: per-scene damage and range, `WeaponConfig::kit`); `INPUT_QUEUE_CAP` (8), `INPUT_QUEUE_TARGET` (3); `SWITCH_TICKS`.
 - **How to see it**: the duel scenario above; `tests/interactions.rs::held_automatic_trigger_repeats_but_a_pistol_requires_a_new_press` and
   `::the_pistol_has_a_cooldown_damages_kills_and_the_victim_respawns`; a server whose scene has `rules` logs `event shot by rule engine (player N) at tick T`.
 - **Fails silently when**: the shooter holds the bat, which `weapons.starting` gives everyone by default: the click swings (`/player/weapon` says `baseball bat`, nothing warns). Also more

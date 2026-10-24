@@ -137,6 +137,17 @@ pub struct WeaponProfile {
 }
 
 impl WeaponProfile {
+    /// The profile of `weapon` in `sim`'s scene: [`WeaponProfile::of`], held inside the scene's `weapons.tuning` max distance when it sets one
+    /// (the bot never opens fire where the shot would do nothing, and likes to fight well inside it).
+    pub fn in_scene(weapon: Weapon, sim: &crate::sim::match_sim::MatchSim) -> WeaponProfile {
+        let mut p = WeaponProfile::of(weapon);
+        if let Some(t) = sim.weapons.tune(weapon).filter(|t| t.max < p.reach) {
+            p.reach = t.max;
+            p.ideal = p.ideal.min(t.max * 0.5);
+        }
+        p
+    }
+
     /// The profile of `weapon`, tuned against the numbers in [`Weapon::firearm`] (damage, cadence, range, spread).
     pub fn of(weapon: Weapon) -> WeaponProfile {
         let p = |ideal, reach, semi_auto, burst: (u32, u32), steadiness| WeaponProfile { ideal, reach, semi_auto, burst, steadiness, melee: false };

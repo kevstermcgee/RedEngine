@@ -409,6 +409,26 @@ pub const RESPAWN_TICKS: u64 = crate::sim::clock::secs_to_ticks(3.0) as u64;
 /// Most rungs a weapon ladder may have.
 pub const MAX_LADDER: usize = 16;
 
+/// Most weapons one scene may retune (`weapons.tuning`).
+pub const MAX_TUNED: usize = 16;
+
+/// Longest reach `weapons.tuning` gives a melee weapon, metres.
+pub const MAX_MELEE_REACH: f32 = 4.0;
+
+/// A scene's own numbers for one gun or melee weapon of the loadout shooter (`weapons.tuning`): full damage out to `full`, falling in a
+/// straight line to nothing at `max`, and no hit at all past it. Bots hold their fire past `max` too.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GunTune {
+    /// The weapon retuned.
+    pub weapon: Weapon,
+    /// Damage per shot with every pellet landing (melee: a swing), or `None` for the weapon's own.
+    pub damage: Option<u16>,
+    /// Full damage out to here, metres.
+    pub full: f32,
+    /// Damage reaches zero here and nothing is hit beyond, metres (melee: the reach).
+    pub max: f32,
+}
+
 /// The per-scene weapon numbers (`weapons` in the scene; defaults are the numbers above).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeaponConfig {
@@ -421,11 +441,20 @@ pub struct WeaponConfig {
     /// The weapon ladder (Gun Game): the first `ladder_len` entries. A player carries `ladder[kills]`; empty = ordinary play.
     ladder: [Weapon; MAX_LADDER],
     ladder_len: usize,
+    /// The scene's retuned weapons (`weapons.tuning`).
+    tuning: [Option<GunTune>; MAX_TUNED],
 }
 
 impl Default for WeaponConfig {
     fn default() -> Self {
-        WeaponConfig { starting_weapon: Weapon::Bat, bat_damage: BAT_DAMAGE, ammo: DEFAULT_AMMO, ladder: [Weapon::Bat; MAX_LADDER], ladder_len: 0 }
+        WeaponConfig {
+            starting_weapon: Weapon::Bat,
+            bat_damage: BAT_DAMAGE,
+            ammo: DEFAULT_AMMO,
+            ladder: [Weapon::Bat; MAX_LADDER],
+            ladder_len: 0,
+            tuning: [None; MAX_TUNED],
+        }
     }
 }
 
@@ -436,6 +465,28 @@ impl WeaponConfig {
             Weapon::Bat => self.bat_damage,
             other => other.firearm().map_or(0, |s| s.damage),
         }
+    }
+
+    /// The scene's tuning for `weapon`, if it retunes it.
+    pub fn tune(&self, weapon: Weapon) -> Option<GunTune> {
+        self.tuning.iter().flatten().find(|t| t.weapon == weapon).copied()
+    }
+
+    /// `weapon`'s loadout numbers ([`Weapon::kit`]) with the scene's tuning applied: damage, the full-damage distance, and a range limit at
+    /// which the damage has fallen to zero.
+    pub fn kit(&self, weapon: Weapon) -> crate::arsenal::KitSpec {
+        let mut k = weapon.kit();
+        if let Some(t) = self.tune(weapon) {
+            if let Some(d) = t.damage {
+                k.damage = d;
+            }
+            if k.class == crate::arsenal::Class::Melee {
+                (k.reach, k.range, k.effective) = (t.max, t.max, t.max);
+            } else {
+                (k.effective, k.range, k.far_mult) = (t.full, t.max, 0.0);
+            }
+        }
+        k
     }
 
     /// The ladder, first rung first (empty when the scene has none).
@@ -464,7 +515,8 @@ impl WeaponConfig {
     }
 }
 
-const WEAPONS_KEYS: &[&str] = &["starting", "bat", "ammo", "ladder"];
+const WEAPONS_KEYS: &[&str] = &["starting", "bat", "ammo", "ladder", "tuning"];
+const TUNING_KEYS: &[&str] = &["damage", "full", "max"];
 const BAT_KEYS: &[&str] = &["damage"];
 const AMMO_KEYS: &[&str] = &["loaded", "capacity", "reserve"];
 
@@ -543,6 +595,56 @@ pub fn parse_weapons(root: &JsonMap) -> Result<WeaponConfig, Vec<String>> {
     if let Some(b) = w.get("bat").and_then(Value::as_object) {
         check_keys(&mut errs, "weapons.bat", b, BAT_KEYS);
         cfg.bat_damage = whole(b, "damage", "weapons.bat", 10_000, BAT_DAMAGE, &mut errs);
+    }
+    if let Some(value) = w.get("tuning") {
+        if !root.contains_key("shooter") {
+            errs.push("weapons.tuning: retunes the loadout shooter only; this scene has no `shooter` block (add one, or remove `tuning`)".to_string());
+        }
+        match value.as_object() {
+            Some(t) if t.len() <= MAX_TUNED => {
+                for (i, (name, v)) in t.iter().enumerate() {
+                    let path = format!("weapons.tuning.{name}");
+                    let Some(weapon) = Weapon::parse(name).filter(|w| (w.is_gun() && w.class() != crate::arsenal::Class::Launcher) || w.is_melee()) else {
+                        errs.push(format!(
+                            "{path}: expected a gun or melee weapon name such as \"pistol\", \"coach\" or \"hatchet\" (grenades and launchers are not tuned here)"
+                        ));
+                        continue;
+                    };
+                    if cfg.tune(weapon).is_some() {
+                        errs.push(format!("{path}: {weapon:?} is already tuned under another name"));
+                        continue;
+                    }
+                    let Some(o) = v.as_object() else {
+                        errs.push(format!("{path}: must be an object like {{\"damage\": 25, \"full\": 8, \"max\": 30}}"));
+                        continue;
+                    };
+                    check_keys(&mut errs, &path, o, TUNING_KEYS);
+                    let melee = weapon.is_melee();
+                    if melee && o.contains_key("full") {
+                        errs.push(format!("{path}.full: a melee weapon has only a reach: set `max`"));
+                    }
+                    let k = weapon.kit();
+                    let longest = if melee { MAX_MELEE_REACH } else { 500.0 };
+                    let mut metres = |key: &str, default: f32| match o.get(key) {
+                        None => default,
+                        Some(v) => v.as_f64().map(|m| m as f32).filter(|m| (0.5..=longest).contains(m)).unwrap_or_else(|| {
+                            errs.push(format!("{path}.{key}: must be a distance from 0.5 to {longest} m"));
+                            default
+                        }),
+                    };
+                    let max = metres("max", k.range);
+                    let full = metres("full", k.effective.min(max));
+                    if full > max {
+                        errs.push(format!("{path}: full ({full} m) must not be past max ({max} m)"));
+                    }
+                    let damage = o.contains_key("damage").then(|| whole(o, "damage", &path, 10_000, k.damage as u32, &mut errs) as u16);
+                    cfg.tuning[i] = Some(GunTune { weapon, damage, full, max });
+                }
+            }
+            _ => errs.push(format!(
+                "weapons.tuning: must be an object of up to {MAX_TUNED} weapons like {{\"pistol\": {{\"damage\": 25, \"full\": 8, \"max\": 30}}}}"
+            )),
+        }
     }
     match w.get("ammo") {
         None => {}
@@ -655,6 +757,35 @@ pub const SWITCH_SECS: f32 = ticks_to_secs(SWITCH_TICKS);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_scene_retunes_a_gun_to_do_nothing_past_its_max() {
+        let root = |s: &str| serde_json::from_str::<serde_json::Value>(s).unwrap().as_object().unwrap().clone();
+        let cfg =
+            parse_weapons(&root(r#"{"shooter":{},"weapons":{"tuning":{"pistol":{"damage":25,"full":8,"max":30},"hatchet":{"damage":60,"max":2}}}}"#)).unwrap();
+        let k = cfg.kit(Weapon::Pistol);
+        assert_eq!((k.damage, k.effective, k.range, k.far_mult), (25, 8.0, 30.0, 0.0));
+        assert_eq!(crate::sim::kit::falloff(&k, 8.0), 1.0);
+        assert!((crate::sim::kit::falloff(&k, 19.0) - 0.5).abs() < 1e-4, "halfway between full and max is half damage");
+        assert_eq!(crate::sim::kit::falloff(&k, 30.0), 0.0);
+        let h = cfg.kit(Weapon::Hatchet);
+        assert_eq!((h.damage, h.reach), (60, 2.0));
+        let (a, b) = (cfg.kit(Weapon::Smg), Weapon::Smg.kit());
+        assert_eq!((a.damage, a.effective, a.range, a.far_mult), (b.damage, b.effective, b.range, b.far_mult), "an untuned weapon keeps its own numbers");
+        let e =
+            parse_weapons(&root(r#"{"shooter":{},"weapons":{"tuning":{"frag":{"max":3},"pistol":{"full":40,"max":30,"rnage":1}}}}"#)).unwrap_err().join("\n");
+        assert!(e.contains("weapons.tuning.frag") && e.contains("must not be past max") && e.contains("rnage"), "{e}");
+        let e = parse_weapons(&root(
+            r#"{"shooter":{},"weapons":{"tuning":{"lobber":{"max":20},"bat":{"max":2},"baseball-bat":{"max":3},"hatchet":{"full":1,"max":500}}}}"#,
+        ))
+        .unwrap_err()
+        .join("\n");
+        for want in ["weapons.tuning.lobber", "already tuned", "weapons.tuning.hatchet.full", "from 0.5 to 4 m"] {
+            assert!(e.contains(want), "{want}: {e}");
+        }
+        let e = parse_weapons(&root(r#"{"weapons":{"tuning":{"pistol":{"max":30}}}}"#)).unwrap_err().join("\n");
+        assert!(e.contains("no `shooter` block"), "tuning a scene without the loadout shooter would do nothing: {e}");
+    }
 
     #[test]
     fn scrolling_cycles_through_the_weapons_both_ways() {

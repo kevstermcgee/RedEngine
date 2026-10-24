@@ -71,7 +71,7 @@ impl BotMind for ShooterBot {
         let usable = |i: usize| kit.guns[i].filter(|g| g.loaded > 0 || g.reserve > 0 || kit.sel == crate::sim::kit::Slot::Gun(i as u8));
         let score = |i: usize| -> Option<f32> {
             let g = usable(i)?;
-            let p = WeaponProfile::of(g.weapon);
+            let p = WeaponProfile::in_scene(g.weapon, sim);
             let have_rounds = if g.loaded > 0 { 0.0 } else { 40.0 };
             let fit = match dist {
                 Some(d) => (p.ideal - d).abs().min(60.0),
@@ -116,7 +116,7 @@ impl BotMind for ShooterBot {
             return self.pickup_goal;
         }
         self.pickup_until = now + secs(2.0);
-        let held: f32 = kit.guns.iter().flatten().map(|g| weapon_value(g.weapon)).fold(0.0, f32::max);
+        let held: f32 = kit.guns.iter().flatten().map(|g| weapon_value(sim.weapons.kit(g.weapon))).fold(0.0, f32::max);
         let free_gun = kit.guns.iter().any(Option::is_none);
         let free_nade = kit.grenade_count() < crate::sim::kit::MAX_GRENADES;
         let low_ammo = kit.guns.iter().flatten().any(|g| g.reserve < g.weapon.kit().mag);
@@ -138,7 +138,7 @@ impl BotMind for ShooterBot {
                     4.0
                 }
                 Some(w) => {
-                    let v = weapon_value(w);
+                    let v = weapon_value(sim.weapons.kit(w));
                     if !(free_gun || v > held + 0.5) {
                         return;
                     }
@@ -267,10 +267,9 @@ impl BotMind for ShooterBot {
     }
 }
 
-/// How much a bot wants a gun (a rough tier list: rifles and marksman guns over SMGs over pistols).
-fn weapon_value(w: Weapon) -> f32 {
+/// How much a bot wants a gun with these numbers (the scene's, `WeaponConfig::kit`): a rough tier list, rifles and marksman guns over SMGs over pistols.
+fn weapon_value(k: crate::arsenal::KitSpec) -> f32 {
     use crate::arsenal::Class;
-    let k = w.kit();
     match k.class {
         Class::Rifle => 9.0 + k.damage as f32 * 0.02,
         Class::Marksman => 8.5,

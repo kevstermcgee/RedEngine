@@ -456,7 +456,7 @@ impl ShooterGame {
 
     /// Fires one trigger pull of the gun in hand (the round is already spent).
     fn kit_shoot(&mut self, sim: &mut MatchSim, slot: usize, weapon: Weapon) {
-        let spec = weapon.kit();
+        let spec = sim.weapons.kit(weapon);
         let (now, friendly_fire) = (sim.tick(), self.arena.cfg.friendly_fire);
         let Some(p) = sim.player_mut(slot) else { return };
         p.combat.shots = p.combat.shots.wrapping_add(1);
@@ -599,7 +599,7 @@ impl ShooterGame {
         let Some(p) = sim.player(slot) else { return };
         let Some(kit) = self.kits[slot].as_ref() else { return };
         let weapon = kit.melee;
-        let spec = weapon.kit();
+        let spec = sim.weapons.kit(weapon);
         let (eye, look) = super::interact::eye_and_look(&p.state, p.crouching);
         let lag = p.view_lag as usize;
         let Some(hit) = sim.probe_lagged(eye, look, spec.reach, slot, lag) else { return };
